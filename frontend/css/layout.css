@@ -1,0 +1,547 @@
+/* ============================================================
+   UchôaStock — Layout (shell da aplicação)
+   Sidebar, topbar, área de conteúdo e navegação mobile.
+
+   Escrito mobile-first: a base é o celular e os @media (min-width)
+   vão acrescentando. Era o contrário antes — o desktop era a base e
+   o mobile corrigia tudo à força, o que exigia 305 !important só
+   nestes dois arquivos. Aqui não há nenhum.
+   ============================================================ */
+
+/* Transparente de proposito: quem pinta o fundo e o body, com o
+   gradiente radial do tema. */
+.dashboard {
+    display: flex;
+    min-height: 100vh;
+    background: transparent;
+}
+
+/* ============================================================
+   Sidebar
+   No celular ela vira uma gaveta fora da tela, aberta pelo
+   hambúrguer. O app.js liga/desliga .mobile-menu-open no <body>.
+   ============================================================ */
+
+.sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: var(--z-sidebar);
+    display: flex;
+    flex-direction: column;
+    width: min(300px, 86vw);
+    height: 100dvh;
+    padding: var(--space-5) var(--space-4) var(--space-4);
+    overflow-y: auto;
+    background: var(--color-sidebar);
+    background-image: var(--color-sidebar-gradient);
+    color: var(--color-text-sidebar);
+    box-shadow: var(--shadow-lg);
+    transform: translateX(-105%);
+    visibility: hidden;
+    transition: transform var(--duration-base) var(--ease-out),
+        visibility var(--duration-base);
+}
+
+body.mobile-menu-open .sidebar {
+    transform: translateX(0);
+    visibility: visible;
+}
+
+/* ---------- Marca ----------
+   Mesmo arranjo do login: a logo à esquerda e, ao lado, o nome com
+   uma linha de apoio embaixo. Uma linha fina separa a marca do menu
+   (antes era uma pílula com borda, apertada e diferente do login). */
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+    padding: 0 var(--space-2) var(--space-5);
+    font-size: var(--text-base);
+    line-height: var(--leading-tight);
+    border-bottom: 1px solid var(--color-border-dark);
+}
+
+.logo-image {
+    height: 40px;
+    width: auto;
+    flex: 0 0 auto;
+}
+
+.logo-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.logo-text strong {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text-invert);
+    white-space: nowrap;
+}
+
+.logo-text small {
+    margin-top: 2px;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-normal);
+    letter-spacing: normal;
+    color: var(--color-text-subtle);
+}
+
+/* ---------- Navegação ---------- */
+
+.sidebar nav {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.sidebar nav a {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: var(--touch-target);
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--color-text-sidebar);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    transition: background var(--duration-fast) ease,
+        color var(--duration-fast) ease,
+        transform var(--duration-fast) ease;
+}
+
+/* Brilho que atravessa o item ao passar o mouse, com um leve empurrao
+   para a direita. Estava no tema e se perdeu na reescrita. */
+.sidebar nav a::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(100deg,
+            transparent 15%,
+            rgba(255, 255, 255, 0.08) 50%,
+            transparent 85%);
+    transform: translateX(-120%);
+}
+
+.sidebar nav a:hover {
+    color: var(--color-text-invert);
+    background: var(--color-sidebar-hover);
+    text-decoration: none;
+    transform: translateX(4px);
+    box-shadow: inset 0 0 0 1px var(--color-brand-border);
+}
+
+.sidebar nav a:hover::after {
+    opacity: 1;
+    animation: nav-sheen 650ms ease both;
+}
+
+@keyframes nav-sheen {
+    to {
+        transform: translateX(120%);
+    }
+}
+
+/* Página ativa: três sinais somados — barra lateral, fundo e peso —
+   para ficar óbvio mesmo de relance e sem depender só de cor. */
+.sidebar nav a.tab-active {
+    color: var(--color-text-invert);
+    background: var(--color-brand-tint);
+    box-shadow: inset 0 0 0 1px var(--color-brand-border);
+    font-weight: var(--weight-semibold);
+}
+
+.sidebar nav a.tab-active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 3px;
+    height: 22px;
+    margin-top: -11px;
+    background: var(--color-brand-soft);
+    border-radius: 0 var(--radius-full) var(--radius-full) 0;
+}
+
+.sidebar nav a.tab-active .nav-icon {
+    color: var(--color-brand-light);
+}
+
+.nav-icon {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* ---------- Rodapé da sidebar ---------- */
+
+.sidebar-footer {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: auto;
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--color-border-dark);
+}
+
+/* Sair: ação discreta de propósito. Antes era um botão azul cheio,
+   com o mesmo peso do "Salvar", e competia com as ações de verdade.
+   O vermelho só aparece no hover, avisando que ali se sai do sistema. */
+.sidebar-logout {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: var(--touch-target);
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--color-text-sidebar);
+    border: 1px solid var(--color-border-dark);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    transition: background var(--duration-fast) ease,
+        color var(--duration-fast) ease,
+        border-color var(--duration-fast) ease;
+}
+
+.sidebar-logout:hover {
+    color: var(--color-danger-text);
+    background: var(--color-danger-tint);
+    border-color: var(--color-danger-solid);
+    text-decoration: none;
+}
+
+/* ============================================================
+   Overlay do menu mobile
+   ============================================================ */
+
+.mobile-sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-overlay);
+    background: var(--color-overlay);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity var(--duration-base) ease,
+        visibility var(--duration-base) ease;
+}
+
+body.mobile-menu-open .mobile-sidebar-overlay {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+/* Trava a rolagem do fundo enquanto a gaveta está aberta. */
+body.mobile-menu-open {
+    overflow: hidden;
+}
+
+/* ============================================================
+   Conteúdo
+   ============================================================ */
+
+/* A pagina entra subindo de leve — o app.js ja faz isso no bloco de
+   conteudo, e aqui o shell inteiro acompanha. */
+.main-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+    animation: page-entrada 420ms var(--ease-out) both;
+}
+
+@keyframes page-entrada {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+}
+
+/* ---------- Topbar ---------- */
+
+.topbar {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: var(--topbar-height);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-topbar);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.topbar h2 {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--text-lg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---------- Botão do menu ---------- */
+
+.mobile-menu-button {
+    display: inline-grid;
+    place-items: center;
+    width: var(--touch-target);
+    height: var(--touch-target);
+    flex: 0 0 var(--touch-target);
+    color: var(--color-text);
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-border-input);
+    border-radius: var(--radius-md);
+    -webkit-tap-highlight-color: transparent;
+    transition: background var(--duration-fast) ease;
+}
+
+.mobile-menu-button:hover {
+    background: var(--color-surface-hover);
+}
+
+.mobile-menu-button svg {
+    width: 21px;
+    height: 21px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+/* ---------- Identificação do usuário ---------- */
+
+.user {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    min-width: 0;
+    margin-left: auto;
+    text-align: right;
+}
+
+.user-name {
+    display: block;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+}
+
+.user-role {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 2px;
+    padding: 1px var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    border-radius: var(--radius-full);
+    white-space: nowrap;
+}
+
+.user-role-superadmin,
+.user-role-admin {
+    color: var(--color-info-text);
+    background: var(--color-info-tint);
+}
+
+.user-role-manager {
+    color: var(--color-warning-text);
+    background: var(--color-warning-tint);
+}
+
+.user-role-user {
+    color: var(--color-text-muted);
+    background: var(--color-surface-alt);
+}
+
+/* ---------- Área de conteúdo ---------- */
+
+.content {
+    flex: 1;
+    width: 100%;
+    padding: var(--space-4);
+}
+
+.eyebrow {
+    display: block;
+    margin-bottom: var(--space-1);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--color-brand-light);
+}
+
+/* ============================================================
+   Tabelas no celular: cada linha vira um cartão
+
+   O app.js (initResponsiveTableLabels) copia o texto de cada <th>
+   para data-label do <td> correspondente. Aqui esse rótulo vira o
+   ::before de cada célula. Sem isso a tabela estouraria a largura
+   da tela.
+   ============================================================ */
+
+@media (max-width: 767px) {
+
+    .content table,
+    .content thead,
+    .content tbody,
+    .content tr,
+    .content td {
+        display: block;
+        width: 100%;
+    }
+
+    .content thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+    }
+
+    .content tbody tr {
+        margin-bottom: var(--space-3);
+        padding: var(--space-2) var(--space-3);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .content tbody td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+        padding: var(--space-2) 0;
+        border-bottom: 1px solid var(--color-border);
+        text-align: right;
+    }
+
+    .content tbody td:last-child {
+        border-bottom: none;
+    }
+
+    .content tbody td::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        font-size: var(--text-xs);
+        font-weight: var(--weight-semibold);
+        text-transform: uppercase;
+        letter-spacing: var(--tracking-wide);
+        color: var(--color-text-muted);
+        text-align: left;
+    }
+
+    /* Célula de "nenhum registro": ocupa a linha inteira, sem rótulo. */
+    .content tbody td[colspan] {
+        display: block;
+        text-align: center;
+    }
+
+    .content tbody td[colspan]::before {
+        content: none;
+    }
+}
+
+/* ============================================================
+   Tablet — a partir daqui a sidebar é fixa e o menu some
+   O breakpoint casa com o app.js, que fecha a gaveta em >= 768.
+   ============================================================ */
+
+@media (min-width: 768px) {
+
+    .sidebar {
+        position: fixed;
+        width: var(--sidebar-width);
+        padding: var(--space-6) var(--space-5) var(--space-5);
+        transform: none;
+        visibility: visible;
+        box-shadow: none;
+        border-right: 1px solid var(--color-border-dark);
+    }
+
+    .mobile-menu-button,
+    .mobile-sidebar-overlay {
+        display: none;
+    }
+
+    /* Mesmo se o body ficar com a classe, no desktop nada trava. */
+    body.mobile-menu-open {
+        overflow: auto;
+    }
+
+    .main-content {
+        margin-left: var(--sidebar-width);
+    }
+
+    .topbar {
+        min-height: 70px;
+        padding: var(--space-3) var(--space-6);
+    }
+
+    /* O título grande agora é o do .page-hero; a topbar só situa. */
+    .topbar h2 {
+        font-size: var(--text-lg);
+    }
+
+    .content {
+        padding: var(--space-6);
+    }
+
+    .user-name {
+        max-width: 220px;
+    }
+}
+
+/* ============================================================
+   Desktop
+   ============================================================ */
+
+@media (min-width: 1024px) {
+
+    .content {
+        padding: var(--space-6) var(--space-7);
+    }
+}
+
+/* ============================================================
+   Telas largas — limita a largura da linha de leitura
+   ============================================================ */
+
+@media (min-width: 1280px) {
+
+    /* margin-inline:auto e essencial aqui: sem ele o max-width apenas
+       encolhe o conteudo contra a borda esquerda e abre um vazio a
+       direita. */
+    .content {
+        max-width: 1400px;
+        margin-inline: auto;
+    }
+}

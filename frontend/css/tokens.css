@@ -1,0 +1,253 @@
+/* ============================================================
+   UchôaStock — Design tokens
+   Fonte única de verdade para cor, espaço, tipografia e forma.
+   Nenhum outro arquivo deve conter valor solto: sempre var(--x).
+   ============================================================ */
+
+/* ---------- Tipografia: Inter auto-hospedada ----------
+   Os arquivos ficam em frontend/css/fonts/ porque o backend já serve
+   http.Dir("frontend/css") e o FileServer do Go entrega subpastas.
+   Assim não foi preciso criar rota nova para as fontes.
+   font-display: swap — o texto aparece na hora com a fonte do sistema
+   e troca quando a Inter chega; em obra, com rede ruim, isso evita
+   tela em branco. */
+
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/inter-400.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('fonts/inter-500.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('fonts/inter-600.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('fonts/inter-700.woff2') format('woff2');
+}
+
+:root {
+
+    /* ---------- Marca ----------
+       Azul da logo da Uchôa. Em fundo escuro o tom cheio serve de
+       preenchimento (botão), e o claro serve de texto/link. */
+
+    --color-brand: #1E64BE;
+    --color-brand-strong: #17509A;
+    --color-brand-light: #8AC7FF;
+    /* sobre surface: 9.8:1 — AAA, é o tom de texto/link */
+    --color-brand-soft: #4A8AD6;
+    --color-brand-tint: rgba(30, 100, 190, 0.16);
+    --color-brand-border: rgba(30, 100, 190, 0.38);
+
+    /* ---------- Superfícies ----------
+       O UchôaStock é um sistema de tema escuro. As superfícies são
+       tons de azul-marinho puxados do mesmo matiz da logo da Uchôa
+       (em vez do cinza-ardósia neutro de antes), para o site inteiro
+       conversar com a marca. */
+
+    --color-bg: #06101F;
+    --color-bg-gradient: radial-gradient(circle at 75% 0%, #10284D 0%, #06101F 48%, #040A15 100%);
+    --color-surface: #0E1B31;
+    --color-surface-alt: #122240;
+    --color-surface-hover: #182B4D;
+    --color-sidebar: #081529;
+    --color-sidebar-gradient: linear-gradient(180deg, #0B1C38 0%, #081529 100%);
+    --color-sidebar-hover: #182B4D;
+    --color-topbar: rgba(8, 21, 41, 0.88);
+    --color-overlay: rgba(2, 6, 14, 0.72);
+
+    /* Painel de apresentação do login: vai do marinho até o azul da
+       marca, com uma malha de pontos azulados por cima. */
+    --color-hero-gradient: linear-gradient(160deg, #081529 0%, #0B1E3E 55%, #15397A 100%);
+    --color-hero-dots: rgba(138, 199, 255, 0.12);
+
+    /* ---------- Faixas da marca ----------
+       O desenho da logo da Uchôa: quatro linhas que sobem num degrau
+       em curva. A máscara define só a FORMA (o preto dela não aparece)
+       e o fill define a COR — transparente à esquerda, azul da marca à
+       direita. Separar as duas coisas deixa a cor sair dos tokens, e o
+       mesmo desenho serve no topo das telas, dos modais e dos cartões
+       sem repetir SVG em cada template. */
+    --brand-waves-mask: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 100'%3E%3Cg fill='none' stroke='%23000' stroke-width='10'%3E%3Cpath d='M0 26H636C660 26 664 14 688 14H800'/%3E%3Cpath d='M0 46H636C660 46 664 36 688 36H800'/%3E%3Cpath d='M0 66H636C660 66 664 58 688 58H800'/%3E%3Cpath d='M0 86H636C660 86 664 80 688 80H800'/%3E%3C/g%3E%3C/svg%3E");
+    --brand-waves-fill: linear-gradient(90deg, transparent 0%, var(--color-brand-border) 55%, var(--color-brand) 100%);
+
+    /* ---------- Texto ---------- */
+
+    --color-text: #E8F0FB;
+    /* sobre surface: 15.0:1 — AAA */
+    --color-text-muted: #A9BCD6;
+    /* sobre surface:  8.9:1 — AAA */
+    --color-text-subtle: #8FA5C4;
+    /* sobre surface:  6.8:1 — AA  */
+    --color-text-invert: #F8FBFF;
+    --color-text-sidebar: #CAD7EA;
+
+    /* ---------- Linhas ----------
+       Levemente azuladas, no lugar do cinza puro. */
+
+    --color-border: rgba(120, 160, 220, 0.16);
+    --color-border-strong: rgba(120, 160, 220, 0.30);
+    --color-border-dark: rgba(120, 160, 220, 0.16);
+
+    /* Borda de input e de controle é componente de UI, não enfeite:
+       a WCAG 1.4.11 exige 3:1 contra o fundo. As bordas acima servem
+       para separar superfícies (decorativas, isentas) e não dariam
+       conta aqui. Esta tem 3.6:1 sobre o cartão. */
+    --color-border-input: #5B7499;
+
+    /* ---------- Semânticas ----------
+       Em tema escuro a lógica se inverte: o texto é o tom claro e o
+       fundo é a cor translúcida sobre a superfície. */
+
+    --color-success: #9FE3B0;
+    /* sobre surface: 11.6:1 — AAA */
+    --color-success-tint: rgba(34, 197, 94, 0.16);
+    --color-success-text: #9FE3B0;
+    --color-success-solid: #16A34A;
+
+    --color-danger: #FCA5A5;
+    /* sobre surface:  9.1:1 — AAA */
+    --color-danger-tint: rgba(220, 38, 38, 0.18);
+    --color-danger-text: #FCA5A5;
+    --color-danger-solid: #DC2626;
+
+    --color-warning: #FBBF62;
+    /* sobre surface: 10.4:1 — AAA */
+    --color-warning-tint: rgba(217, 119, 6, 0.18);
+    --color-warning-text: #FBBF62;
+    --color-warning-solid: #D97706;
+
+    --color-info: var(--color-brand-light);
+    --color-info-tint: rgba(30, 100, 190, 0.16);
+    --color-info-text: #8AC7FF;
+
+    /* Dourado de destaque que o tema já usava. */
+    --color-gold: #F5B942;
+    --color-gold-tint: rgba(245, 185, 66, 0.16);
+    --color-gold-border: rgba(245, 185, 66, 0.32);
+
+    /* ---------- Espaçamento: escala de 4px ----------
+       Substitui os 92 valores px soltos do CSS antigo. */
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+    --space-8: 64px;
+
+    /* ---------- Tipografia ----------
+       8 degraus no lugar dos 33 font-size que existiam, mais dois
+       tamanhos fluidos de vitrine. O 5xl e os "display" são só para o
+       título do login. */
+
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+    --text-xs: 11px;
+    --text-sm: 13px;
+    --text-base: 15px;
+    --text-lg: 18px;
+    --text-xl: 22px;
+    --text-2xl: 28px;
+    --text-3xl: 34px;
+    --text-5xl: 52px;
+
+    /* Fluidos: clamp(mínimo, ideal, máximo). O valor do meio segue a
+       largura da tela (vw), e o mínimo e o máximo seguram os extremos.
+       O "-sm" vale para o celular; o outro, para o login lado a lado. */
+    --text-display-sm: clamp(28px, 8.4vw, 40px);
+    --text-display: clamp(40px, 4.2vw, 64px);
+
+    --weight-normal: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+    --weight-bold: 700;
+
+    --leading-tight: 1.2;
+    --leading-normal: 1.5;
+    --leading-relaxed: 1.65;
+
+    --tracking-tight: -0.02em;
+    --tracking-wide: 0.08em;
+
+    /* ---------- Forma ---------- */
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --radius-full: 999px;
+
+    /* Em fundo escuro a sombra suave some; estes valores são mais
+       densos que os de um tema claro de propósito. */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.28);
+    --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.36);
+    --shadow-lg: 0 18px 40px rgba(0, 0, 0, 0.48);
+    --shadow-focus: 0 0 0 3px rgba(74, 138, 214, 0.45);
+
+    /* ---------- Movimento ---------- */
+
+    --ease-out: cubic-bezier(0.22, 0.8, 0.2, 1);
+    --duration-fast: 140ms;
+    --duration-base: 220ms;
+    --duration-slow: 400ms;
+
+    /* ---------- Camadas ----------
+       Declaradas juntas para não haver z-index inventado na tela.
+       A sidebar mobile precisa ficar acima do overlay, e o toast
+       acima de tudo. */
+
+    --z-sticky: 20;
+    --z-overlay: 900;
+    --z-sidebar: 950;
+    --z-modal: 1000;
+    --z-toast: 1100;
+
+    /* ---------- Medidas do shell ---------- */
+
+    --sidebar-width: 256px;
+    --topbar-height: 64px;
+
+    /* Alvo mínimo de toque. 44px é a recomendação da WCAG 2.5.5 e aqui
+       tem motivo prático: o sistema é usado de luva, em obra. */
+    --touch-target: 44px;
+}
+
+/* ---------- Breakpoints ----------
+   Ficam como comentário, e não como variável, porque custom property
+   não funciona dentro de @media — o CSS precisa do número literal.
+   Esta é a escala oficial; não invente outra.
+
+     até 767px   celular   (base do CSS: tudo é escrito mobile-first)
+     768px       tablet    sidebar deixa de ser gaveta e fica fixa
+                           — casa com o window.innerWidth >= 768 do app.js
+     1024px      desktop   grids passam a ter mais de uma coluna
+     1280px      amplo     limita a largura da linha de leitura
+
+   Duas exceções de componente, justificadas:
+     640px       o filtro de materiais já cabe em 3 colunas no celular
+                 em paisagem, antes do tablet
+     900px       o login só comporta hero + formulário lado a lado a
+                 partir daqui; em 768px o hero ficaria espremido      */

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>UchôaStock - Login</title>
+
+    <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/tokens.css?v=9">
+    <link rel="stylesheet" href="/css/base.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=9">
+    <link rel="stylesheet" href="/css/login.css?v=9">
+</head>
+
+<body>
+
+        <main class="login-page">
+
+        <div class="login-hero">
+            <svg class="hero-chart" viewBox="0 0 500 300" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                <polyline points="0,220 90,180 180,200 270,110 360,140 450,50 500,70" fill="none" stroke="#1E64BE"
+                    stroke-width="2" opacity="0.35" />
+                <polyline points="0,220 90,180 180,200 270,110 360,140 450,50 500,70 500,300 0,300"
+                    fill="url(#chartFade)" stroke="none" opacity="0.5" />
+                <defs>
+                    <linearGradient id="chartFade" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#1E64BE" stop-opacity="0.2" />
+                        <stop offset="100%" stop-color="#1E64BE" stop-opacity="0" />
+                    </linearGradient>
+                </defs>
+            </svg>
+
+            <div class="login-brand">
+                <img class="login-logo-image" src="/images/uchoa-logo.png" alt="">
+
+                <div class="login-brand-text">
+                    <h1>Uchôa Stock</h1>
+                    <p>Controle de estoque: entradas, saídas e aviso do que está acabando.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="login-form-side">
+            <section class="login-card">
+
+                <!-- Faixas decorativas no mesmo desenho da logo: linhas
+                     horizontais que sobem em degrau suave. -->
+                <div class="login-card-waves" aria-hidden="true">
+                    <svg viewBox="0 0 400 100" preserveAspectRatio="xMaxYMid slice" fill="none"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="waveFade" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="400"
+                                y2="0">
+                                <stop offset="0" class="wave-stop-start" />
+                                <stop offset="0.6" class="wave-stop-mid" />
+                                <stop offset="1" class="wave-stop-end" />
+                            </linearGradient>
+                        </defs>
+                        <path class="wave" pathLength="1" d="M0 26 H236 C260 26 264 14 288 14 H400" />
+                        <path class="wave" pathLength="1" d="M0 46 H236 C260 46 264 36 288 36 H400" />
+                        <path class="wave" pathLength="1" d="M0 66 H236 C260 66 264 58 288 58 H400" />
+                        <path class="wave" pathLength="1" d="M0 86 H236 C260 86 264 80 288 80 H400" />
+                    </svg>
+                </div>
+
+                <h2 class="welcome-title">Bem-vindo</h2>
+
+                <p class="subtitle">
+                    Entre para acessar o painel de gestão
+                </p>
+
+                <form action="/login" method="POST">
+
+                    <div class="input-group">
+                        <label for="email">E-mail</label>
+
+                        <input type="email" id="email" name="email" value="{{ .Email }}"
+                            placeholder="Digite seu e-mail" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="password">Senha</label>
+
+                        <div class="password-field">
+                            <input type="password" id="password" name="senha" placeholder="Digite sua senha" required>
+
+                            <button type="button" class="eye" id="togglePassword" aria-label="Mostrar senha">
+                                <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="submit">
+                        Entrar
+                    </button>
+
+                </form>
+
+                <footer class="login-footer">
+
+                    <p>
+                        &copy; <span data-current-year>2026</span> Uchôa &middot;
+                        <span class="login-footer-system">UchôaStock</span>
+                    </p>
+
+                    <p class="login-footer-support">
+                        Suporte: fale com o administrador do sistema
+                    </p>
+
+                </footer>
+
+            </section>
+        </div>
+
+    </main>
+
+    {{ if .Error }}
+    <div class="login-alert" role="alert" aria-live="assertive">
+        <span class="login-alert-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+        </span>
+        <span>
+            <strong>Não foi possível entrar</strong>
+            <small>{{ .Error }}</small>
+        </span>
+    </div>
+    {{ end }}
+
+    <script src="/js/app.js?v=12"></script>
+
+</body>
+
+</html>

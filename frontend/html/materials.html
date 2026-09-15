@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UchôaStock - Materiais</title>
+    <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/tokens.css?v=9">
+    <link rel="stylesheet" href="/css/base.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=9">
+    <link rel="stylesheet" href="/css/layout.css?v=9">
+    <link rel="stylesheet" href="/css/pages.css?v=9">
+</head>
+
+<body class="materials-page">
+
+    <div class="dashboard">
+
+        <aside class="sidebar">
+
+            <h1 class="logo">
+                <img class="logo-image" src="/images/uchoa-logo.png" alt="">
+                <span class="logo-text">
+                    <strong>Uchôa Stock</strong>
+                    <small>Controle de estoque</small>
+                </span>
+            </h1>
+
+            <nav>
+                <a href="/dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>Dashboard</a>
+                <a class="tab-active" href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
+                <a href="/estoque"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM7 7V4h10v3M8 11h8M8 15h5"></path></svg>Estoque</a>
+                <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
+                {{ if .IsAdmin }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="/logout" class="sidebar-logout"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg>Sair</a>
+            </div>
+
+        </aside>
+        <div class="mobile-sidebar-overlay" aria-hidden="true"></div>
+
+        <main class="main-content">
+
+            <header class="topbar">
+                <button class="mobile-menu-button" type="button" aria-label="Abrir menu" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+                <h2>Materiais</h2>
+            </header>
+
+            <section class="content">
+
+                <header class="page-hero">
+                    <div class="page-hero-text">
+                        <span class="eyebrow">Catálogo</span>
+                        <h3>Materiais cadastrados</h3>
+                        <p>Busque, ordene e cadastre os materiais controlados no estoque.</p>
+                        <div class="page-hero-actions">
+                            <button class="new-material-button" type="button" id="open-create-material">
+                                Novo material
+                            </button>
+                        </div>
+                    </div>
+                </header>
+
+                <nav class="materials-tabs" aria-label="Opções de materiais">
+                    <a class="material-tab-active" href="/materiais">Novo material</a>
+                    <a href="/alterar-material">Alterar material</a>
+                    <a href="/estoque">Estoque</a>
+                </nav>
+
+                <form class="materials-filter" method="GET" action="/materiais">
+                    <input type="search" name="busca" value="{{ .Search }}" placeholder="Buscar material ou ID">
+                    <select name="ordem" aria-label="Ordenar materiais">
+                        <option value="recentes" {{ if eq .Order "recentes" }}selected{{ end }}>Mais recentes</option>
+                        <option value="nome" {{ if eq .Order "nome" }}selected{{ end }}>Nome</option>
+                        <option value="estoque" {{ if eq .Order "estoque" }}selected{{ end }}>Estoque</option>
+                    </select>
+                    <button type="submit">Filtrar</button>
+                </form>
+
+                {{ if .Message }}
+                <p class="form-success" role="status">
+                    {{ .Message }}
+                </p>
+                {{ end }}
+
+                {{ if .Error }}
+                <p class="form-error" role="alert">
+                    {{ .Error }}
+                </p>
+                {{ end }}
+
+                <div class="materials-table page-table materials-list-table">
+
+                    <table>
+
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Material</th>
+                                <th>Estoque</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {{ range .Materials }}
+
+                            <tr>
+
+                                <td>
+                                    {{ .ID }}
+                                </td>
+
+                                <td>
+                                    {{ .Name }}
+                                </td>
+
+                                <td>
+                                    <span class="stock-quantity {{ .StockStatus }}">
+                                        {{ .Quantity }}
+                                    </span>
+                                </td>
+
+                                <td class="material-actions">
+
+                                    <a
+                                        class="edit-material-link"
+                                        href="/alterar-material">
+                                        Editar
+                                    </a>
+
+                                </td>
+
+                            </tr>
+
+                            {{ else }}
+
+                            <tr>
+                                <td colspan="5">
+                                    <div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg><span>Nenhum material cadastrado.</span><button type="button" class="empty-table-cta" data-open="create-material-modal">Cadastrar primeiro material</button></div>
+                                </td>
+                            </tr>
+
+                            {{ end }}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+                {{ if gt .TotalPages 1 }}
+
+                <div class="pagination">
+
+                    {{ if gt .Page 1 }}
+
+                    <a href="/materiais?pagina={{ .PreviousPage }}">
+                        « Anterior
+                    </a>
+
+                    {{ end }}
+
+                    <span>
+                        Página {{ .Page }} de {{ .TotalPages }}
+                    </span>
+
+                    {{ if lt .Page .TotalPages }}
+
+                    <a href="/materiais?pagina={{ .NextPage }}">
+                        Próxima »
+                    </a>
+
+                    {{ end }}
+
+                </div>
+
+                {{ end }}
+
+                <div
+                    class="modal-create"
+                    id="create-material-modal"
+                    hidden>
+
+                    <div
+                        class="modal-create-content"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="new-material-title">
+
+                        <div class="modal-create-header">
+
+                            <h3 id="new-material-title">
+                                Novo material
+                            </h3>
+
+                            <button
+                                class="close-modal-button"
+                                type="button"
+                                id="close-create-material"
+                                aria-label="Fechar">
+                                &times;
+                            </button>
+
+                        </div>
+
+                        <form
+                            class="create-form"
+                            action="/materiais"
+                            method="POST">
+
+                            <label for="material-name">
+                                Nome do material
+                            </label>
+
+                            <input
+                                id="material-name"
+                                type="text"
+                                name="nome"
+                                value="{{ .Name }}"
+                                placeholder="Ex.: Cimento CP-II 50kg"
+                                required>
+
+                            <label for="material-quantity">
+                                Quantidade inicial
+                            </label>
+
+                            <input
+                                id="material-quantity"
+                                type="number"
+                                name="quantidade"
+                                value="{{ .Quantity }}"
+                                min="0"
+                                required>
+
+                            <button type="submit">
+                                Cadastrar material
+                            </button>
+
+                        </form>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <script src="/js/app.js?v=12"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,468 @@
+/* ============================================================
+   UchôaStock — Tela de login
+   Layout próprio: hero de apresentação + cartão de acesso.
+   As animações de entrada foram preservadas (manchas flutuantes,
+   gráfico que se desenha, respiração e entrada em cascata). O cartão
+   ganhou as faixas da logo da Uchôa, que se desenham ao abrir.
+   ============================================================ */
+
+.login-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+}
+
+/* ============================================================
+   Hero
+   ============================================================ */
+
+.login-hero {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-6) var(--space-5) var(--space-7);
+    overflow: hidden;
+    color: var(--color-text-invert);
+    /* Malha de pontos sobre o fundo escuro — a textura do login. O
+       primeiro gradiente desenha o ponto, o background-size define o
+       passo da grade (28px). */
+    background:
+        radial-gradient(circle, var(--color-hero-dots) 1px, transparent 1px),
+        var(--color-hero-gradient);
+    background-size: 28px 28px, auto;
+}
+
+/* Manchas de luz ao fundo. Elas ficam atrás de tudo; o seletor
+   abaixo levanta o conteúdo real para z-index 1. */
+.login-hero::before,
+.login-hero::after {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    border-radius: var(--radius-full);
+    filter: blur(60px);
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+.login-hero::before {
+    width: 360px;
+    height: 360px;
+    top: -120px;
+    left: -100px;
+    background: radial-gradient(circle, var(--color-brand) 0%, transparent 70%);
+    animation: flutuarMancha 9s ease-in-out infinite;
+}
+
+.login-hero::after {
+    width: 300px;
+    height: 300px;
+    bottom: -100px;
+    right: 10%;
+    background: radial-gradient(circle, var(--color-brand-soft) 0%, transparent 70%);
+    animation: flutuarMancha 11s ease-in-out infinite reverse;
+}
+
+@keyframes flutuarMancha {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    50% {
+        transform: translate(30px, -24px) scale(1.08);
+    }
+}
+
+.login-hero> :not(.hero-chart) {
+    position: relative;
+    z-index: 1;
+}
+
+/* ---------- Marca: logo + título + subtítulo ----------
+   Uma linha só: a logo à esquerda e, ao lado, o título com o
+   subtítulo embaixo. O bloco inteiro fica centralizado no hero pelo
+   align-items do .login-hero. Logo e título crescem juntos nos
+   breakpoints (ver no fim do arquivo) para manterem a proporção. */
+
+.login-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+/* A logo é mais alta que larga, então o tamanho é travado pela
+   altura, que cresce com a largura da tela (clamp, igual ao título).
+   flex-shrink: 0 impede que o texto a esmague em tela estreita. */
+.login-logo-image {
+    display: block;
+    flex-shrink: 0;
+    height: clamp(72px, 22vw, 104px);
+    width: auto;
+    object-fit: contain;
+}
+
+/* min-width: 0 deixa o bloco de texto encolher e quebrar linha em
+   vez de empurrar a página para os lados. */
+.login-brand-text {
+    min-width: 0;
+}
+
+.login-hero h1 {
+    margin-bottom: var(--space-2);
+    font-size: var(--text-display-sm);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text-invert);
+}
+
+.login-hero p {
+    max-width: 380px;
+    font-size: var(--text-sm);
+    color: var(--color-text-sidebar);
+}
+
+/* ---------- Gráfico decorativo ---------- */
+
+.hero-chart {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    z-index: 0;
+    width: 100%;
+    height: 42%;
+    pointer-events: none;
+    animation: respirarGrafico 4s ease-in-out 2.2s infinite;
+}
+
+/* A linha se desenha: o traço começa todo "fora" e entra. */
+.hero-chart polyline:first-child {
+    stroke-dasharray: 700;
+    stroke-dashoffset: 700;
+    animation: desenharLinha 1.8s ease-out 0.4s forwards;
+}
+
+.hero-chart polyline:last-child {
+    opacity: 0;
+    animation: areaEntrada 1.2s ease-out 1.4s forwards;
+}
+
+@keyframes desenharLinha {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes areaEntrada {
+    to {
+        opacity: 0.5;
+    }
+}
+
+@keyframes respirarGrafico {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+/* ============================================================
+   Formulário
+   ============================================================ */
+
+.login-form-side {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    padding: var(--space-6) var(--space-4);
+    background: var(--color-bg-gradient);
+}
+
+/* O cartão guarda o próprio padding numa variável local porque as
+   faixas do topo usam o mesmo valor em negativo para encostar nas
+   bordas do cartão. Assim, mudar o padding não desalinha as faixas. */
+.login-card {
+    --card-padding: var(--space-5);
+
+    width: 100%;
+    max-width: 420px;
+    padding: var(--card-padding);
+    overflow: hidden;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    animation: cardEntrada 0.7s var(--ease-out) 0.2s forwards;
+}
+
+@keyframes cardEntrada {
+    from {
+        opacity: 0;
+        transform: translateY(18px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ---------- Faixas da marca ----------
+   Repetem o desenho da logo: faixas horizontais que sobem num degrau
+   em curva. Ficam no topo do cartão, encostadas na borda direita, e
+   somem suavemente para a esquerda — é o degradê do stroke que faz
+   isso, não uma máscara. São só decoração (aria-hidden no HTML). */
+
+.login-card-waves {
+    height: 88px;
+    margin: calc(var(--card-padding) * -1) calc(var(--card-padding) * -1) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.login-card-waves svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.wave-stop-start {
+    stop-color: var(--color-brand);
+    stop-opacity: 0;
+}
+
+.wave-stop-mid {
+    stop-color: var(--color-brand);
+    stop-opacity: 0.45;
+}
+
+.wave-stop-end {
+    stop-color: var(--color-brand);
+    stop-opacity: 1;
+}
+
+/* pathLength="1" no HTML normaliza o tamanho de cada faixa para 1,
+   então dasharray/dashoffset 1 valem para todas, seja qual for o
+   comprimento real da curva. */
+.wave {
+    stroke: url(#waveFade);
+    stroke-width: 10;
+    stroke-linecap: butt;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: desenharLinha 1.1s var(--ease-out) forwards;
+}
+
+/* Entrada em cascata: cada faixa começa um pouco depois da anterior. */
+.wave:nth-of-type(1) {
+    animation-delay: 0.45s;
+}
+
+.wave:nth-of-type(2) {
+    animation-delay: 0.55s;
+}
+
+.wave:nth-of-type(3) {
+    animation-delay: 0.65s;
+}
+
+.wave:nth-of-type(4) {
+    animation-delay: 0.75s;
+}
+
+.welcome-title {
+    margin-bottom: var(--space-2);
+    font-size: var(--text-2xl);
+}
+
+.subtitle {
+    margin-bottom: var(--space-6);
+    color: var(--color-text-muted);
+}
+
+.login-card form button[type="submit"] {
+    width: 100%;
+    margin-top: var(--space-3);
+}
+
+/* ---------- Rodapé ----------
+   Minimalista de propósito: o rodapé do login não disputa atenção com
+   o formulário. Fica separado por uma linha fina e usa o menor degrau
+   tipográfico do sistema. */
+
+.login-footer {
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    text-align: center;
+}
+
+.login-footer p {
+    margin: 0;
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    color: var(--color-text-subtle);
+}
+
+.login-footer-system {
+    font-weight: var(--weight-semibold);
+    color: var(--color-text-muted);
+}
+
+.login-footer-support {
+    margin-top: var(--space-1);
+}
+
+/* ---------- Alerta de erro ---------- */
+
+.login-alert {
+    position: fixed;
+    left: 50%;
+    bottom: var(--space-5);
+    z-index: var(--z-toast);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    width: min(400px, calc(100vw - var(--space-6)));
+    padding: var(--space-4);
+    color: var(--color-danger-text);
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-danger-solid);
+    border-left-width: 4px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    transform: translateX(-50%);
+    animation: alertaEntrada 480ms cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+
+@keyframes alertaEntrada {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(16px);
+    }
+}
+
+.login-alert-icon svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+}
+
+.login-alert strong {
+    display: block;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+}
+
+.login-alert small {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+/* ============================================================
+   Celular grande em diante: cartão mais folgado
+   ============================================================ */
+
+@media (min-width: 768px) {
+
+    .login-brand {
+        gap: var(--space-5);
+    }
+
+    .login-logo-image {
+        height: 136px;
+    }
+
+    .login-hero h1 {
+        font-size: var(--text-5xl);
+    }
+
+    .login-hero p {
+        font-size: var(--text-base);
+    }
+
+    .login-card {
+        --card-padding: var(--space-6);
+    }
+
+    .login-card-waves {
+        height: 104px;
+    }
+}
+
+/* ============================================================
+   Tablet e desktop: hero e formulário lado a lado
+   ============================================================ */
+
+@media (min-width: 900px) {
+
+    .login-page {
+        flex-direction: row;
+    }
+
+    /* Padding lateral menor que o vertical: em 900px o hero tem só
+       ~500px e a marca precisa desse espaço para não quebrar linha. */
+    .login-hero {
+        flex: 1 1 56%;
+        padding: var(--space-8) var(--space-6);
+    }
+
+    .login-logo-image {
+        height: clamp(112px, 12.5vw, 200px);
+    }
+
+    .login-hero h1 {
+        font-size: var(--text-display);
+    }
+
+    .login-form-side {
+        flex: 0 0 44%;
+        max-width: 560px;
+        padding: var(--space-8) var(--space-6);
+    }
+
+    .login-alert {
+        left: auto;
+        right: var(--space-5);
+        transform: none;
+    }
+
+    @keyframes alertaEntrada {
+        from {
+            opacity: 0;
+            transform: translateY(16px);
+        }
+    }
+}
+
+@media (min-width: 1280px) {
+
+    .login-hero {
+        padding: var(--space-8);
+    }
+
+    .login-brand {
+        gap: var(--space-6);
+    }
+
+    .login-hero p {
+        max-width: 420px;
+        font-size: var(--text-lg);
+    }
+}

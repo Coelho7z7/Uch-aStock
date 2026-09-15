@@ -1,0 +1,238 @@
+/* ============================================================
+   UchôaStock — Base
+   Reset, elementos HTML puros, tipografia e acessibilidade.
+   Nada de componente aqui: isso é components.css.
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    min-height: 100vh;
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    font-weight: var(--weight-normal);
+    line-height: var(--leading-normal);
+    color: var(--color-text);
+    /* O gradiente radial e a assinatura do tema: clareia de leve no
+       canto superior, dando profundidade ao fundo quase preto. */
+    background: var(--color-bg);
+    background-image: var(--color-bg-gradient);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---------- Tipografia ---------- */
+
+h1,
+h2,
+h3,
+h4 {
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
+}
+
+h1 {
+    font-size: var(--text-2xl);
+}
+
+h2 {
+    font-size: var(--text-xl);
+}
+
+h3 {
+    font-size: var(--text-lg);
+}
+
+h4 {
+    font-size: var(--text-base);
+}
+
+p {
+    line-height: var(--leading-relaxed);
+}
+
+small {
+    font-size: var(--text-sm);
+}
+
+strong,
+b {
+    font-weight: var(--weight-semibold);
+}
+
+a {
+    color: var(--color-brand-light);
+    text-decoration: none;
+    transition: color var(--duration-fast) ease;
+}
+
+a:hover {
+    color: var(--color-text-invert);
+    text-decoration: underline;
+}
+
+img,
+svg {
+    max-width: 100%;
+    display: block;
+}
+
+/* ---------- Ícones SVG ----------
+   Os ícones do projeto são traçados (stroke), não preenchidos. O padrão
+   do navegador para <svg> sem atributo é fill:black, o que transformava
+   cada ícone num borrão preto — ou, nos botões que contêm SÓ um ícone,
+   num botão aparentemente vazio.
+
+   O :not([fill]) é o ponto central: quem já declara fill inline (o
+   gráfico do login, por exemplo) fica intocado; todo o resto herda o
+   traçado e a cor do texto do elemento pai. */
+svg:not([fill]) {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+ul,
+ol {
+    list-style: none;
+}
+
+/* ---------- Formulários: herdar a fonte ----------
+   Sem isto o navegador aplica a fonte dele em input/button/select e a
+   tipografia do sistema vira uma colcha de retalhos. */
+
+input,
+button,
+select,
+textarea {
+    font: inherit;
+    color: inherit;
+}
+
+button {
+    cursor: pointer;
+    background: none;
+    border: none;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+/* ============================================================
+   Acessibilidade
+   ============================================================ */
+
+/* Foco visível em tudo que recebe teclado.
+   :focus-visible (e não :focus) para o anel aparecer para quem navega
+   por Tab sem poluir o clique de mouse. */
+
+:focus-visible {
+    outline: 2px solid var(--color-brand-light);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/* Sobre a sidebar escura o azul da marca some; lá o anel é claro. */
+.sidebar :focus-visible {
+    outline-color: var(--color-text-invert);
+}
+
+/* Some com o outline só de quem NÃO precisa dele (clique de mouse),
+   preservando o de teclado. */
+:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* Conteúdo lido por leitor de tela mas invisível na tela. */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Link de pular navegação: escondido até receber foco pelo teclado. */
+.skip-link {
+    position: absolute;
+    top: var(--space-2);
+    left: var(--space-2);
+    z-index: var(--z-toast);
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-surface);
+    color: var(--color-brand-light);
+    font-weight: var(--weight-semibold);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-200%);
+    transition: transform var(--duration-base) var(--ease-out);
+}
+
+.skip-link:focus {
+    transform: translateY(0);
+}
+
+/* Respeita quem pediu menos animação no sistema operacional.
+   O app.js já checa isso em JS; aqui vale para o que é puro CSS.
+   Este é o único !important legítimo do projeto: precisa vencer
+   qualquer transition declarada depois. */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* ---------- Barra de rolagem ---------- */
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border: 2px solid transparent;
+    border-radius: var(--radius-full);
+    background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-subtle);
+    background-clip: padding-box;
+}

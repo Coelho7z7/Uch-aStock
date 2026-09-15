@@ -1,0 +1,339 @@
+/* ============================================================
+   UchôaStock — Telas
+   Só o que é específico de uma página. O que se repete entre
+   telas vive em components.css.
+   ============================================================ */
+
+/* ============================================================
+   Dashboard
+   ============================================================ */
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+    align-items: start;
+}
+
+@media (min-width: 1024px) {
+    .dashboard-grid {
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+        gap: var(--space-5);
+    }
+}
+
+/* ---------- Cartão "Hoje" ----------
+   Mostra dois números onde os outros cartões mostram um. */
+
+.today-counts {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-2);
+}
+
+.today-in {
+    color: var(--color-success);
+}
+
+.today-out {
+    color: var(--color-warning);
+}
+
+.today-sep {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-normal);
+    color: var(--color-text-subtle);
+}
+
+/* ---------- Painel de materiais acabando ---------- */
+
+.activity-material {
+    font-weight: var(--weight-medium);
+}
+
+.last-handler {
+    line-height: var(--leading-tight);
+}
+
+.last-handler-name {
+    display: block;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+}
+
+.last-handler-when {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.last-handler-none {
+    font-size: var(--text-xs);
+    font-style: italic;
+    color: var(--color-text-subtle);
+}
+
+.low-stock-more td {
+    padding-top: var(--space-3);
+    text-align: center;
+}
+
+.low-stock-more a {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+}
+
+/* No celular a linha "e mais N" não vira cartão como as outras. */
+@media (max-width: 767px) {
+
+    .low-stock-more {
+        border: none;
+        background: none;
+        box-shadow: none;
+        padding: 0;
+    }
+
+    .low-stock-more td::before {
+        content: none;
+    }
+}
+
+/* ============================================================
+   Materiais
+   ============================================================ */
+
+/* Busca + ordenação + botão. No celular empilha; do tablet em
+   diante a busca cresce e os controles ficam na mesma linha. */
+.materials-filter {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+@media (min-width: 640px) {
+    .materials-filter {
+        grid-template-columns: 1fr auto auto;
+        align-items: center;
+    }
+}
+
+.materials-table,
+.stock-table,
+.movement-table,
+.users-table,
+.edit-materials-table {
+    padding: var(--space-2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+/* No celular o contêiner some visualmente: cada linha já é um
+   cartão próprio, então a moldura dupla só rouba espaço. */
+@media (max-width: 767px) {
+
+    .materials-table,
+    .stock-table,
+    .movement-table,
+    .users-table,
+    .edit-materials-table {
+        padding: 0;
+        background: none;
+        border: none;
+        box-shadow: none;
+    }
+}
+
+/* Ações da linha (editar, remover, entrada/saída).
+   No desktop o <td> continua sendo célula de tabela: display:flex
+   direto nele o tirava do layout da tabela, e a linha divisória
+   daquela coluna ficava desalinhada das outras. Por isso o espaço
+   entre os itens é margem, e o flex só entra no celular, onde a
+   linha já virou cartão. */
+.material-actions {
+    white-space: nowrap;
+}
+
+.material-actions > * {
+    vertical-align: middle;
+    margin-right: var(--space-2);
+}
+
+.material-actions > :last-child {
+    margin-right: 0;
+}
+
+/* O <form> vazio da tela de estoque só existe como alvo do atributo
+   form="" dos campos; sem isto ele ocuparia uma linha inteira. */
+.material-actions > form:empty {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .material-actions {
+        display: flex;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        white-space: normal;
+    }
+
+    .material-actions > * {
+        margin-right: 0;
+    }
+}
+
+/* Formulário dentro do modal de cadastro/edição. */
+.create-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.create-form label {
+    margin-top: var(--space-2);
+}
+
+.create-form button[type="submit"] {
+    margin-top: var(--space-4);
+}
+
+/* ============================================================
+   Estoque
+   ============================================================ */
+
+/* Entrada/saída: campo de quantidade estreito ao lado dos botões. */
+.stock-table input[type="number"] {
+    width: 96px;
+    min-width: 0;
+}
+
+@media (max-width: 767px) {
+    .stock-table input[type="number"] {
+        width: 100%;
+    }
+}
+
+/* ============================================================
+   Alteração de material
+   ============================================================ */
+
+.edit-kicker {
+    display: block;
+    margin-bottom: var(--space-1);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--color-brand-light);
+}
+
+.delete-material-form,
+.delete-user-form {
+    display: inline;
+}
+
+/* ============================================================
+   Usuários
+   ============================================================ */
+
+.users-table .role-badge {
+    margin-right: var(--space-1);
+}
+
+/* ============================================================
+   Acesso negado
+   ============================================================ */
+
+.access-denied-page {
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    padding: var(--space-5);
+}
+
+/* Cartão com a tarja das faixas da marca no topo, como o de login
+   (o ::before está em components.css, junto dos modais). */
+.access-denied-card {
+    --band-height: 72px;
+
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    max-width: 480px;
+    padding: calc(var(--band-height) + var(--space-6)) var(--space-6) var(--space-6);
+    background:
+        linear-gradient(var(--color-border), var(--color-border)) 0 var(--band-height) / 100% 1px no-repeat,
+        var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+}
+
+.access-denied-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+/* margin auto centraliza o ícone: ele é um bloco (display: grid), e
+   o text-align: center do cartão só centraliza texto e inline. */
+.access-denied-icon {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin: 0 auto var(--space-4);
+    color: var(--color-danger);
+    background: var(--color-danger-tint);
+    border-radius: var(--radius-full);
+}
+
+.access-denied-icon svg {
+    width: 28px;
+    height: 28px;
+}
+
+.access-denied-kicker {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--color-danger);
+}
+
+.access-denied-card h1 {
+    margin-bottom: var(--space-3);
+    font-size: var(--text-2xl);
+}
+
+.access-denied-card p {
+    margin-bottom: var(--space-5);
+    color: var(--color-text-muted);
+}
+
+.access-denied-card button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--touch-target);
+    padding: var(--space-3) var(--space-6);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--color-text-invert);
+    background: var(--color-brand);
+    border-radius: var(--radius-md);
+    transition: background var(--duration-fast) ease;
+}
+
+.access-denied-card button:hover {
+    background: var(--color-brand-strong);
+}

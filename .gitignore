@@ -1,0 +1,44 @@
+# Banco de dados SQLite (nunca versionar — contém dados e hashes de senha)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+backend/data/*
+!backend/data/.gitkeep
+
+# Variáveis de ambiente e segredos
+.env
+.env.*
+!.env.example
+dev.sh
+
+# Patches e diffs — já houve um credenciais-fix.patch commitado por engano
+*.patch
+*.diff
+
+# Binários compilados
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/uchoastock
+/GoStock
+
+# Testes e cobertura
+*.test
+*.out
+coverage.*
+
+# Editores e sistema operacional
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Temporários
+*.log
+*.tmp
+tmp/
