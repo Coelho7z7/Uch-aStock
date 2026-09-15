@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UchôaStock - Estoque</title>
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/css/tokens.css?v=9">
+    <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=9">
-    <link rel="stylesheet" href="/css/layout.css?v=9">
-    <link rel="stylesheet" href="/css/pages.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=10">
+    <link rel="stylesheet" href="/css/layout.css?v=10">
+    <link rel="stylesheet" href="/css/pages.css?v=11">
 </head>
 
 <body>
@@ -51,6 +51,19 @@
                     </svg>
                 </button>
                 <h2>Estoque</h2>
+
+                <div class="user">
+                    <span class="user-name">{{ .User.Name }}</span>
+                    {{ if eq .User.Role "superadmin" }}
+                    <span class="user-role user-role-superadmin">SuperAdmin</span>
+                    {{ else if eq .User.Role "admin" }}
+                    <span class="user-role user-role-admin">Administrador</span>
+                    {{ else if eq .User.Role "gerente" }}
+                    <span class="user-role user-role-manager">Gerente</span>
+                    {{ else }}
+                    <span class="user-role user-role-user">Usuário</span>
+                    {{ end }}
+                </div>
             </header>
 
             <section class="content">
@@ -59,15 +72,20 @@
                     <div class="page-hero-text">
                         <span class="eyebrow">Operação</span>
                         <h3>Controle de estoque</h3>
-                        <p>Informe a quantidade e registre a entrada ou a saída de cada material.</p>
+                        <p>Informe a quantidade e registre a entrada ou a saída de cada material. A observação diz para qual obra foi ou quem retirou.</p>
                     </div>
                 </header>
 
                 <nav class="materials-tabs" aria-label="Opções de materiais">
-                    <a href="/materiais">Novo material</a>
+                    <a href="/materiais">Materiais</a>
                     <a href="/alterar-material">Alterar material</a>
                     <a class="material-tab-active" href="/estoque">Estoque</a>
                 </nav>
+
+                <form class="materials-filter" method="GET" action="/estoque">
+                    <input type="search" name="busca" value="{{ .Search }}" placeholder="Buscar material ou ID" aria-label="Buscar material">
+                    <button type="submit">Buscar</button>
+                </form>
 
                 {{ if .Message }}
                 <p class="form-success" role="status">
@@ -99,18 +117,12 @@
 
                         <tr>
 
-                            <td>
-                                {{ .ID }}
-                            </td>
+                            <td>{{ .ID }}</td>
+
+                            <td>{{ .Name }}</td>
 
                             <td>
-                                {{ .Name }}
-                            </td>
-
-                            <td>
-                                <span class="stock-quantity {{ .StockStatus }}">
-                                    {{ .Quantity }}
-                                </span>
+                                <span class="stock-quantity {{ .StockStatus }}">{{ .FormattedQuantity }}</span><span class="unit-label">{{ .Unit }}</span>
                             </td>
 
                             <td class="material-actions">
@@ -121,19 +133,28 @@
                                     method="POST">
                                 </form>
 
-                                <input
-                                    type="hidden"
-                                    name="material_id"
-                                    value="{{ .ID }}"
-                                    form="stock-form-{{ .ID }}">
+                                <input type="hidden" name="material_id" value="{{ .ID }}" form="stock-form-{{ .ID }}">
+                                <input type="hidden" name="busca" value="{{ $.Search }}" form="stock-form-{{ .ID }}">
+                                <input type="hidden" name="pagina" value="{{ $.Page }}" form="stock-form-{{ .ID }}">
 
                                 <input
-                                    type="number"
+                                    class="stock-qty-input"
+                                    type="text"
+                                    inputmode="decimal"
                                     name="quantidade"
-                                    min="1"
                                     placeholder="Qtd."
+                                    aria-label="Quantidade de {{ .Name }} ({{ .Unit }})"
                                     form="stock-form-{{ .ID }}"
                                     required>
+
+                                <input
+                                    class="stock-note-input"
+                                    type="text"
+                                    name="observacao"
+                                    maxlength="120"
+                                    placeholder="Obra / observação"
+                                    aria-label="Observação da movimentação de {{ .Name }}"
+                                    form="stock-form-{{ .ID }}">
 
                                 <button
                                     type="submit"
@@ -160,7 +181,7 @@
 
                         <tr>
                             <td colspan="4">
-                                <div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg><span>Nenhum material cadastrado.</span></div>
+                                <div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg><span>{{ if $.Search }}Nenhum material encontrado para essa busca.{{ else }}Nenhum material cadastrado.{{ end }}</span></div>
                             </td>
                         </tr>
 
@@ -176,19 +197,13 @@
                 <div class="pagination">
 
                     {{ if gt .Page 1 }}
-                    <a href="/estoque?pagina={{ .PreviousPage }}">
-                        « Anterior
-                    </a>
+                    <a href="/estoque?pagina={{ .PreviousPage }}{{ if .Search }}&busca={{ .Search }}{{ end }}">« Anterior</a>
                     {{ end }}
 
-                    <span>
-                        Página {{ .Page }} de {{ .TotalPages }}
-                    </span>
+                    <span>Página {{ .Page }} de {{ .TotalPages }}</span>
 
                     {{ if lt .Page .TotalPages }}
-                    <a href="/estoque?pagina={{ .NextPage }}">
-                        Próxima »
-                    </a>
+                    <a href="/estoque?pagina={{ .NextPage }}{{ if .Search }}&busca={{ .Search }}{{ end }}">Próxima »</a>
                     {{ end }}
 
                 </div>

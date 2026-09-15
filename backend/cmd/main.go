@@ -167,6 +167,7 @@ func registerRoutes() {
 	http.HandleFunc("/estoque", stockHandler)
 
 	http.HandleFunc("/movimentacoes", movementHandler)
+	http.HandleFunc("/movimentacoes/exportar", movementExportHandler)
 
 	http.HandleFunc("/usuarios", userHandler)
 }

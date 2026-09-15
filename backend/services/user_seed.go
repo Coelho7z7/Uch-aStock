@@ -12,45 +12,40 @@ import (
 )
 
 // seedPassword lê a senha padrão de uma variável de ambiente; se ela não
-// estiver definida, gera uma senha aleatória e imprime uma única vez no log
-// (nunca fica hardcoded no código-fonte nem versionada no git).
-func seedPassword(envVar, label string) (string, error) {
+// estiver definida, gera uma senha aleatória (nunca fica hardcoded no
+// código-fonte nem versionada no git). generated indica esse segundo
+// caso, para a senha só ir para o log quando a conta for criada de
+// verdade.
+func seedPassword(envVar string) (password string, generated bool, err error) {
 	if pw := os.Getenv(envVar); pw != "" {
-		return pw, nil
+		return pw, false, nil
 	}
 
 	buf := make([]byte, 12)
 	if _, err := rand.Read(buf); err != nil {
-		return "", fmt.Errorf("gerar senha aleatória para %s: %w", label, err)
+		return "", false, fmt.Errorf("gerar senha aleatória (%s): %w", envVar, err)
 	}
-	pw := base64.RawURLEncoding.EncodeToString(buf)
-	fmt.Printf("[seed] %s: variável %s não definida, gerando senha temporária: %s\n", label, envVar, pw)
-	return pw, nil
+	return base64.RawURLEncoding.EncodeToString(buf), true, nil
 }
 
+// SeedDefaultUsers cria as contas padrão que ainda não existem. Conta que
+// já existe nunca tem a senha trocada.
+//
+// A senha temporária só é gerada e mostrada no log quando a conta é
+// criada. Antes ela era impressa a cada inicialização, mesmo com a conta
+// já existente — e quem lia o log tentava entrar com uma senha que nunca
+// tinha sido gravada.
 func SeedDefaultUsers() error {
-	gerentePw, err := seedPassword("SEED_GERENTE_PASSWORD", "Matheus (gerente)")
-	if err != nil {
-		return err
-	}
-	superAdminPw, err := seedPassword("SEED_SUPERADMIN_PASSWORD", "SuperAdmin")
-	if err != nil {
-		return err
-	}
-	usuarioPw, err := seedPassword("SEED_USUARIO_PASSWORD", "Usuario (basico)")
-	if err != nil {
-		return err
-	}
-
 	users := []struct {
-		name     string
-		email    string
-		password string
-		role     string
+		name   string
+		email  string
+		role   string
+		envVar string
+		label  string
 	}{
-		{name: "Gerente", email: "gerente@gmail.com", password: gerentePw, role: "gerente"},
-		{name: "SuperAdmin", email: "superadmin@gmail.com", password: superAdminPw, role: "superadmin"},
-		{name: "Usuario", email: "usuario@gmail.com", password: usuarioPw, role: "basico"},
+		{name: "Gerente", email: "gerente@gmail.com", role: "gerente", envVar: "SEED_GERENTE_PASSWORD", label: "Matheus (gerente)"},
+		{name: "SuperAdmin", email: "superadmin@gmail.com", role: "superadmin", envVar: "SEED_SUPERADMIN_PASSWORD", label: "SuperAdmin"},
+		{name: "Usuario", email: "usuario@gmail.com", role: "basico", envVar: "SEED_USUARIO_PASSWORD", label: "Usuario (basico)"},
 	}
 
 	for _, user := range users {
@@ -61,22 +56,10 @@ func SeedDefaultUsers() error {
 			return err
 		}
 
-		if user.email == "superadmin@gmail.com" {
-			// A conta SuperAdmin é criada apenas se ainda não existir e, se existir,
-			// recebe somente a correção de identidade/cargo; a senha existente
-			// não é sobrescrita em cada inicialização.
-			if !exists {
-				hash, err := bcrypt.GenerateFromPassword([]byte(user.password), bcrypt.DefaultCost)
-				if err != nil {
-					return fmt.Errorf("gerar senha de %s: %w", user.email, err)
-				}
-				if _, err := database.DB.Exec(`
-					INSERT INTO usuarios (nome, email, senha, role)
-					VALUES (?, ?, ?, 'superadmin')
-				`, user.name, user.email, string(hash)); err != nil {
-					return fmt.Errorf("inserir usuário %s: %w", user.email, err)
-				}
-			} else {
+		if exists {
+			// A conta SuperAdmin existente recebe somente a correção de
+			// identidade/cargo; a senha dela não é sobrescrita.
+			if user.email == "superadmin@gmail.com" {
 				if _, err := database.DB.Exec(`
 					UPDATE usuarios
 					SET role = 'superadmin', nome = 'SuperAdmin'
@@ -88,11 +71,12 @@ func SeedDefaultUsers() error {
 			continue
 		}
 
-		if exists {
-			continue
+		password, generated, err := seedPassword(user.envVar)
+		if err != nil {
+			return err
 		}
 
-		hash, err := bcrypt.GenerateFromPassword([]byte(user.password), bcrypt.DefaultCost)
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 		if err != nil {
 			return fmt.Errorf("gerar senha de %s: %w", user.email, err)
 		}
@@ -102,6 +86,10 @@ func SeedDefaultUsers() error {
 			VALUES (?, ?, ?, ?)
 		`, user.name, user.email, string(hash), user.role); err != nil {
 			return fmt.Errorf("inserir usuário %s: %w", user.email, err)
+		}
+
+		if generated {
+			fmt.Printf("[seed] %s: variável %s não definida; conta criada com a senha temporária: %s\n", user.label, user.envVar, password)
 		}
 	}
 

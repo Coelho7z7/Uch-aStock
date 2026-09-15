@@ -5,8 +5,24 @@ import (
 	"net/http"
 	"strings"
 
+	"uchoastock/backend/models"
 	"uchoastock/backend/services"
 )
+
+// loggedUser devolve o usuário da sessão, ou false se não houver sessão
+// válida. As telas usam o usuário para mostrar nome e cargo na topbar.
+func loggedUser(r *http.Request) (*models.User, bool) {
+	userID, authenticated := userFromSession(r)
+	if !authenticated {
+		return nil, false
+	}
+
+	user, err := services.GetUserByID(userID)
+	if err != nil {
+		return nil, false
+	}
+	return user, true
+}
 
 // isAdmin indica se o usuário logado tem poderes de administrador.
 // O SuperAdmin (reservado a superadmin@gmail.com) também conta como admin aqui — ele

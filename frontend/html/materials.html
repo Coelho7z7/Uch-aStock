@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UchôaStock - Materiais</title>
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/css/tokens.css?v=9">
+    <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=9">
-    <link rel="stylesheet" href="/css/layout.css?v=9">
-    <link rel="stylesheet" href="/css/pages.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=10">
+    <link rel="stylesheet" href="/css/layout.css?v=10">
+    <link rel="stylesheet" href="/css/pages.css?v=11">
 </head>
 
 <body class="materials-page">
@@ -51,6 +51,19 @@
                     </svg>
                 </button>
                 <h2>Materiais</h2>
+
+                <div class="user">
+                    <span class="user-name">{{ .User.Name }}</span>
+                    {{ if eq .User.Role "superadmin" }}
+                    <span class="user-role user-role-superadmin">SuperAdmin</span>
+                    {{ else if eq .User.Role "admin" }}
+                    <span class="user-role user-role-admin">Administrador</span>
+                    {{ else if eq .User.Role "gerente" }}
+                    <span class="user-role user-role-manager">Gerente</span>
+                    {{ else }}
+                    <span class="user-role user-role-user">Usuário</span>
+                    {{ end }}
+                </div>
             </header>
 
             <section class="content">
@@ -69,13 +82,13 @@
                 </header>
 
                 <nav class="materials-tabs" aria-label="Opções de materiais">
-                    <a class="material-tab-active" href="/materiais">Novo material</a>
+                    <a class="material-tab-active" href="/materiais">Materiais</a>
                     <a href="/alterar-material">Alterar material</a>
                     <a href="/estoque">Estoque</a>
                 </nav>
 
                 <form class="materials-filter" method="GET" action="/materiais">
-                    <input type="search" name="busca" value="{{ .Search }}" placeholder="Buscar material ou ID">
+                    <input type="search" name="busca" value="{{ .Search }}" placeholder="Buscar material ou ID" aria-label="Buscar material">
                     <select name="ordem" aria-label="Ordenar materiais">
                         <option value="recentes" {{ if eq .Order "recentes" }}selected{{ end }}>Mais recentes</option>
                         <option value="nome" {{ if eq .Order "nome" }}selected{{ end }}>Nome</option>
@@ -105,6 +118,7 @@
                                 <th>ID</th>
                                 <th>Material</th>
                                 <th>Estoque</th>
+                                <th>Avisar em</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
@@ -114,38 +128,22 @@
                             {{ range .Materials }}
 
                             <tr>
-
+                                <td>{{ .ID }}</td>
+                                <td>{{ .Name }}</td>
                                 <td>
-                                    {{ .ID }}
+                                    <span class="stock-quantity {{ .StockStatus }}">{{ .FormattedQuantity }}</span><span class="unit-label">{{ .Unit }}</span>
                                 </td>
-
-                                <td>
-                                    {{ .Name }}
-                                </td>
-
-                                <td>
-                                    <span class="stock-quantity {{ .StockStatus }}">
-                                        {{ .Quantity }}
-                                    </span>
-                                </td>
-
+                                <td class="minimum-cell">{{ .FormattedMinimum }} {{ .Unit }}</td>
                                 <td class="material-actions">
-
-                                    <a
-                                        class="edit-material-link"
-                                        href="/alterar-material">
-                                        Editar
-                                    </a>
-
+                                    <a class="edit-material-link" href="/alterar-material?editar={{ .ID }}">Editar</a>
                                 </td>
-
                             </tr>
 
                             {{ else }}
 
                             <tr>
                                 <td colspan="5">
-                                    <div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg><span>Nenhum material cadastrado.</span><button type="button" class="empty-table-cta" data-open="create-material-modal">Cadastrar primeiro material</button></div>
+                                    <div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg>{{ if $.Search }}<span>Nenhum material encontrado para essa busca.</span>{{ else }}<span>Nenhum material cadastrado.</span><button type="button" class="empty-table-cta" data-open="create-material-modal">Cadastrar primeiro material</button>{{ end }}</div>
                                 </td>
                             </tr>
 
@@ -162,23 +160,13 @@
                 <div class="pagination">
 
                     {{ if gt .Page 1 }}
-
-                    <a href="/materiais?pagina={{ .PreviousPage }}">
-                        « Anterior
-                    </a>
-
+                    <a href="/materiais?pagina={{ .PreviousPage }}&ordem={{ .Order }}{{ if .Search }}&busca={{ .Search }}{{ end }}">« Anterior</a>
                     {{ end }}
 
-                    <span>
-                        Página {{ .Page }} de {{ .TotalPages }}
-                    </span>
+                    <span>Página {{ .Page }} de {{ .TotalPages }}</span>
 
                     {{ if lt .Page .TotalPages }}
-
-                    <a href="/materiais?pagina={{ .NextPage }}">
-                        Próxima »
-                    </a>
-
+                    <a href="/materiais?pagina={{ .NextPage }}&ordem={{ .Order }}{{ if .Search }}&busca={{ .Search }}{{ end }}">Próxima »</a>
                     {{ end }}
 
                 </div>
@@ -198,9 +186,10 @@
 
                         <div class="modal-create-header">
 
-                            <h3 id="new-material-title">
-                                Novo material
-                            </h3>
+                            <div>
+                                <span class="edit-kicker">Catálogo</span>
+                                <h3 id="new-material-title">Novo material</h3>
+                            </div>
 
                             <button
                                 class="close-modal-button"
@@ -212,38 +201,30 @@
 
                         </div>
 
-                        <form
-                            class="create-form"
-                            action="/materiais"
-                            method="POST">
+                        <form class="create-form" action="/materiais" method="POST">
 
-                            <label for="material-name">
-                                Nome do material
-                            </label>
+                            <label for="material-name">Nome do material</label>
+                            <input id="material-name" type="text" name="nome" value="{{ .Name }}" placeholder="Ex.: Cimento CP-II 50kg" required>
 
-                            <input
-                                id="material-name"
-                                type="text"
-                                name="nome"
-                                value="{{ .Name }}"
-                                placeholder="Ex.: Cimento CP-II 50kg"
-                                required>
+                            <label for="material-unit">Unidade</label>
+                            <select id="material-unit" name="unidade">
+                                {{ range .Units }}<option value="{{ . }}"{{ if eq . $.Unit }} selected{{ end }}>{{ . }}</option>{{ end }}
+                            </select>
 
-                            <label for="material-quantity">
-                                Quantidade inicial
-                            </label>
+                            <div class="form-row">
+                                <div>
+                                    <label for="material-quantity">Quantidade inicial</label>
+                                    <input id="material-quantity" type="text" inputmode="decimal" name="quantidade" value="{{ .Quantity }}" required>
+                                </div>
+                                <div>
+                                    <label for="material-minimum">Avisar quando chegar a</label>
+                                    <input id="material-minimum" type="text" inputmode="decimal" name="limite_minimo" value="{{ .Minimum }}" required>
+                                </div>
+                            </div>
 
-                            <input
-                                id="material-quantity"
-                                type="number"
-                                name="quantidade"
-                                value="{{ .Quantity }}"
-                                min="0"
-                                required>
+                            <small class="role-help">Aceita decimais com vírgula, como 2,5. O material aparece como "acabando" quando o estoque chegar ao limite de aviso.</small>
 
-                            <button type="submit">
-                                Cadastrar material
-                            </button>
+                            <button type="submit">Cadastrar material</button>
 
                         </form>
 

@@ -8,11 +8,11 @@
     <title>UchôaStock - Movimentações</title>
 
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/css/tokens.css?v=9">
+    <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=9">
-    <link rel="stylesheet" href="/css/layout.css?v=9">
-    <link rel="stylesheet" href="/css/pages.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=10">
+    <link rel="stylesheet" href="/css/layout.css?v=10">
+    <link rel="stylesheet" href="/css/pages.css?v=11">
 </head>
 
 <body>
@@ -53,6 +53,19 @@
                     </svg>
                 </button>
                 <h2>Movimentações</h2>
+
+                <div class="user">
+                    <span class="user-name">{{ .User.Name }}</span>
+                    {{ if eq .User.Role "superadmin" }}
+                    <span class="user-role user-role-superadmin">SuperAdmin</span>
+                    {{ else if eq .User.Role "admin" }}
+                    <span class="user-role user-role-admin">Administrador</span>
+                    {{ else if eq .User.Role "gerente" }}
+                    <span class="user-role user-role-manager">Gerente</span>
+                    {{ else }}
+                    <span class="user-role user-role-user">Usuário</span>
+                    {{ end }}
+                </div>
             </header>
 
             <section class="content">
@@ -66,39 +79,70 @@
                     </div>
                 </header>
 
-                <nav class="materials-tabs" aria-label="Filtrar movimentações">
-                    <a href="/movimentacoes"{{ if eq .Filter "" }} class="material-tab-active"{{ end }}>Todas</a>
-                    <a href="/movimentacoes?tipo=ENTRADA"{{ if eq .Filter "ENTRADA" }} class="material-tab-active"{{ end }}>Entradas</a>
-                    <a href="/movimentacoes?tipo=SAIDA"{{ if eq .Filter "SAIDA" }} class="material-tab-active"{{ end }}>Saídas</a>
-                    <a href="/movimentacoes?tipo=ATUALIZACAO"{{ if eq .Filter "ATUALIZACAO" }} class="material-tab-active"{{ end }}>Atualizações</a>
+                <nav class="materials-tabs" aria-label="Filtrar movimentações por tipo">
+                    <a href="/movimentacoes?{{ template "filtros" . }}"{{ if eq .Filter "" }} class="material-tab-active"{{ end }}>Todas</a>
+                    <a href="/movimentacoes?tipo=ENTRADA{{ template "filtros" . }}"{{ if eq .Filter "ENTRADA" }} class="material-tab-active"{{ end }}>Entradas</a>
+                    <a href="/movimentacoes?tipo=SAIDA{{ template "filtros" . }}"{{ if eq .Filter "SAIDA" }} class="material-tab-active"{{ end }}>Saídas</a>
+                    <a href="/movimentacoes?tipo=ATUALIZACAO{{ template "filtros" . }}"{{ if eq .Filter "ATUALIZACAO" }} class="material-tab-active"{{ end }}>Atualizações</a>
                 </nav>
+
+                <form class="movements-filter" method="GET" action="/movimentacoes">
+                    {{ if .Filter }}<input type="hidden" name="tipo" value="{{ .Filter }}">{{ end }}
+
+                    <div class="filter-field">
+                        <label for="filter-material">Material</label>
+                        <input type="search" id="filter-material" name="material" value="{{ .MaterialSearch }}" placeholder="Nome do material">
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="filter-from">De</label>
+                        <input type="date" id="filter-from" name="de" value="{{ .From }}">
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="filter-to">Até</label>
+                        <input type="date" id="filter-to" name="ate" value="{{ .To }}">
+                    </div>
+
+                    <div class="filter-actions">
+                        <button type="submit">Filtrar</button>
+                        {{ if or .MaterialSearch .From .To }}<a class="button-secondary" href="/movimentacoes{{ if .Filter }}?tipo={{ .Filter }}{{ end }}">Limpar</a>{{ end }}
+                        <a class="button-secondary" href="/movimentacoes/exportar?tipo={{ .Filter }}{{ template "filtros" . }}">Exportar CSV</a>
+                    </div>
+                </form>
+
+                {{ if .Error }}
+                <p class="form-error" role="alert">
+                    {{ .Error }}
+                </p>
+                {{ end }}
 
                 <div class="page-table movement-table">
                 <table>
                     <thead>
                         <tr>
-                            <th>Usuário</th>
+                            <th>Data</th>
+                            <th>Tipo</th>
                             <th>Material</th>
                             <th>Quantidade</th>
-                            <th>Data</th>
-                            <th>Horário</th>
-                            <th>Tipo</th>
+                            <th>Usuário</th>
+                            <th>Observação</th>
                         </tr>
                     </thead>
 
                     <tbody>
                         {{ range .Movements }}
                         <tr>
+                            <td class="movement-when">{{ .FormattedDate }}<span class="movement-time">{{ .FormattedTime }}</span></td>
+                            <td><span class="activity-type activity-{{ .Type }}">{{ .FormattedType }}</span></td>
+                            <td class="activity-material">{{ .Material }}</td>
+                            <td>{{ if eq .Type "ATUALIZACAO" }}<span class="muted-dash">—</span>{{ else }}{{ .FormattedQuantity }}<span class="unit-label">{{ .Unit }}</span>{{ end }}</td>
                             <td>{{ .User }}</td>
-                            <td>{{ .Material }}</td>
-                            <td>{{ .Quantity }}</td>
-                            <td>{{ .FormattedDate }}</td>
-                            <td>{{ .FormattedTime }}</td>
-                            <td>{{ .FormattedType }}</td>
+                            <td class="movement-note">{{ if .Note }}{{ .Note }}{{ else }}<span class="muted-dash">—</span>{{ end }}</td>
                         </tr>
                         {{ else }}
                         <tr>
-                            <td colspan="6"><div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg><span>{{ if .Filter }}Nenhuma movimentação desse tipo.{{ else }}Nenhuma movimentação registrada.{{ end }}</span></div></td>
+                            <td colspan="6"><div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg><span>{{ if or $.Filter $.MaterialSearch $.From $.To }}Nenhuma movimentação com esses filtros.{{ else }}Nenhuma movimentação registrada.{{ end }}</span></div></td>
                         </tr>
                         {{ end }}
                     </tbody>
@@ -110,13 +154,13 @@
                 <div class="pagination">
 
                     {{ if gt .Page 1 }}
-                    <a href="/movimentacoes?pagina={{ .PreviousPage }}{{ if .Filter }}&tipo={{ .Filter }}{{ end }}">« Anterior</a>
+                    <a href="/movimentacoes?pagina={{ .PreviousPage }}{{ if .Filter }}&tipo={{ .Filter }}{{ end }}{{ template "filtros" . }}">« Anterior</a>
                     {{ end }}
 
                     <span>Página {{ .Page }} de {{ .TotalPages }}</span>
 
                     {{ if lt .Page .TotalPages }}
-                    <a href="/movimentacoes?pagina={{ .NextPage }}{{ if .Filter }}&tipo={{ .Filter }}{{ end }}">Próxima »</a>
+                    <a href="/movimentacoes?pagina={{ .NextPage }}{{ if .Filter }}&tipo={{ .Filter }}{{ end }}{{ template "filtros" . }}">Próxima »</a>
                     {{ end }}
 
                 </div>
@@ -133,3 +177,7 @@
 
 </body>
 </html>
+{{/* Filtros de material e período, repetidos em cada link (abas,
+     paginação, exportação) para nenhum clique perder a busca. O
+     html/template escapa cada valor para uso seguro na URL. */}}
+{{ define "filtros" }}{{ if .MaterialSearch }}&material={{ .MaterialSearch }}{{ end }}{{ if .From }}&de={{ .From }}{{ end }}{{ if .To }}&ate={{ .To }}{{ end }}{{ end }}

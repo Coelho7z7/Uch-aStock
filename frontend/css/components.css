@@ -176,6 +176,7 @@ input[type="email"],
 input[type="password"],
 input[type="number"],
 input[type="search"],
+input[type="date"],
 select,
 textarea {
     width: 100%;
@@ -208,6 +209,12 @@ textarea:focus {
 
 input::placeholder {
     color: var(--color-text-subtle);
+}
+
+/* O ícone de calendário do navegador é escuro por padrão e some no tema
+   escuro; color-scheme: dark pede a versão clara. */
+input[type="date"] {
+    color-scheme: dark;
 }
 
 input:disabled,
@@ -1445,7 +1452,7 @@ body.gs-leaving {
 }
 
 .confirm-delete-button:hover {
-    background: #B91C1C;
+    background: var(--color-danger-strong);
 }
 
 /* Envolve o texto destacado na busca; não deve alterar o layout da

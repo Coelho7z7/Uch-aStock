@@ -1,9 +1,20 @@
 package utils
 
 import (
+	"fmt"
+	"math"
+	"strconv"
 	"strings"
+	"time"
 	"unicode"
 )
+
+// MaterialUnits são as unidades aceitas no cadastro de material. A lista
+// é fechada de propósito: com texto livre, a mesma coisa viraria "saco",
+// "sacos" e "sc", e a busca e o relatório deixariam de bater.
+var MaterialUnits = []string{
+	"un", "saco", "m³", "m²", "m", "kg", "litro", "barra", "milheiro", "lata", "caixa", "rolo",
+}
 
 func ValidateName(name string) bool {
 	return strings.TrimSpace(name) != ""
@@ -11,6 +22,98 @@ func ValidateName(name string) bool {
 
 func ValidateQuantity(quantity int) bool {
 	return quantity >= 0
+}
+
+// ValidateUnit indica se a unidade está na lista de MaterialUnits.
+func ValidateUnit(unit string) bool {
+	for _, valid := range MaterialUnits {
+		if unit == valid {
+			return true
+		}
+	}
+	return false
+}
+
+// ParseQuantity converte o texto digitado em quantidade. Aceita vírgula
+// ou ponto como separador decimal ("2,5" ou "2.5"): no Brasil se escreve
+// com vírgula, mas o teclado numérico do celular às vezes só tem ponto.
+// O sinal não é validado aqui — quem chama decide se aceita zero ou
+// negativo.
+func ParseQuantity(text string) (float64, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return 0, fmt.Errorf("informe a quantidade")
+	}
+
+	// Com vírgula, o ponto só pode ser separador de milhar ("1.250,5").
+	// Sem vírgula, o ponto é o decimal.
+	if strings.Contains(text, ",") {
+		text = strings.ReplaceAll(text, ".", "")
+		text = strings.ReplaceAll(text, ",", ".")
+	}
+
+	// Só dígitos, ponto e sinal. Sem essa checagem o ParseFloat aceitaria
+	// coisas como "1e3" ou "Inf".
+	for _, char := range text {
+		if !unicode.IsDigit(char) && char != '.' && char != '-' {
+			return 0, fmt.Errorf("quantidade inválida")
+		}
+	}
+
+	value, err := strconv.ParseFloat(text, 64)
+	if err != nil {
+		return 0, fmt.Errorf("quantidade inválida")
+	}
+	return RoundQuantity(value), nil
+}
+
+// RoundQuantity arredonda para 3 casas decimais — o bastante para
+// 0,125 m³. Computador guarda fração em binário, e 1,1 - 0,3 dá
+// 0,8000000000000002; arredondar evita que esse resíduo apareça na tela
+// ou impeça uma saída que zeraria o estoque.
+func RoundQuantity(value float64) float64 {
+	return math.Round(value*1000) / 1000
+}
+
+// FormatQuantity escreve a quantidade no padrão brasileiro: vírgula nos
+// decimais, ponto nos milhares e sem zeros sobrando ("1.200", "2,5").
+func FormatQuantity(value float64) string {
+	value = RoundQuantity(value)
+	if value == 0 {
+		return "0"
+	}
+
+	negative := value < 0
+	if negative {
+		value = -value
+	}
+
+	text := strconv.FormatFloat(value, 'f', -1, 64)
+	intPart, fracPart, _ := strings.Cut(text, ".")
+
+	var grouped strings.Builder
+	for i, digit := range intPart {
+		if i > 0 && (len(intPart)-i)%3 == 0 {
+			grouped.WriteByte('.')
+		}
+		grouped.WriteRune(digit)
+	}
+
+	result := grouped.String()
+	if fracPart != "" {
+		result += "," + fracPart
+	}
+	if negative {
+		result = "-" + result
+	}
+	return result
+}
+
+// ValidateDate confere se o texto é uma data no formato AAAA-MM-DD, que
+// é o que o <input type="date"> envia.
+func ValidateDate(text string) bool {
+	_, err := time.Parse("2006-01-02", text)
+	return err == nil
 }
 
 func ValidateEmail(email string) bool {

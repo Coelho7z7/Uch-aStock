@@ -10,14 +10,50 @@ import (
 	"uchoastock/backend/utils"
 )
 
-// LowStockThreshold é a quantidade a partir da qual um material é
-// considerado "prestes a acabar". Em obra a reposição demora, então o
-// aviso precisa vir com folga.
-const LowStockThreshold = 10
+// LowStockThreshold é o limite de aviso sugerido para um material novo:
+// com essa quantidade ou menos, ele entra em "acabando". Cada material
+// tem o seu próprio limite (coluna limite_minimo); este é só o padrão.
+// Em obra a reposição demora, então o aviso precisa vir com folga.
+const LowStockThreshold = database.DefaultMinimumStock
+
+// materialColumns são as colunas lidas em toda consulta de material, na
+// mesma ordem em que scanMaterial as espera.
+const materialColumns = `id, nome, quantidade, unidade, limite_minimo`
+
+// rowScanner é o que *sql.Row e *sql.Rows têm em comum: o método Scan.
+// Uma interface em Go é só uma lista de métodos — qualquer tipo que os
+// tenha serve, sem precisar declarar nada. Assim a mesma scanMaterial lê
+// tanto uma linha avulsa quanto cada linha de um resultado maior.
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+// scanMaterial lê uma linha com materialColumns e já preenche os campos
+// calculados (situação do estoque e números formatados).
+func scanMaterial(row rowScanner) (models.Material, error) {
+	var material models.Material
+	if err := row.Scan(
+		&material.ID,
+		&material.Name,
+		&material.Quantity,
+		&material.Unit,
+		&material.MinimumStock,
+	); err != nil {
+		return material, err
+	}
+	fillMaterialDisplay(&material)
+	return material, nil
+}
+
+func fillMaterialDisplay(material *models.Material) {
+	material.StockStatus = stockStatus(material.Quantity, material.MinimumStock)
+	material.FormattedQuantity = utils.FormatQuantity(material.Quantity)
+	material.FormattedMinimum = utils.FormatQuantity(material.MinimumStock)
+}
 
 func ListMaterials() {
 	rows, err := database.DB.Query(`
-		SELECT id, nome, quantidade
+		SELECT ` + materialColumns + `
 		FROM produtos
 	`)
 	if err != nil {
@@ -29,16 +65,15 @@ func ListMaterials() {
 	found := false
 
 	for rows.Next() {
-		var material models.Material
-
-		if err := rows.Scan(&material.ID, &material.Name, &material.Quantity); err != nil {
+		material, err := scanMaterial(rows)
+		if err != nil {
 			fmt.Println("Erro ao ler material:", err)
 			return
 		}
 
 		fmt.Println("ID:", material.ID)
 		fmt.Println("Nome:", material.Name)
-		fmt.Println("Quantidade:", material.Quantity)
+		fmt.Println("Quantidade:", material.FormattedQuantity, material.Unit)
 		fmt.Println("----------------------")
 		found = true
 	}
@@ -57,7 +92,7 @@ func FindMaterial(reader *bufio.Reader) {
 	search := strings.TrimSpace(utils.ReadText(reader, "Digite o nome do material: "))
 
 	rows, err := database.DB.Query(`
-		SELECT id, nome, quantidade
+		SELECT `+materialColumns+`
 		FROM produtos
 		WHERE nome LIKE ?
 	`, "%"+search+"%")
@@ -70,9 +105,8 @@ func FindMaterial(reader *bufio.Reader) {
 	found := false
 
 	for rows.Next() {
-		var material models.Material
-
-		if err := rows.Scan(&material.ID, &material.Name, &material.Quantity); err != nil {
+		material, err := scanMaterial(rows)
+		if err != nil {
 			fmt.Println("Erro ao ler material:", err)
 			return
 		}
@@ -80,7 +114,7 @@ func FindMaterial(reader *bufio.Reader) {
 		fmt.Println("Material encontrado!")
 		fmt.Println("ID:", material.ID)
 		fmt.Println("Nome:", material.Name)
-		fmt.Println("Quantidade:", material.Quantity)
+		fmt.Println("Quantidade:", material.FormattedQuantity, material.Unit)
 		found = true
 	}
 
@@ -96,7 +130,7 @@ func FindMaterial(reader *bufio.Reader) {
 
 func GetAllMaterials() ([]models.Material, error) {
 	rows, err := database.DB.Query(`
-		SELECT id, nome, quantidade
+		SELECT ` + materialColumns + `
 		FROM produtos
 		WHERE ativo = 1
 		ORDER BY id DESC
@@ -109,17 +143,10 @@ func GetAllMaterials() ([]models.Material, error) {
 	var materials []models.Material
 
 	for rows.Next() {
-		var material models.Material
-
-		if err := rows.Scan(
-			&material.ID,
-			&material.Name,
-			&material.Quantity,
-		); err != nil {
+		material, err := scanMaterial(rows)
+		if err != nil {
 			return nil, err
 		}
-
-		material.StockStatus = stockStatus(material.Quantity)
 		materials = append(materials, material)
 	}
 
@@ -130,9 +157,28 @@ func GetAllMaterials() ([]models.Material, error) {
 	return materials, nil
 }
 
-// GetLowStockMaterials devolve os materiais que estão acabando, do mais
-// crítico para o menos crítico, junto de quem foi o último a movimentar
-// cada um. limit corta a lista; use 0 para trazer todos.
+// GetMaterialByID busca um material ativo pelo ID. É o que abre o modal
+// de edição direto no material clicado.
+func GetMaterialByID(materialID int) (*models.Material, error) {
+	material, err := scanMaterial(database.DB.QueryRow(`
+		SELECT `+materialColumns+`
+		FROM produtos
+		WHERE id = ? AND ativo = 1
+	`, materialID))
+	if err != nil {
+		return nil, fmt.Errorf("material não encontrado")
+	}
+	return &material, nil
+}
+
+// GetLowStockMaterials devolve os materiais que estão acabando — os que
+// têm quantidade igual ou menor que o próprio limite de aviso — junto de
+// quem foi o último a movimentar cada um. limit corta a lista; use 0
+// para trazer todos.
+//
+// A ordem põe os zerados primeiro e depois os mais perto do fim em
+// proporção ao limite. Ordenar pela quantidade pura não serve mais:
+// 5 sacos e 5 m³ não são comparáveis.
 //
 // O responsável sai de um LEFT JOIN com a última linha de movimentacoes
 // do material. É LEFT (e não JOIN comum) de propósito: material recém
@@ -144,6 +190,8 @@ func GetLowStockMaterials(limit int) ([]models.LowStockMaterial, error) {
 			p.id,
 			p.nome,
 			p.quantidade,
+			p.unidade,
+			p.limite_minimo,
 			COALESCE(u.nome, ''),
 			COALESCE(m.data, ''),
 			COALESCE(m.tipo, '')
@@ -156,10 +204,13 @@ func GetLowStockMaterials(limit int) ([]models.LowStockMaterial, error) {
 			LIMIT 1
 		)
 		LEFT JOIN usuarios u ON u.id = m.usuario_id
-		WHERE p.ativo = 1 AND p.quantidade <= ?
-		ORDER BY p.quantidade ASC, p.nome COLLATE NOCASE ASC
+		WHERE p.ativo = 1 AND p.quantidade <= p.limite_minimo
+		ORDER BY
+			CASE WHEN p.quantidade <= 0 THEN 0 ELSE 1 END,
+			p.quantidade * 1.0 / MAX(p.limite_minimo, 0.001),
+			p.nome COLLATE NOCASE ASC
 	`
-	args := []any{LowStockThreshold}
+	var args []any
 	if limit > 0 {
 		query += ` LIMIT ?`
 		args = append(args, limit)
@@ -181,6 +232,8 @@ func GetLowStockMaterials(limit int) ([]models.LowStockMaterial, error) {
 			&material.ID,
 			&material.Name,
 			&material.Quantity,
+			&material.Unit,
+			&material.MinimumStock,
 			&material.LastUser,
 			&rawDate,
 			&material.FormattedType,
@@ -188,7 +241,7 @@ func GetLowStockMaterials(limit int) ([]models.LowStockMaterial, error) {
 			return nil, err
 		}
 
-		material.StockStatus = stockStatus(material.Quantity)
+		fillMaterialDisplay(&material.Material)
 
 		if rawDate != "" {
 			if parsed, err := parseMovementDate(rawDate); err == nil {
@@ -209,22 +262,32 @@ func GetLowStockMaterials(limit int) ([]models.LowStockMaterial, error) {
 	return materials, rows.Err()
 }
 
-// CountLowStockMaterials conta quantos materiais estão acabando, para o
-// cartão "Em falta" do dashboard.
+// CountLowStockMaterials conta quantos materiais estão acabando (no
+// limite de aviso de cada um ou abaixo dele), para o cartão "Em falta".
 func CountLowStockMaterials() (int, error) {
 	var total int
 	err := database.DB.QueryRow(`
 		SELECT COUNT(*)
 		FROM produtos
-		WHERE ativo = 1 AND quantidade <= ?
-	`, LowStockThreshold).Scan(&total)
+		WHERE ativo = 1 AND quantidade <= limite_minimo
+	`).Scan(&total)
 	return total, err
 }
 
-func UpdateMaterialWeb(materialID int, name string, userID int) error {
+// UpdateMaterialWeb altera o cadastro de um material: nome, unidade e
+// limite de aviso. A quantidade não muda por aqui — ela só se mexe por
+// entrada e saída, para tudo ficar no histórico.
+func UpdateMaterialWeb(materialID int, name string, unit string, minimum float64, userID int) error {
 	name = strings.TrimSpace(name)
 	if !utils.ValidateName(name) {
 		return fmt.Errorf("o nome do material é obrigatório")
+	}
+	if !utils.ValidateUnit(unit) {
+		return fmt.Errorf("unidade inválida")
+	}
+	minimum = utils.RoundQuantity(minimum)
+	if minimum < 0 {
+		return fmt.Errorf("o limite de aviso não pode ser negativo")
 	}
 
 	tx, err := database.DB.Begin()
@@ -235,9 +298,9 @@ func UpdateMaterialWeb(materialID int, name string, userID int) error {
 
 	result, err := tx.Exec(`
 		UPDATE produtos
-		SET nome = ?
+		SET nome = ?, unidade = ?, limite_minimo = ?
 		WHERE id = ? AND ativo = 1
-	`, name, materialID)
+	`, name, unit, minimum, materialID)
 	if err != nil {
 		return err
 	}
@@ -250,7 +313,7 @@ func UpdateMaterialWeb(materialID int, name string, userID int) error {
 		return fmt.Errorf("material não encontrado")
 	}
 
-	if err := registerMovementTx(tx, materialID, userID, "ATUALIZACAO", 0); err != nil {
+	if err := registerMovementTx(tx, materialID, userID, "ATUALIZACAO", 0, ""); err != nil {
 		return err
 	}
 
@@ -278,11 +341,13 @@ func DeleteMaterialWeb(materialID int) error {
 	return nil
 }
 
-func stockStatus(quantity int) string {
+// stockStatus classifica o estoque para a cor do selo na tela. Os
+// valores (empty/low/normal) viram classe CSS no template.
+func stockStatus(quantity float64, minimum float64) string {
 	switch {
-	case quantity == 0:
+	case quantity <= 0:
 		return "empty"
-	case quantity <= LowStockThreshold:
+	case quantity <= minimum:
 		return "low"
 	default:
 		return "normal"
@@ -325,7 +390,7 @@ func UpdateMaterial(reader *bufio.Reader, userID int) {
 		return
 	}
 
-	if err := registerMovement(materialID, userID, "ATUALIZACAO", 0); err != nil {
+	if err := registerMovement(materialID, userID, "ATUALIZACAO", 0, ""); err != nil {
 		fmt.Println("Erro ao registrar atualização:", err)
 		return
 	}
@@ -334,7 +399,7 @@ func UpdateMaterial(reader *bufio.Reader, userID int) {
 }
 
 // PaginatedMaterials fetches a page of active materials, optionally
-// filtering by name (partial match). page starts at 1.
+// filtering by name (partial match) or exact ID. page starts at 1.
 func PaginatedMaterials(search string, page int, perPage int) ([]models.Material, int, error) {
 	return PaginatedSortedMaterials(search, page, perPage, "recentes")
 }
@@ -350,12 +415,14 @@ func PaginatedSortedMaterials(search string, page int, perPage int, order string
 	search = strings.TrimSpace(search)
 	nameFilter := "%" + search + "%"
 
+	// A busca casa pelo nome (parte dele) ou pelo ID exato — o campo de
+	// busca da tela diz "Buscar material ou ID".
 	var total int
 	if err := database.DB.QueryRow(`
 		SELECT COUNT(*)
 		FROM produtos
-		WHERE ativo = 1 AND nome LIKE ?
-	`, nameFilter).Scan(&total); err != nil {
+		WHERE ativo = 1 AND (nome LIKE ? OR CAST(id AS TEXT) = ?)
+	`, nameFilter, search).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
@@ -369,12 +436,12 @@ func PaginatedSortedMaterials(search string, page int, perPage int, order string
 		sorting = "quantidade ASC"
 	}
 	rows, err := database.DB.Query(`
-		SELECT id, nome, quantidade
+		SELECT `+materialColumns+`
 		FROM produtos
-		WHERE ativo = 1 AND nome LIKE ?
+		WHERE ativo = 1 AND (nome LIKE ? OR CAST(id AS TEXT) = ?)
 		ORDER BY `+sorting+`
 		LIMIT ? OFFSET ?
-	`, nameFilter, perPage, offset)
+	`, nameFilter, search, perPage, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -383,13 +450,10 @@ func PaginatedSortedMaterials(search string, page int, perPage int, order string
 	var materials []models.Material
 
 	for rows.Next() {
-		var material models.Material
-
-		if err := rows.Scan(&material.ID, &material.Name, &material.Quantity); err != nil {
+		material, err := scanMaterial(rows)
+		if err != nil {
 			return nil, 0, err
 		}
-
-		material.StockStatus = stockStatus(material.Quantity)
 		materials = append(materials, material)
 	}
 

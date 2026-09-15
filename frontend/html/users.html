@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UchôaStock - Usuários</title>
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/css/tokens.css?v=9">
+    <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=9">
-    <link rel="stylesheet" href="/css/layout.css?v=9">
-    <link rel="stylesheet" href="/css/pages.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=10">
+    <link rel="stylesheet" href="/css/layout.css?v=10">
+    <link rel="stylesheet" href="/css/pages.css?v=11">
 </head>
 
 <body class="materials-page">
@@ -51,6 +51,19 @@
                     </svg>
                 </button>
                 <h2>Usuários</h2>
+
+                <div class="user">
+                    <span class="user-name">{{ .User.Name }}</span>
+                    {{ if eq .User.Role "superadmin" }}
+                    <span class="user-role user-role-superadmin">SuperAdmin</span>
+                    {{ else if eq .User.Role "admin" }}
+                    <span class="user-role user-role-admin">Administrador</span>
+                    {{ else if eq .User.Role "gerente" }}
+                    <span class="user-role user-role-manager">Gerente</span>
+                    {{ else }}
+                    <span class="user-role user-role-user">Usuário</span>
+                    {{ end }}
+                </div>
             </header>
 
             <section class="content">

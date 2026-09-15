@@ -22,6 +22,18 @@
     }
 }
 
+/* Os painéis do dashboard dividem a largura em dois. Com o espaçamento
+   cheio das tabelas, a coluna de data da atividade recente estourava o
+   painel depois que a quantidade passou a mostrar a unidade. Só a partir
+   do tablet: no celular a linha vira cartão e tem padding próprio. */
+@media (min-width: 768px) {
+
+    .dashboard-grid thead th,
+    .dashboard-grid tbody td {
+        padding-inline: var(--space-3);
+    }
+}
+
 /* ---------- Cartão "Hoje" ----------
    Mostra dois números onde os outros cartões mostram um. */
 
@@ -206,16 +218,116 @@
    Estoque
    ============================================================ */
 
-/* Entrada/saída: campo de quantidade estreito ao lado dos botões. */
-.stock-table input[type="number"] {
+/* Entrada/saída: quantidade estreita e observação ao lado dos botões.
+   No celular a linha já virou cartão, então os dois ocupam a largura. */
+.stock-table .stock-qty-input {
     width: 96px;
     min-width: 0;
 }
 
+.stock-table .stock-note-input {
+    width: 200px;
+    min-width: 0;
+}
+
 @media (max-width: 767px) {
-    .stock-table input[type="number"] {
+
+    .stock-table .stock-qty-input,
+    .stock-table .stock-note-input {
         width: 100%;
     }
+}
+
+/* ============================================================
+   Quantidade com unidade
+   A unidade fica ao lado do selo de quantidade, menor e apagada: o
+   número é o que se lê primeiro.
+   ============================================================ */
+
+.unit-label {
+    margin-left: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+.minimum-cell {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.muted-dash {
+    color: var(--color-text-subtle);
+}
+
+/* Dois campos lado a lado no modal (quantidade e limite). No celular
+   empilham. */
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+}
+
+.form-row > div {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.form-row label {
+    margin-top: var(--space-2);
+}
+
+@media (min-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-4);
+    }
+}
+
+/* ============================================================
+   Movimentações: filtros
+   ============================================================ */
+
+.movements-filter {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-2);
+}
+
+@media (min-width: 1024px) {
+    .movements-filter {
+        grid-template-columns: minmax(0, 1fr) 180px 180px auto;
+        align-items: end;
+    }
+}
+
+.movement-time {
+    margin-left: var(--space-2);
+    color: var(--color-text-muted);
+}
+
+.movement-note {
+    max-width: 260px;
+    color: var(--color-text-muted);
 }
 
 /* ============================================================

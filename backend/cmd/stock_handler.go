@@ -4,24 +4,28 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
 	"uchoastock/backend/models"
 	"uchoastock/backend/services"
+	"uchoastock/backend/utils"
 )
 
+// stockHandler exibe a tela de entrada e saída de material e processa
+// cada movimentação (POST).
 func stockHandler(w http.ResponseWriter, r *http.Request) {
-	userID, authenticated := userFromSession(r)
+	user, authenticated := loggedUser(r)
 	if !authenticated {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
-	const materialsPerPage = 5
-
 	data := struct {
+		User         *models.User
 		Materials    []models.Material
+		Search       string
 		Message      string
 		Error        string
 		PreviousPage int
@@ -29,12 +33,21 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		TotalPages   int
 		Page         int
 		IsAdmin      bool
-	}{IsAdmin: canViewUsersTab(r)}
+	}{User: user, IsAdmin: canViewUsersTab(r)}
 
 	messages := map[string]string{
-		"entrada":    "Estoque adicionado com sucesso.",
+		"entrada":    "Entrada registrada com sucesso.",
 		"saida":      "Saída registrada com sucesso.",
 		"cadastrado": "Material cadastrado com sucesso.",
+	}
+
+	// FormValue lê tanto da URL (GET) quanto do formulário (POST): a busca
+	// e a página vêm como campos escondidos em cada linha, para a tela
+	// voltar exatamente onde a pessoa estava depois de movimentar.
+	data.Search = strings.TrimSpace(r.FormValue("busca"))
+	page, _ := strconv.Atoi(r.FormValue("pagina"))
+	if page < 1 {
+		page = 1
 	}
 
 	if r.Method == http.MethodPost {
@@ -42,46 +55,37 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		materialID, idErr := strconv.Atoi(r.FormValue("material_id"))
-		quantity, qtyErr := strconv.Atoi(strings.TrimSpace(r.FormValue("quantidade")))
+		quantity, qtyErr := utils.ParseQuantity(r.FormValue("quantidade"))
+		note := r.FormValue("observacao")
 		action := r.FormValue("acao")
 
+		var opErr error
 		switch {
 		case idErr != nil:
 			data.Error = "Material inválido."
 		case qtyErr != nil || quantity <= 0:
-			data.Error = "Informe uma quantidade válida."
+			data.Error = "Informe uma quantidade maior que zero."
 		case action == "entrada":
-			if err := services.AddStockWeb(materialID, quantity, userID); err != nil {
-				data.Error = err.Error()
-			} else {
-				http.Redirect(w, r, "/estoque?sucesso=entrada", http.StatusSeeOther)
-				return
-			}
+			opErr = services.AddStockWeb(materialID, quantity, user.ID, note)
 		case action == "saida":
-			if err := services.RegisterStockExitWeb(materialID, quantity, userID); err != nil {
-				data.Error = err.Error()
-			} else {
-				http.Redirect(w, r, "/estoque?sucesso=saida", http.StatusSeeOther)
-				return
-			}
+			opErr = services.RegisterStockExitWeb(materialID, quantity, user.ID, note)
 		default:
 			data.Error = "Ação inválida."
+		}
+
+		if opErr != nil {
+			data.Error = opErr.Error()
+		} else if data.Error == "" {
+			redirectToStock(w, r, action, data.Search, page)
+			return
 		}
 	} else if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET, POST")
 		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
 		return
 	}
-	page, _ := strconv.Atoi(r.URL.Query().Get("pagina"))
-	if page < 1 {
-		page = 1
-	}
 
-	materials, total, err := services.PaginatedMaterials(
-		"",
-		page,
-		materialsPerPage,
-	)
+	materials, total, err := services.PaginatedMaterials(data.Search, page, materialsPerPage)
 	if err != nil {
 		log.Println("erro em PaginatedMaterials:", err)
 		http.Error(w, "Erro ao buscar materiais", http.StatusInternalServerError)
@@ -99,7 +103,9 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 	data.PreviousPage = page - 1
 	data.NextPage = page + 1
 
-	data.Message = messages[r.URL.Query().Get("sucesso")]
+	if data.Message == "" {
+		data.Message = messages[r.URL.Query().Get("sucesso")]
+	}
 
 	tmpl, err := template.ParseFiles("frontend/html/stock.html")
 	if err != nil {
@@ -112,11 +118,21 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := tmpl.Execute(w, data); err != nil {
-		println("O Erro é: ", err.Error())
-		http.Error(
-			w,
-			"Erro ao renderizar estoque de material:",
-			http.StatusInternalServerError,
-		)
+		log.Println("erro ao renderizar estoque:", err)
+		http.Error(w, "Erro ao renderizar estoque", http.StatusInternalServerError)
 	}
+}
+
+// redirectToStock volta para a tela de estoque depois de uma
+// movimentação, mantendo a busca e a página. url.Values monta a query
+// string já com os caracteres especiais escapados ("m³", espaços...).
+func redirectToStock(w http.ResponseWriter, r *http.Request, action string, search string, page int) {
+	query := url.Values{"sucesso": {action}}
+	if search != "" {
+		query.Set("busca", search)
+	}
+	if page > 1 {
+		query.Set("pagina", strconv.Itoa(page))
+	}
+	http.Redirect(w, r, "/estoque?"+query.Encode(), http.StatusSeeOther)
 }

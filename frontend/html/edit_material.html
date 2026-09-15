@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UchôaStock - Alterar material</title>
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/css/tokens.css?v=9">
+    <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=9">
-    <link rel="stylesheet" href="/css/layout.css?v=9">
-    <link rel="stylesheet" href="/css/pages.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=10">
+    <link rel="stylesheet" href="/css/layout.css?v=10">
+    <link rel="stylesheet" href="/css/pages.css?v=11">
 </head>
 
 <body class="materials-page">
@@ -51,6 +51,19 @@
                     </svg>
                 </button>
                 <h2>Alterar material</h2>
+
+                <div class="user">
+                    <span class="user-name">{{ .User.Name }}</span>
+                    {{ if eq .User.Role "superadmin" }}
+                    <span class="user-role user-role-superadmin">SuperAdmin</span>
+                    {{ else if eq .User.Role "admin" }}
+                    <span class="user-role user-role-admin">Administrador</span>
+                    {{ else if eq .User.Role "gerente" }}
+                    <span class="user-role user-role-manager">Gerente</span>
+                    {{ else }}
+                    <span class="user-role user-role-user">Usuário</span>
+                    {{ end }}
+                </div>
             </header>
 
             <section class="content">
@@ -59,12 +72,12 @@
                     <div class="page-hero-text">
                         <span class="eyebrow">Catálogo</span>
                         <h3>Editar ou remover materiais</h3>
-                        <p>Renomeie um material ou tire do catálogo o que não é mais usado.</p>
+                        <p>Mude o nome, a unidade ou o limite de aviso, ou tire do catálogo o que não é mais usado.</p>
                     </div>
                 </header>
 
                 <nav class="materials-tabs" aria-label="Opções de materiais">
-                    <a href="/materiais">Novo material</a>
+                    <a href="/materiais">Materiais</a>
                     <a class="material-tab-active" href="/alterar-material">Alterar material</a>
                     <a href="/estoque">Estoque</a>
                 </nav>
@@ -90,6 +103,7 @@
                                 <th>ID</th>
                                 <th>Material</th>
                                 <th>Estoque</th>
+                                <th>Avisar em</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
@@ -100,17 +114,13 @@
 
                             <tr>
 
-                                <td>
-                                    #{{ .ID }}
-                                </td>
+                                <td>#{{ .ID }}</td>
 
-                                <td>
-                                    {{ .Name }}
-                                </td>
+                                <td>{{ .Name }}</td>
 
-                                <td>
-                                    {{ .Quantity }}
-                                </td>
+                                <td>{{ .FormattedQuantity }}<span class="unit-label">{{ .Unit }}</span></td>
+
+                                <td class="minimum-cell">{{ .FormattedMinimum }} {{ .Unit }}</td>
 
                                 <td class="material-actions">
 
@@ -120,7 +130,9 @@
                                         title="Editar material"
                                         aria-label="Editar {{ .Name }}"
                                         data-id="{{ .ID }}"
-                                        data-name="{{ .Name }}">
+                                        data-name="{{ .Name }}"
+                                        data-unit="{{ .Unit }}"
+                                        data-minimum="{{ .FormattedMinimum }}">
                                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path></svg>
                                     </button>
 
@@ -157,7 +169,9 @@
 
                 </div>
 
-                <div class="modal-edit" id="edit-material-modal" hidden>
+                <!-- Com ?editar=ID o servidor já manda este modal aberto e
+                     preenchido (sem o atributo hidden). -->
+                <div class="modal-edit" id="edit-material-modal" {{ if not .Editing }}hidden{{ end }}>
                     <div class="modal-edit-content" role="dialog" aria-modal="true" aria-labelledby="edit-material-title">
                         <div class="modal-create-header">
                             <div>
@@ -167,10 +181,27 @@
                             <button class="close-modal-button" type="button" id="close-edit-material" aria-label="Fechar">&times;</button>
                         </div>
                         <form class="create-form" action="/alterar-material" method="POST">
-                            <input type="hidden" name="material_id" id="edit-material-id">
+                            <input type="hidden" name="material_id" id="edit-material-id" value="{{ with .Editing }}{{ .ID }}{{ end }}">
                             <input type="hidden" name="acao" value="atualizar">
+
                             <label for="edit-material-name">Nome do material</label>
-                            <input type="text" name="nome" id="edit-material-name" required>
+                            <input type="text" name="nome" id="edit-material-name" value="{{ with .Editing }}{{ .Name }}{{ end }}" required>
+
+                            <div class="form-row">
+                                <div>
+                                    <label for="edit-material-unit">Unidade</label>
+                                    <select name="unidade" id="edit-material-unit">
+                                        {{ range .Units }}<option value="{{ . }}"{{ if $.Editing }}{{ if eq . $.Editing.Unit }} selected{{ end }}{{ end }}>{{ . }}</option>{{ end }}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="edit-material-minimum">Avisar quando chegar a</label>
+                                    <input type="text" inputmode="decimal" name="limite_minimo" id="edit-material-minimum" value="{{ with .Editing }}{{ .FormattedMinimum }}{{ end }}" required>
+                                </div>
+                            </div>
+
+                            <small class="role-help">A quantidade não muda por aqui: use Entrada e Saída na tela de Estoque, para tudo ficar no histórico.</small>
+
                             <button class="save-button" type="submit">Salvar alterações</button>
                         </form>
                     </div>
@@ -181,19 +212,13 @@
                 <div class="pagination">
 
                     {{ if gt .Page 1 }}
-                    <a href="/alterar-material?pagina={{ .PreviousPage }}">
-                        « Anterior
-                    </a>
+                    <a href="/alterar-material?pagina={{ .PreviousPage }}">« Anterior</a>
                     {{ end }}
 
-                    <span>
-                        Página {{ .Page }} de {{ .TotalPages }}
-                    </span>
+                    <span>Página {{ .Page }} de {{ .TotalPages }}</span>
 
                     {{ if lt .Page .TotalPages }}
-                    <a href="/alterar-material?pagina={{ .NextPage }}">
-                        Próxima »
-                    </a>
+                    <a href="/alterar-material?pagina={{ .NextPage }}">Próxima »</a>
                     {{ end }}
 
                 </div>
@@ -213,17 +238,33 @@
             const close = document.getElementById('close-edit-material');
             const id = document.getElementById('edit-material-id');
             const name = document.getElementById('edit-material-name');
+            const unit = document.getElementById('edit-material-unit');
+            const minimum = document.getElementById('edit-material-minimum');
 
-            document.querySelectorAll('.edit-material-button').forEach(function (button) {
+            // Só o botão de lápis tem data-id. A lixeira também usa a classe
+            // edit-material-button (pelo visual), e o seletor antigo pegava
+            // as duas: clicar em remover abria o modal de edição vazio.
+            document.querySelectorAll('.edit-material-button[data-id]').forEach(function (button) {
                 button.addEventListener('click', function () {
                     id.value = button.dataset.id;
                     name.value = button.dataset.name;
+                    unit.value = button.dataset.unit;
+                    minimum.value = button.dataset.minimum;
                     modal.hidden = false;
                     name.focus();
                 });
             });
 
-            const closeModal = function () { modal.hidden = true; };
+            // Aberto pelo servidor (?editar=ID): já chega com o foco no nome.
+            if (!modal.hidden) name.focus();
+
+            const closeModal = function () {
+                modal.hidden = true;
+                // Tira o ?editar da URL, para um F5 não reabrir o modal.
+                if (location.search.indexOf('editar=') !== -1) {
+                    history.replaceState(null, '', location.pathname);
+                }
+            };
             close.addEventListener('click', closeModal);
             modal.addEventListener('click', function (event) {
                 if (event.target === modal) closeModal();

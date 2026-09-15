@@ -8,11 +8,11 @@
     <title>UchôaStock - Dashboard</title>
 
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/css/tokens.css?v=9">
+    <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=9">
-    <link rel="stylesheet" href="/css/layout.css?v=9">
-    <link rel="stylesheet" href="/css/pages.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=10">
+    <link rel="stylesheet" href="/css/layout.css?v=10">
+    <link rel="stylesheet" href="/css/pages.css?v=11">
 </head>
 
 <body>
@@ -92,9 +92,9 @@
 
         <div class="card">
             <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 20 7v10l-8 4-8-4V7l8-4Z"/><path d="m4 7 8 4 8-4M12 11v10"/></svg></span>
-            <span class="card-title">Estoque</span>
-            <strong>{{ .Summary.TotalStock }}</strong>
-            <small>Unidades em estoque</small>
+            <span class="card-title">Zerados</span>
+            <strong>{{ .Summary.EmptyStock }}</strong>
+            <small>Sem nenhuma unidade</small>
         </div>
 
         <div class="card card-alert">
@@ -128,7 +128,7 @@
         <div class="section-header">
             <div>
                 <h3>Materiais acabando</h3>
-                <small>Com {{ .LowStockLimit }} unidades ou menos</small>
+                <small>No limite de aviso de cada material ou abaixo dele</small>
             </div>
             <a href="/estoque">Repor estoque</a>
         </div>
@@ -151,7 +151,7 @@
                     <tr>
                         <td class="activity-material">{{ .Name }}</td>
                         <td>
-                            <span class="stock-quantity {{ .StockStatus }}">{{ .Quantity }}</span>
+                            <span class="stock-quantity {{ .StockStatus }}">{{ .FormattedQuantity }}</span><span class="unit-label">{{ .Unit }}</span>
                         </td>
                         <td>
                             <span class="activity-type activity-{{ if eq .StockStatus "empty" }}SAIDA{{ else }}ATUALIZACAO{{ end }}">
@@ -202,7 +202,7 @@
                 <tr>
                     <th>Ação</th>
                     <th>Material</th>
-                    <th>Quantidade</th>
+                    <th>Qtd.</th>
                     <th>Quando</th>
                 </tr>
             </thead>
@@ -212,7 +212,7 @@
                 <tr>
                     <td><span class="activity-type activity-{{ .Type }}">{{ if eq .Type "ENTRADA" }}Adicionado{{ else if eq .Type "SAIDA" }}Saída{{ else }}Atualizado{{ end }}</span></td>
                     <td class="activity-material">{{ .Material }}</td>
-                    <td>{{ if eq .Type "ATUALIZACAO" }}-{{ else }}{{ .Quantity }}{{ end }}</td>
+                    <td>{{ if eq .Type "ATUALIZACAO" }}-{{ else }}{{ .FormattedQuantity }}<span class="unit-label">{{ .Unit }}</span>{{ end }}</td>
                     <td>{{ .FormattedDate }} às {{ .FormattedTime }}</td>
                 </tr>
                 {{ else }}

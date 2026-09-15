@@ -9,23 +9,30 @@ import (
 
 	"uchoastock/backend/models"
 	"uchoastock/backend/services"
+	"uchoastock/backend/utils"
 )
+
+// materialsPerPage é quantos materiais cada lista mostra por página. Era
+// 5, pouco para quem procura um item no meio de dezenas.
+const materialsPerPage = 10
 
 // materialHandler exibe a lista de materiais e processa o cadastro de
 // um novo material (POST).
 func materialHandler(w http.ResponseWriter, r *http.Request) {
-	userID, authenticated := userFromSession(r)
+	user, authenticated := loggedUser(r)
 	if !authenticated {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
-	const materialsPerPage = 5
-
 	data := struct {
+		User         *models.User
 		Materials    []models.Material
+		Units        []string
 		Name         string
-		Quantity     int
+		Quantity     string
+		Unit         string
+		Minimum      string
 		Search       string
 		Order        string
 		Message      string
@@ -35,7 +42,14 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 		PreviousPage int
 		NextPage     int
 		IsAdmin      bool
-	}{IsAdmin: canViewUsersTab(r)}
+	}{
+		User:     user,
+		Units:    utils.MaterialUnits,
+		Quantity: "0",
+		Unit:     "un",
+		Minimum:  utils.FormatQuantity(services.LowStockThreshold),
+		IsAdmin:  canViewUsersTab(r),
+	}
 
 	data.Message = map[string]string{
 		"cadastrado": "Material cadastrado com sucesso.",
@@ -50,31 +64,28 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		data.Name = strings.TrimSpace(r.FormValue("nome"))
-		quantityText := strings.TrimSpace(r.FormValue("quantidade"))
+		data.Quantity = strings.TrimSpace(r.FormValue("quantidade"))
+		data.Unit = r.FormValue("unidade")
+		data.Minimum = strings.TrimSpace(r.FormValue("limite_minimo"))
 
-		quantity, quantityErr := strconv.Atoi(quantityText)
+		quantity, quantityErr := utils.ParseQuantity(data.Quantity)
+		minimum, minimumErr := utils.ParseQuantity(data.Minimum)
 
-		if data.Name == "" {
+		switch {
+		case data.Name == "":
 			data.Error = "Informe o nome do material."
-		} else if quantityErr != nil || quantity < 0 {
-			data.Error = "Informe uma quantidade válida."
-		} else if err := services.CreateMaterialWeb(
-			data.Name,
-			quantity,
-			userID,
-		); err != nil {
-			data.Error = err.Error()
-		} else {
-			http.Redirect(
-				w,
-				r,
-				"/materiais?sucesso=cadastrado",
-				http.StatusSeeOther,
-			)
-			return
+		case quantityErr != nil || quantity < 0:
+			data.Error = "Informe uma quantidade inicial válida."
+		case minimumErr != nil || minimum < 0:
+			data.Error = "Informe um limite de aviso válido."
+		default:
+			if err := services.CreateMaterialWeb(data.Name, quantity, data.Unit, minimum, user.ID); err != nil {
+				data.Error = err.Error()
+			} else {
+				http.Redirect(w, r, "/materiais?sucesso=cadastrado", http.StatusSeeOther)
+				return
+			}
 		}
-
-		data.Quantity = quantity
 	} else if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET, POST")
 		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
@@ -116,11 +127,7 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 
 	tmpl, err := template.ParseFiles("frontend/html/materials.html")
 	if err != nil {
-		http.Error(
-			w,
-			"Erro ao carregar materiais",
-			http.StatusInternalServerError,
-		)
+		http.Error(w, "Erro ao carregar materiais", http.StatusInternalServerError)
 		return
 	}
 
@@ -129,24 +136,23 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := tmpl.Execute(w, data); err != nil {
-		http.Error(
-			w,
-			"Erro ao renderizar materiais",
-			http.StatusInternalServerError,
-		)
+		http.Error(w, "Erro ao renderizar materiais", http.StatusInternalServerError)
 	}
 }
 
 // editMaterialHandler exibe a tela de edição/remoção de materiais e
 // processa as ações de atualizar ou remover (POST).
+//
+// Com ?editar=ID a tela já abre com o modal de edição daquele material
+// preenchido. É o destino do botão "Editar" da lista de materiais — antes
+// ele só levava para esta tela, e a pessoa tinha que achar o material de
+// novo, às vezes em outra página.
 func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
-	userID, authenticated := userFromSession(r)
+	user, authenticated := loggedUser(r)
 	if !authenticated {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
-
-	const materialsPerPage = 5
 
 	messages := map[string]string{
 		"atualizado": "Material atualizado com sucesso.",
@@ -154,7 +160,10 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := struct {
+		User         *models.User
 		Materials    []models.Material
+		Units        []string
+		Editing      *models.Material
 		Message      string
 		Error        string
 		Page         int
@@ -163,6 +172,8 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 		NextPage     int
 		IsAdmin      bool
 	}{
+		User:    user,
+		Units:   utils.MaterialUnits,
 		Message: messages[r.URL.Query().Get("sucesso")],
 		IsAdmin: canViewUsersTab(r),
 	}
@@ -177,40 +188,31 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 			data.Error = "Material inválido."
 
 		} else if r.FormValue("acao") == "remover" {
-			opErr := services.DeleteMaterialWeb(materialID)
-
-			if opErr == nil {
-				http.Redirect(
-					w,
-					r,
-					"/alterar-material?sucesso=removido",
-					http.StatusSeeOther,
-				)
+			if opErr := services.DeleteMaterialWeb(materialID); opErr != nil {
+				data.Error = opErr.Error()
+			} else {
+				http.Redirect(w, r, "/alterar-material?sucesso=removido", http.StatusSeeOther)
 				return
 			}
-
-			data.Error = opErr.Error()
 
 		} else if r.FormValue("acao") == "atualizar" {
 			name := strings.TrimSpace(r.FormValue("nome"))
+			unit := r.FormValue("unidade")
+			minimumText := strings.TrimSpace(r.FormValue("limite_minimo"))
 
-			opErr := services.UpdateMaterialWeb(
-				materialID,
-				name,
-				userID,
-			)
-
-			if opErr == nil {
-				http.Redirect(
-					w,
-					r,
-					"/alterar-material?sucesso=atualizado",
-					http.StatusSeeOther,
-				)
+			minimum, minimumErr := utils.ParseQuantity(minimumText)
+			if minimumErr != nil {
+				data.Error = "Informe um limite de aviso válido."
+			} else if opErr := services.UpdateMaterialWeb(materialID, name, unit, minimum, user.ID); opErr != nil {
+				data.Error = opErr.Error()
+			} else {
+				http.Redirect(w, r, "/alterar-material?sucesso=atualizado", http.StatusSeeOther)
 				return
 			}
 
-			data.Error = opErr.Error()
+			// Deu erro: o modal reabre com o que foi digitado, para a
+			// pessoa corrigir em vez de preencher tudo de novo.
+			data.Editing = &models.Material{ID: materialID, Name: name, Unit: unit, FormattedMinimum: minimumText}
 
 		} else {
 			data.Error = "Ação inválida."
@@ -220,28 +222,23 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Allow", "GET, POST")
 		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
 		return
+	} else if editID, err := strconv.Atoi(r.URL.Query().Get("editar")); err == nil {
+		if material, err := services.GetMaterialByID(editID); err == nil {
+			data.Editing = material
+		} else {
+			data.Error = "Material não encontrado."
+		}
 	}
 
-	// Paginação
 	page, _ := strconv.Atoi(r.URL.Query().Get("pagina"))
-
 	if page < 1 {
 		page = 1
 	}
 
-	materials, total, err := services.PaginatedMaterials(
-		"",
-		page,
-		materialsPerPage,
-	)
-
+	materials, total, err := services.PaginatedMaterials("", page, materialsPerPage)
 	if err != nil {
 		log.Println("erro em PaginatedMaterials:", err)
-		http.Error(
-			w,
-			"Erro ao buscar materiais",
-			http.StatusInternalServerError,
-		)
+		http.Error(w, "Erro ao buscar materiais", http.StatusInternalServerError)
 		return
 	}
 
@@ -249,7 +246,6 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 	data.Page = page
 
 	data.TotalPages = (total + materialsPerPage - 1) / materialsPerPage
-
 	if data.TotalPages < 1 {
 		data.TotalPages = 1
 	}
@@ -257,16 +253,9 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 	data.PreviousPage = page - 1
 	data.NextPage = page + 1
 
-	tmpl, err := template.ParseFiles(
-		"frontend/html/edit_material.html",
-	)
-
+	tmpl, err := template.ParseFiles("frontend/html/edit_material.html")
 	if err != nil {
-		http.Error(
-			w,
-			"Erro ao carregar alteração de material",
-			http.StatusInternalServerError,
-		)
+		http.Error(w, "Erro ao carregar alteração de material", http.StatusInternalServerError)
 		return
 	}
 
@@ -275,10 +264,6 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := tmpl.Execute(w, data); err != nil {
-		http.Error(
-			w,
-			"Erro ao renderizar alteração de material",
-			http.StatusInternalServerError,
-		)
+		http.Error(w, "Erro ao renderizar alteração de material", http.StatusInternalServerError)
 	}
 }

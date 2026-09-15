@@ -12,13 +12,21 @@ import (
 // CreateMaterialWeb cadastra um material e já registra a entrada da
 // quantidade inicial no histórico de movimentações, tudo em uma única
 // transação.
-func CreateMaterialWeb(name string, quantity int, userID int) error {
+func CreateMaterialWeb(name string, quantity float64, unit string, minimum float64, userID int) error {
 	name = strings.TrimSpace(name)
 	if !utils.ValidateName(name) {
 		return fmt.Errorf("o nome do material é obrigatório")
 	}
-	if !utils.ValidateQuantity(quantity) {
+	quantity = utils.RoundQuantity(quantity)
+	if quantity < 0 {
 		return fmt.Errorf("a quantidade não pode ser negativa")
+	}
+	if !utils.ValidateUnit(unit) {
+		return fmt.Errorf("unidade inválida")
+	}
+	minimum = utils.RoundQuantity(minimum)
+	if minimum < 0 {
+		return fmt.Errorf("o limite de aviso não pode ser negativo")
 	}
 
 	tx, err := database.DB.Begin()
@@ -28,9 +36,9 @@ func CreateMaterialWeb(name string, quantity int, userID int) error {
 	defer tx.Rollback()
 
 	result, err := tx.Exec(`
-		INSERT INTO produtos (nome, quantidade)
-		VALUES (?, ?)
-	`, name, quantity)
+		INSERT INTO produtos (nome, quantidade, unidade, limite_minimo)
+		VALUES (?, ?, ?, ?)
+	`, name, quantity, unit, minimum)
 	if err != nil {
 		return err
 	}
@@ -40,7 +48,7 @@ func CreateMaterialWeb(name string, quantity int, userID int) error {
 		return err
 	}
 
-	if err := registerMovementTx(tx, int(materialID), userID, "ENTRADA", quantity); err != nil {
+	if err := registerMovementTx(tx, int(materialID), userID, "ENTRADA", quantity, "Estoque inicial"); err != nil {
 		return err
 	}
 
@@ -74,7 +82,7 @@ func CreateMaterial(reader *bufio.Reader, userID int) {
 		return
 	}
 
-	if err := registerMovementTx(tx, int(materialID), userID, "ENTRADA", quantity); err != nil {
+	if err := registerMovementTx(tx, int(materialID), userID, "ENTRADA", float64(quantity), "Estoque inicial"); err != nil {
 		fmt.Println("Erro ao registrar movimentação:", err)
 		return
 	}

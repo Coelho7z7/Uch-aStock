@@ -16,11 +16,12 @@ import (
 // A tela é acessível a administradores e gerentes; remover e alterar
 // permissão continuam restritos a administradores (checado abaixo).
 func userHandler(w http.ResponseWriter, r *http.Request) {
-	userID, authenticated := userFromSession(r)
+	user, authenticated := loggedUser(r)
 	if !authenticated {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
+	userID := user.ID
 	if !requireAdminOrManager(w, r) {
 		return
 	}
@@ -30,6 +31,7 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 	const usersPerPage = 8
 
 	data := struct {
+		User         *models.User
 		Users        []models.User
 		UserID       int
 		IsAdmin      bool
@@ -43,7 +45,7 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 		TotalPages   int
 		PreviousPage int
 		NextPage     int
-	}{UserID: userID, IsAdmin: admin}
+	}{User: user, UserID: userID, IsAdmin: admin}
 
 	data.Message = map[string]string{
 		"criado":     "Usuário criado com sucesso.",

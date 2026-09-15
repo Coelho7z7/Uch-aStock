@@ -129,6 +129,8 @@
     --color-danger-tint: rgba(220, 38, 38, 0.18);
     --color-danger-text: #FCA5A5;
     --color-danger-solid: #DC2626;
+    --color-danger-strong: #B91C1C;
+    /* hover do botão de confirmar remoção */
 
     --color-warning: #FBBF62;
     /* sobre surface: 10.4:1 — AAA */

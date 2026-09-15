@@ -6,24 +6,79 @@ import (
 
 	database "uchoastock/backend/database"
 	"uchoastock/backend/models"
+	"uchoastock/backend/utils"
 )
 
+// validMovementTypes são os valores aceitos em movimentacoes.tipo.
+var validMovementTypes = map[string]bool{"ENTRADA": true, "SAIDA": true, "ATUALIZACAO": true}
+
+// IsValidMovementType indica se o texto é um tipo de movimentação
+// conhecido. O handler usa para ignorar um ?tipo= inventado na URL.
+func IsValidMovementType(movementType string) bool {
+	return validMovementTypes[movementType]
+}
+
+// MovementFilter reúne os filtros opcionais do histórico. Campo vazio
+// significa "sem filtro" naquele critério. From e To vêm no formato
+// AAAA-MM-DD e são inclusivos — quem chama já validou o formato.
+type MovementFilter struct {
+	Type     string
+	Material string
+	From     string
+	To       string
+}
+
+// GetMovementsWeb devolve o histórico completo, do mais recente para o
+// mais antigo.
 func GetMovementsWeb() ([]models.Movement, error) {
-	rows, err := database.DB.Query(`
+	return GetMovementsFilteredWeb(MovementFilter{})
+}
+
+// GetMovementsFilteredWeb devolve o histórico aplicando os filtros no
+// próprio SQL. Só pedaços fixos de SQL são concatenados; todo valor
+// digitado pelo usuário entra por placeholder "?".
+func GetMovementsFilteredWeb(filter MovementFilter) ([]models.Movement, error) {
+	query := `
 		SELECT
 			m.id,
 			m.produto_id,
 			m.usuario_id,
 			m.data,
 			p.nome,
+			p.unidade,
 			u.nome,
 			m.tipo,
-			m.quantidade
+			m.quantidade,
+			m.observacao
 		FROM movimentacoes m
 		JOIN produtos p ON p.id = m.produto_id
 		JOIN usuarios u ON u.id = m.usuario_id
-		ORDER BY m.data DESC, m.id DESC
-	`)
+		WHERE 1 = 1
+	`
+	var args []any
+
+	if validMovementTypes[filter.Type] {
+		query += ` AND m.tipo = ?`
+		args = append(args, filter.Type)
+	}
+	if filter.Material != "" {
+		query += ` AND p.nome LIKE ?`
+		args = append(args, "%"+filter.Material+"%")
+	}
+	// 'localtime' pelo mesmo motivo de CountTodayMovements: a data é
+	// gravada em UTC, e o dia que importa é o do Brasil.
+	if filter.From != "" {
+		query += ` AND date(m.data, 'localtime') >= ?`
+		args = append(args, filter.From)
+	}
+	if filter.To != "" {
+		query += ` AND date(m.data, 'localtime') <= ?`
+		args = append(args, filter.To)
+	}
+
+	query += ` ORDER BY m.data DESC, m.id DESC`
+
+	rows, err := database.DB.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -40,9 +95,11 @@ func GetMovementsWeb() ([]models.Movement, error) {
 			&movement.UserID,
 			&date,
 			&movement.Material,
+			&movement.Unit,
 			&movement.User,
 			&movement.Type,
 			&movement.Quantity,
+			&movement.Note,
 		); err != nil {
 			return nil, err
 		}
@@ -55,6 +112,7 @@ func GetMovementsWeb() ([]models.Movement, error) {
 		movement.Date = formattedDate
 		movement.FormattedDate = formattedDate.Local().Format("02/01/2006")
 		movement.FormattedTime = formattedDate.Local().Format("15:04")
+		movement.FormattedQuantity = utils.FormatQuantity(movement.Quantity)
 		movement.FormattedType = map[string]string{
 			"ENTRADA":     "Entrada",
 			"SAIDA":       "Saída",
@@ -73,12 +131,12 @@ func GetMovementsWeb() ([]models.Movement, error) {
 	return movements, nil
 }
 
-func registerMovement(materialID int, userID int, movementType string, quantity int) error {
+func registerMovement(materialID int, userID int, movementType string, quantity float64, note string) error {
 	_, err := database.DB.Exec(`
 		INSERT INTO movimentacoes
-		(produto_id, usuario_id, tipo, quantidade)
-		VALUES (?, ?, ?, ?)
-	`, materialID, userID, movementType, quantity)
+		(produto_id, usuario_id, tipo, quantidade, observacao)
+		VALUES (?, ?, ?, ?, ?)
+	`, materialID, userID, movementType, quantity, note)
 
 	return err
 }
@@ -109,7 +167,7 @@ func ListMovements() {
 		var material string
 		var user string
 		var movementType string
-		var quantity int
+		var quantity float64
 
 		if err := rows.Scan(&date, &material, &user, &movementType, &quantity); err != nil {
 			fmt.Println("Erro ao ler movimentação:", err)
@@ -130,7 +188,7 @@ func ListMovements() {
 		if movementType == "ATUALIZACAO" {
 			fmt.Println("Quantidade: -")
 		} else {
-			fmt.Println("Quantidade:", quantity)
+			fmt.Println("Quantidade:", utils.FormatQuantity(quantity))
 		}
 
 		fmt.Println("Data:", formattedDate.Local().Format("02/01/2006 15:04:05"))
@@ -179,27 +237,4 @@ func CountTodayMovements() (entries int, exits int, err error) {
 		WHERE date(data, 'localtime') = date('now', 'localtime')
 	`).Scan(&entries, &exits)
 	return entries, exits, err
-}
-
-// GetMovementsFilteredWeb é o GetMovementsWeb com filtro opcional por
-// tipo de movimentação ("ENTRADA", "SAIDA", "ATUALIZACAO"). Tipo vazio
-// ou desconhecido devolve tudo.
-func GetMovementsFilteredWeb(movementType string) ([]models.Movement, error) {
-	valid := map[string]bool{"ENTRADA": true, "SAIDA": true, "ATUALIZACAO": true}
-	if !valid[movementType] {
-		return GetMovementsWeb()
-	}
-
-	all, err := GetMovementsWeb()
-	if err != nil {
-		return nil, err
-	}
-
-	filtered := make([]models.Movement, 0, len(all))
-	for _, movement := range all {
-		if movement.Type == movementType {
-			filtered = append(filtered, movement)
-		}
-	}
-	return filtered, nil
 }
