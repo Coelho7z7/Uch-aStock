@@ -132,9 +132,20 @@ func CreateTables() error {
 	// Renomeia a conta existente uma única vez (nada mais nela muda) antes
 	// da correção de cargo abaixo, para que ela continue sendo reconhecida
 	// sem duplicar nem perder a permissão.
+	//
+	// Se as duas contas antigas existirem, só uma pode ficar com o
+	// endereço novo, porque email é UNIQUE: a ceo@gmail.com, que era a
+	// identidade reservada até agora. A admin@gmail.com continua como
+	// uma conta comum. Sem o "LIMIT 1" o UPDATE tentava dar o mesmo
+	// email às duas e o sistema não subia.
 	if _, err = DB.Exec(`
 		UPDATE usuarios SET email = 'superadmin@gmail.com'
-		WHERE LOWER(TRIM(email)) IN ('admin@gmail.com', 'ceo@gmail.com')
+		WHERE id = (
+			SELECT id FROM usuarios
+			WHERE LOWER(TRIM(email)) IN ('ceo@gmail.com', 'admin@gmail.com')
+			ORDER BY CASE LOWER(TRIM(email)) WHEN 'ceo@gmail.com' THEN 0 ELSE 1 END
+			LIMIT 1
+		)
 		AND NOT EXISTS (SELECT 1 FROM usuarios WHERE LOWER(TRIM(email)) = 'superadmin@gmail.com')
 	`); err != nil {
 		return err
