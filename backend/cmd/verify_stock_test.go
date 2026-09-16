@@ -141,3 +141,51 @@ func TestVerifyStockMigrateChecksAgainstSnapshot(t *testing.T) {
 		t.Errorf("flag inválida: código %d, esperado 2", code)
 	}
 }
+
+// Um banco antigo com uma sessão órfã (de um usuário que não existe mais):
+// a migração passa, mas o verify-stock --migrate aponta a chave quebrada e
+// sai com código 1.
+func TestVerifyStockMigrateReportsForeignKeyViolations(t *testing.T) {
+	openOldStockDB(t)
+	if _, err := database.DB.Exec(`
+		PRAGMA foreign_keys = OFF;
+		CREATE TABLE usuarios (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			nome TEXT NOT NULL,
+			email TEXT UNIQUE NOT NULL,
+			senha TEXT NOT NULL,
+			role TEXT NOT NULL DEFAULT 'basico',
+			ativo INTEGER NOT NULL DEFAULT 1
+		);
+		CREATE TABLE sessoes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			usuario_id INTEGER NOT NULL,
+			token_hash TEXT NOT NULL UNIQUE,
+			expira_em DATETIME NOT NULL,
+			criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+		);
+		INSERT INTO sessoes (usuario_id, token_hash, expira_em) VALUES (999, 'x', '2030-01-01');
+		PRAGMA foreign_keys = ON;
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	if code := verifyStock([]string{"--migrate"}, &out); code != 1 {
+		t.Errorf("código de saída = %d, esperado 1\n%s", code, out.String())
+	}
+	if !strings.Contains(out.String(), "chave estrangeira quebrada: sessoes, linha 1, aponta para um registro de usuarios") {
+		t.Errorf("saída sem a violação:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "Nenhum problema") {
+		t.Errorf("com violação, não pode dizer que não há problema:\n%s", out.String())
+	}
+
+	// --migrate de novo, já migrado: a conferência simples passa, mas a
+	// violação continua lá e o código continua 1.
+	out.Reset()
+	if code := verifyStock([]string{"--migrate"}, &out); code != 1 || !strings.Contains(out.String(), "chave(s) estrangeira(s) quebrada(s)") {
+		t.Errorf("banco já migrado com violação: código %d\n%s", code, out.String())
+	}
+}

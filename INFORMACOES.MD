@@ -265,7 +265,12 @@ divergência é esperada).
 4. confere contra o retrato: saldo de cada material igual ao de antes e
    todo no central, produtos.quantidade intacta, nenhum material a mais ou
    a menos, mesmo número de movimentações, entradas e saídas ligadas ao
-   central e atualizações sem obra. Código 1 se houver problema.
+   central e atualizações sem obra;
+5. roda PRAGMA foreign_key_check: linha antiga apontando para registro que
+   não existe (a migração não pega isso, porque o UPDATE só confere as
+   chaves das colunas que muda).
+Código 1 se houver qualquer problema. --migrate num banco já migrado faz a
+conferência simples e também o foreign_key_check.
 
 Uso numa cópia da produção (PowerShell):
 $env:DB_PATH="C:\caminho\copia.db"; go run ./backend/cmd verify-stock --migrate
@@ -276,6 +281,12 @@ database.CreateTables roda tudo (tabelas, colunas, cargos, obras, cópia do
 estoque) numa transação só. Se qualquer passo falhar, nada é gravado e a
 próxima inicialização tenta de novo do zero. Dentro dela, use sempre tx,
 nunca DB: a conexão é uma só (SetMaxOpenConns(1)).
+
+Chaves estrangeiras: ligadas pela string de conexão
+(?_pragma=foreign_keys(1), em database.dsn), então valem para toda conexão
+que o database/sql abrir, não só a primeira. A migração não recria tabelas
+nem desliga as chaves. Os testes de migração rodam foreign_key_check
+depois de migrar (database.ForeignKeyViolations).
 
 
 RODAR

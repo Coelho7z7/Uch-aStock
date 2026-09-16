@@ -102,6 +102,41 @@ func StockMigrated() (bool, error) {
 	return tables > 0 && columns > 0, nil
 }
 
+// ForeignKeyViolation é uma linha que aponta para um registro que não
+// existe, como PRAGMA foreign_key_check devolve.
+type ForeignKeyViolation struct {
+	Table  string
+	RowID  int64 // 0 quando a tabela não tem rowid
+	Parent string
+}
+
+// ForeignKeyViolations roda PRAGMA foreign_key_check no banco inteiro e
+// devolve as linhas com chave estrangeira quebrada. Com as chaves ligadas,
+// o SQLite recusa escrita nova que quebre uma chave, mas não confere o que
+// já estava gravado: linhas antigas, de antes de a chave existir, ou
+// gravadas com ela desligada. A migração também não pega essas linhas (o
+// UPDATE só confere as chaves das colunas que ele muda). Só lê.
+func ForeignKeyViolations() ([]ForeignKeyViolation, error) {
+	rows, err := DB.Query(`PRAGMA foreign_key_check`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var violations []ForeignKeyViolation
+	for rows.Next() {
+		var v ForeignKeyViolation
+		var rowID sql.NullInt64
+		var fkIndex int
+		if err := rows.Scan(&v.Table, &rowID, &v.Parent, &fkIndex); err != nil {
+			return nil, err
+		}
+		v.RowID = rowID.Int64
+		violations = append(violations, v)
+	}
+	return violations, rows.Err()
+}
+
 // createTablesTx é o corpo de CreateTables, dentro da transação.
 func createTablesTx(tx *sql.Tx) error {
 	query := `

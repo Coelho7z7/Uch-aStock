@@ -241,7 +241,21 @@ func verifyStock(args []string, out io.Writer) int {
 			fmt.Fprintln(out, "Erro nas migrações (nada foi gravado):", err)
 			return 1
 		}
-		return reportStockComparison(out)
+		code := reportStockComparison(out)
+		violations, err := database.ForeignKeyViolations()
+		if err != nil {
+			fmt.Fprintln(out, "Erro ao conferir as chaves estrangeiras:", err)
+			return 1
+		}
+		for _, v := range violations {
+			fmt.Fprintln(out, "  PROBLEMA:", foreignKeyProblem(v))
+		}
+		if len(violations) > 0 {
+			fmt.Fprintf(out, "%d chave(s) estrangeira(s) quebrada(s) (PRAGMA foreign_key_check).\n", len(violations))
+			return 1
+		}
+		fmt.Fprintln(out, "Chaves estrangeiras: nenhuma violação (PRAGMA foreign_key_check).")
+		return code
 	}
 
 	snapshot, err := services.TakeStockSnapshot()
@@ -267,6 +281,14 @@ func verifyStock(args []string, out io.Writer) int {
 		fmt.Fprintln(out, "Erro ao conferir:", err)
 		return 1
 	}
+	violations, err := database.ForeignKeyViolations()
+	if err != nil {
+		fmt.Fprintln(out, "Erro ao conferir as chaves estrangeiras:", err)
+		return 1
+	}
+	for _, v := range violations {
+		problems = append(problems, foreignKeyProblem(v))
+	}
 	for _, problem := range problems {
 		fmt.Fprintln(out, "  PROBLEMA:", problem)
 	}
@@ -274,8 +296,14 @@ func verifyStock(args []string, out io.Writer) int {
 		fmt.Fprintf(out, "%d problema(s) encontrado(s).\n", len(problems))
 		return 1
 	}
-	fmt.Fprintf(out, "Nenhum problema: %d material(is) com o saldo igual ao de antes, tudo no almoxarifado central, e as movimentações ligadas certo.\n", len(snapshot.Materials))
+	fmt.Fprintf(out, "Nenhum problema: %d material(is) com o saldo igual ao de antes, tudo no almoxarifado central, as movimentações ligadas certo e nenhuma chave estrangeira quebrada (PRAGMA foreign_key_check).\n", len(snapshot.Materials))
 	return 0
+}
+
+// foreignKeyProblem descreve uma chave estrangeira quebrada para a saída
+// do verify-stock.
+func foreignKeyProblem(v database.ForeignKeyViolation) string {
+	return fmt.Sprintf("chave estrangeira quebrada: %s, linha %d, aponta para um registro de %s que não existe", v.Table, v.RowID, v.Parent)
 }
 
 // reportStockComparison mostra a conferência simples (produtos.quantidade

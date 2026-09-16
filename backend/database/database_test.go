@@ -21,6 +21,19 @@ func openTestDB(t *testing.T) {
 	t.Cleanup(func() { DB.Close() })
 }
 
+// assertNoForeignKeyViolations roda PRAGMA foreign_key_check depois de
+// uma migração: nenhuma linha pode apontar para registro inexistente.
+func assertNoForeignKeyViolations(t *testing.T) {
+	t.Helper()
+	violations, err := ForeignKeyViolations()
+	if err != nil {
+		t.Fatalf("foreign_key_check: %v", err)
+	}
+	for _, v := range violations {
+		t.Errorf("chave estrangeira quebrada: %s, linha %d, aponta para %s inexistente", v.Table, v.RowID, v.Parent)
+	}
+}
+
 func columnExists(t *testing.T, table, column string) bool {
 	t.Helper()
 	var count int
@@ -38,6 +51,7 @@ func TestCreateTablesIsIdempotent(t *testing.T) {
 			t.Fatalf("execução %d falhou: %v", run, err)
 		}
 	}
+	assertNoForeignKeyViolations(t)
 
 	for _, c := range []struct{ table, column string }{
 		{"produtos", "unidade"},
@@ -107,6 +121,7 @@ func TestCreateTablesMigratesOldSchema(t *testing.T) {
 	if err := CreateTables(); err != nil {
 		t.Fatalf("migração falhou: %v", err)
 	}
+	assertNoForeignKeyViolations(t)
 
 	var salesTables int
 	if err := DB.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'vendas'`).Scan(&salesTables); err != nil {
@@ -171,6 +186,7 @@ func TestCreateTablesMigratesOldRoles(t *testing.T) {
 			t.Fatalf("execução %d falhou: %v", run, err)
 		}
 	}
+	assertNoForeignKeyViolations(t)
 
 	want := map[string]string{
 		"gerente@gmail.com": "gestor",
@@ -222,6 +238,7 @@ func TestMigrateStockToSites(t *testing.T) {
 			t.Fatalf("execução %d falhou: %v", run, err)
 		}
 	}
+	assertNoForeignKeyViolations(t)
 
 	var centralID int
 	if err := DB.QueryRow(`SELECT id FROM obras WHERE tipo = 'CENTRAL'`).Scan(&centralID); err != nil {
@@ -375,6 +392,7 @@ func TestCreateTablesRollsBackOnFailure(t *testing.T) {
 			if err := CreateTables(); err != nil {
 				t.Fatalf("migração depois de tirar a falha: %v", err)
 			}
+			assertNoForeignKeyViolations(t)
 			var balance float64
 			var linked int
 			if err := DB.QueryRow(`SELECT quantidade FROM saldos WHERE produto_id = 1`).Scan(&balance); err != nil {
@@ -429,5 +447,42 @@ func TestEveryConnectionHasForeignKeys(t *testing.T) {
 	_, err = second.ExecContext(ctx, `INSERT INTO saldos (produto_id, obra_id, quantidade) VALUES (999, 999, 1)`)
 	if err == nil || !strings.Contains(strings.ToUpper(err.Error()), "FOREIGN KEY") {
 		t.Errorf("saldo de material inexistente na segunda conexão: erro = %v, esperado FOREIGN KEY", err)
+	}
+}
+
+// TestForeignKeyViolationsFindsOrphans garante que a checagem não passa
+// por acaso: um saldo gravado com as chaves desligadas, apontando para
+// material e obra que não existem, aparece duas vezes (uma por chave).
+func TestForeignKeyViolationsFindsOrphans(t *testing.T) {
+	openTestDB(t)
+	if err := CreateTables(); err != nil {
+		t.Fatal(err)
+	}
+	assertNoForeignKeyViolations(t)
+
+	// A conexão é uma só, então o OFF e o ON valem para o INSERT do meio.
+	if _, err := DB.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DB.Exec(`INSERT INTO saldos (produto_id, obra_id, quantidade) VALUES (999, 888, 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DB.Exec(`PRAGMA foreign_keys = ON`); err != nil {
+		t.Fatal(err)
+	}
+
+	violations, err := ForeignKeyViolations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parents := map[string]bool{}
+	for _, v := range violations {
+		if v.Table != "saldos" || v.RowID == 0 {
+			t.Errorf("violação inesperada: %+v", v)
+		}
+		parents[v.Parent] = true
+	}
+	if len(violations) != 2 || !parents["produtos"] || !parents["obras"] {
+		t.Errorf("violações = %+v, esperado saldos -> produtos e saldos -> obras", violations)
 	}
 }
