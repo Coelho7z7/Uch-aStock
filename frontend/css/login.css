@@ -4,6 +4,12 @@
    As animações de entrada foram preservadas (manchas flutuantes,
    gráfico que se desenha, respiração e entrada em cascata). O cartão
    ganhou as faixas da logo da Uchôa, que se desenham ao abrir.
+
+   No hero, a apresentação dura ~2,2s: a logo se desenha barra por
+   barra, o título e o subtítulo entram atrás dela, e aí tudo fica
+   parado. O gráfico do rodapé continua vivo em ritmo lento — pontos
+   nos vértices e um ponto que atravessa a linha a cada 14s, com a
+   mancha de luz de fundo acompanhando o mesmo ciclo.
    ============================================================ */
 
 .login-page {
@@ -62,7 +68,23 @@
     bottom: -100px;
     right: 10%;
     background: radial-gradient(circle, var(--color-brand-soft) 0%, transparent 70%);
-    animation: flutuarMancha 11s ease-in-out infinite reverse;
+    /* Mesmo ciclo e mesmo atraso do ponto que percorre o gráfico, e o
+       ponto mais à direita no mesmo instante (66%): a luz de fundo
+       parece seguir o dado. backwards segura a posição inicial durante
+       o atraso, senão a mancha daria um salto ao começar. */
+    animation: acompanharMancha 14s ease-in-out 2.6s infinite backwards;
+}
+
+@keyframes acompanharMancha {
+
+    0%,
+    100% {
+        transform: translate(-46px, 10px) scale(1);
+    }
+
+    66% {
+        transform: translate(34px, -18px) scale(1.06);
+    }
 }
 
 @keyframes flutuarMancha {
@@ -96,13 +118,100 @@
 
 /* A logo é mais alta que larga, então o tamanho é travado pela
    altura, que cresce com a largura da tela (clamp, igual ao título).
-   flex-shrink: 0 impede que o texto a esmague em tela estreita. */
-.login-logo-image {
-    display: block;
+   flex-shrink: 0 impede que o texto a esmague em tela estreita. O
+   aspect-ratio é o do arquivo (419x477) e substitui a largura que o
+   <img> calculava sozinho — o desenho fica do mesmo tamanho de antes. */
+.login-logo {
+    position: relative;
     flex-shrink: 0;
     height: clamp(72px, 22vw, 104px);
-    width: auto;
+    aspect-ratio: 419 / 477;
+}
+
+/* ---------- Entrada da logo: uma barra de cada vez ----------
+   As seis cópias da imagem são idênticas e ficam empilhadas no bloco
+   inteiro. Quem separa uma da outra é o clip-path, que deixa visível só
+   a fatia de cada barra. Como todas desenham a MESMA imagem no MESMO
+   lugar, o resultado somado é a logo original pixel a pixel — o recorte
+   não redimensiona nada.
+
+   De onde vêm as porcentagens: no arquivo de 477px de altura as barras
+   ocupam 34-102, 109-170, 184-238, 258-306, 333-374 e 408-442. Os
+   cortes foram postos no MEIO dos vazios entre elas (105,5 / 177 / 248
+   / 319,5 / 391), então nenhuma barra é partida e qualquer sobra de
+   arredondamento cai em cima de pixel transparente.
+
+   O inset() do clip-path recebe (topo, direita, base, esquerda). Topo e
+   base são a fatia, fixos por faixa. A direita é a animação: sai de
+   100% (nada aparece) e vai a 0%, descobrindo a barra da esquerda para
+   a direita, como uma linha sendo desenhada.
+
+   O @property existe porque o navegador só sabe interpolar uma variável
+   CSS se ela tiver um tipo declarado; sem isso a barra apareceria de
+   uma vez, sem o traçado. */
+
+@property --logo-wipe {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 100%;
+}
+
+.login-logo-line {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
+    clip-path: inset(var(--band-top) var(--logo-wipe) var(--band-bottom) 0);
+    /* both segura o recorte inicial durante o atraso; sem isso a barra
+       apareceria inteira e só então sumiria para se desenhar. */
+    animation: desenharLogoLinha 0.65s var(--ease-out) both;
+}
+
+@keyframes desenharLogoLinha {
+    from {
+        --logo-wipe: 100%;
+    }
+
+    to {
+        --logo-wipe: 0%;
+    }
+}
+
+.login-logo-line:nth-child(1) {
+    --band-top: 0%;
+    --band-bottom: 77.883%;
+    animation-delay: 0.10s;
+}
+
+.login-logo-line:nth-child(2) {
+    --band-top: 22.117%;
+    --band-bottom: 62.893%;
+    animation-delay: 0.20s;
+}
+
+.login-logo-line:nth-child(3) {
+    --band-top: 37.107%;
+    --band-bottom: 48.008%;
+    animation-delay: 0.30s;
+}
+
+.login-logo-line:nth-child(4) {
+    --band-top: 51.992%;
+    --band-bottom: 33.019%;
+    animation-delay: 0.40s;
+}
+
+.login-logo-line:nth-child(5) {
+    --band-top: 66.981%;
+    --band-bottom: 18.029%;
+    animation-delay: 0.50s;
+}
+
+.login-logo-line:nth-child(6) {
+    --band-top: 81.971%;
+    --band-bottom: 0%;
+    animation-delay: 0.60s;
 }
 
 /* min-width: 0 deixa o bloco de texto encolher e quebrar linha em
@@ -111,18 +220,37 @@
     min-width: 0;
 }
 
+/* O texto entra na sequência da logo: o título logo depois da quarta
+   barra, o subtítulo em seguida e mais devagar que ele. A última barra
+   termina em 1,25s, o título em 1,70s e o subtítulo em 2,15s.
+   animation-fill-mode: both segura o estado inicial durante o atraso,
+   senão o texto apareceria antes da hora e só então sumiria. */
 .login-hero h1 {
     margin-bottom: var(--space-2);
     font-size: var(--text-display-sm);
     line-height: var(--leading-tight);
     letter-spacing: var(--tracking-tight);
     color: var(--color-text-invert);
+    animation: entradaMarca 0.9s var(--ease-out) 0.80s both;
 }
 
 .login-hero p {
     max-width: 380px;
     font-size: var(--text-sm);
     color: var(--color-text-sidebar);
+    animation: entradaMarca 1.1s var(--ease-out) 1.05s both;
+}
+
+@keyframes entradaMarca {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
 }
 
 /* ---------- Gráfico decorativo ---------- */
@@ -171,6 +299,130 @@
 
     50% {
         transform: translateY(-8px);
+    }
+}
+
+/* ---------- Pontos do gráfico ----------
+   Marcadores nos vértices da linha. Acendem uma vez, depois que a linha
+   termina de se desenhar, e a partir daí ficam respirando devagar. São
+   duas animações na mesma regra: a segunda começa exatamente onde a
+   primeira parou (0.45), então a emenda não aparece. Quando duas
+   animações mexem na mesma propriedade, vale a última da lista. */
+
+.hero-chart-nodes path {
+    fill: none;
+    stroke: var(--color-brand-light);
+    stroke-width: 5;
+    stroke-linecap: round;
+    opacity: 0;
+    animation:
+        acenderPonto 0.9s var(--ease-out) 1.9s forwards,
+        respirarPonto 5s ease-in-out 2.8s infinite;
+}
+
+/* Durações de respiro diferentes deixam os pontos fora de compasso, o
+   que parece mais natural que os três piscando juntos. */
+.hero-chart-nodes path:nth-child(2) {
+    animation-duration: 0.9s, 6.5s;
+}
+
+.hero-chart-nodes path:nth-child(3) {
+    animation-duration: 0.9s, 8s;
+}
+
+@keyframes acenderPonto {
+    to {
+        opacity: 0.45;
+    }
+}
+
+@keyframes respirarPonto {
+
+    0%,
+    100% {
+        opacity: 0.45;
+    }
+
+    50% {
+        opacity: 0.18;
+    }
+}
+
+/* ---------- Ponto que percorre o gráfico ----------
+   O grupo ganha um offset-path com o mesmo traçado da linha e passa a
+   andar por ele: offset-distance vai de 0% (ponta esquerda) a 100%
+   (ponta direita). Como o deslocamento é um transform, o navegador
+   consegue animar sem repintar o gráfico a cada quadro, e o ponto
+   continua redondo mesmo com o SVG esticado.
+
+   offset-rotate: 0deg desliga o giro que o offset-path aplica por
+   padrão — um ponto não precisa se orientar pela curva.
+
+   Ele leva ~9s para atravessar e fica apagado no resto do ciclo, então
+   a tela passa a maior parte do tempo parada. A opacidade é do grupo,
+   para as duas cópias (brilho e miolo) acenderem e apagarem juntas.
+
+   O @supports é o plano B: onde offset-path não existir, o grupo fica
+   no opacity: 0 abaixo e simplesmente não aparece, em vez de largar um
+   ponto parado no canto do gráfico. */
+
+.hero-chart-pulse {
+    opacity: 0;
+}
+
+.hero-chart-pulse path {
+    fill: none;
+    stroke: var(--color-brand-light);
+    stroke-linecap: round;
+}
+
+.hero-chart-pulse-glow {
+    stroke-width: 14;
+    opacity: 0.12;
+}
+
+.hero-chart-pulse-dot {
+    stroke-width: 5;
+    opacity: 0.8;
+}
+
+@supports (offset-path: path("M0 0 L1 1")) {
+
+    .hero-chart-pulse {
+        offset-path: path("M0 220 L90 180 L180 200 L270 110 L360 140 L450 50 L500 70");
+        offset-rotate: 0deg;
+        offset-distance: 0%;
+        animation:
+            percorrerGrafico 14s linear 2.6s infinite,
+            pulsoVisivel 14s linear 2.6s infinite;
+    }
+}
+
+@keyframes percorrerGrafico {
+    0% {
+        offset-distance: 0%;
+    }
+
+    66%,
+    100% {
+        offset-distance: 100%;
+    }
+}
+
+@keyframes pulsoVisivel {
+
+    0%,
+    100% {
+        opacity: 0;
+    }
+
+    6%,
+    60% {
+        opacity: 1;
+    }
+
+    72% {
+        opacity: 0;
     }
 }
 
@@ -322,6 +574,23 @@
     margin-top: var(--space-1);
 }
 
+/* ---------- Menos movimento ----------
+   O base.css já encurta toda animação para 0,01ms, o que basta para as
+   entradas: elas usam fill-mode forwards/both e param no estado final.
+   O que não basta é para o que roda em laço — o ponto do gráfico e o
+   respiro. Aqui eles são desligados pelo nome, sem !important, e o
+   ponto some porque o grupo nasce com opacity: 0. */
+
+@media (prefers-reduced-motion: reduce) {
+
+    .hero-chart,
+    .hero-chart-pulse,
+    .login-hero::before,
+    .login-hero::after {
+        animation-name: none;
+    }
+}
+
 /* ---------- Alerta de erro ---------- */
 
 .login-alert {
@@ -385,7 +654,7 @@
         gap: var(--space-5);
     }
 
-    .login-logo-image {
+    .login-logo {
         height: 136px;
     }
 
@@ -423,7 +692,7 @@
         padding: var(--space-8) var(--space-6);
     }
 
-    .login-logo-image {
+    .login-logo {
         height: clamp(112px, 12.5vw, 200px);
     }
 
