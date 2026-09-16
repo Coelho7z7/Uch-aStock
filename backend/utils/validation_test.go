@@ -85,3 +85,27 @@ func TestValidateDate(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateEmail(t *testing.T) {
+	cases := map[string]bool{
+		"ana@gmail.com":             true,
+		"joao.silva@empresa.com.br": true,
+		"obra+almox@uchoa.eng.br":   true,
+		"  ana@empresa.com  ":       true,
+		"":                          false,
+		"sem-arroba.com":            false,
+		"@empresa.com":              false,
+		"ana@":                      false,
+		"ana@@empresa.com":          false,
+		"ana@empresacom":            false,
+		"ana@empresa.":              false,
+		"ana@.empresa.com":          false,
+		"ana silva@empresa.com":     false,
+		"Ana <ana@empresa.com>":     false,
+	}
+	for email, want := range cases {
+		if got := ValidateEmail(email); got != want {
+			t.Errorf("ValidateEmail(%q) = %v, esperado %v", email, got, want)
+		}
+	}
+}

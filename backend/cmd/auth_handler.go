@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"html/template"
 	"net/http"
+	"strings"
 
 	database "uchoastock/backend/database"
 	"uchoastock/backend/services"
@@ -90,6 +91,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   isHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   60 * 60 * 24 * 30,
 	})
@@ -111,6 +113,21 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
+		Secure:   isHTTPS(r),
 	})
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// isHTTPS indica se a requisição chegou por HTTPS, para o cookie de sessão
+// sair com Secure (o navegador só o devolve por conexão criptografada).
+// No Railway o HTTPS termina no proxy, que repassa para cá em HTTP comum e
+// conta o protocolo original no cabeçalho X-Forwarded-Proto. Com vários
+// proxies o cabeçalho vem como lista ("https, http"): vale o primeiro,
+// que é o do navegador.
+func isHTTPS(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	proto, _, _ := strings.Cut(r.Header.Get("X-Forwarded-Proto"), ",")
+	return strings.EqualFold(strings.TrimSpace(proto), "https")
 }

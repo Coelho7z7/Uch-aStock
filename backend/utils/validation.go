@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"math"
+	"net/mail"
 	"strconv"
 	"strings"
 	"time"
@@ -112,22 +113,25 @@ func ValidateDate(text string) bool {
 	return err == nil
 }
 
+// ValidateEmail aceita qualquer endereço de email válido, de qualquer
+// domínio. O formato é conferido pelo net/mail, da biblioteca padrão.
+//
+// Duas regras a mais: o endereço precisa vir puro ("Ana <ana@empresa.com>"
+// é válido para o net/mail, mas não serve como login), e o domínio precisa
+// ter um ponto no meio ("ana@empresacom" também passa no net/mail, mas é
+// quase sempre erro de digitação).
 func ValidateEmail(email string) bool {
 	email = strings.TrimSpace(email)
 
-	if !strings.HasSuffix(email, "@gmail.com") {
+	address, err := mail.ParseAddress(email)
+	if err != nil || address.Address != email {
 		return false
 	}
 
-	if strings.Count(email, "@") != 1 {
-		return false
-	}
-
-	if strings.HasPrefix(email, "@") {
-		return false
-	}
-
-	return true
+	_, domain, _ := strings.Cut(email, "@")
+	return strings.Contains(domain, ".") &&
+		!strings.HasPrefix(domain, ".") &&
+		!strings.HasSuffix(domain, ".")
 }
 
 func ValidatePassword(password string) bool {

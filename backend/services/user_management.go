@@ -101,7 +101,7 @@ func CreateUserWeb(name, email, password, role string, siteID int) error {
 		return errors.New("Informe o nome do usuário.")
 	}
 	if !utils.ValidateEmail(email) {
-		return errors.New("Email inválido. Use um endereço @gmail.com.")
+		return errors.New("Email inválido. Confira se o endereço está completo, como nome@empresa.com.br.")
 	}
 	// O endereço do SuperAdmin é reservado e não pode ser reutilizado por outra conta.
 	if strings.EqualFold(email, "superadmin@gmail.com") {
