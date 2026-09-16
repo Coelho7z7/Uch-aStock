@@ -9,7 +9,8 @@ cmd/
 - main.go — servidor
 - project.go — projeto
 - auth_handler.go — login
-- authorization.go — permissões
+- authorization.go — middleware withUser, acesso negado e regras por obra
+- permissions.go — permissões por ação: o que cada cargo pode fazer
 - session.go — sessões
 - dashboard_handler.go — dashboard
 - site_handler.go — obras
@@ -91,6 +92,11 @@ SQLite.
 A tabela continua se chamando "produtos" (renomear exige migração).
 No código Go o tipo é Material.
 
+A coluna usuarios.role tem DEFAULT 'basico', um cargo que não existe mais
+(virou 'solicitante'). O SQLite não troca o DEFAULT de uma coluna sem
+recriar a tabela, então a regra é: todo INSERT em usuarios informa o role
+explicitamente. Nunca conte com o DEFAULT.
+
 A tabela "obras" guarda o almoxarifado central (tipo CENTRAL) e as obras
 (tipo OBRA). No código Go o tipo é Site.
 
@@ -101,10 +107,70 @@ Toda entrada e saída grava movimentacoes.obra_id; atualização de cadastro
 fica sem obra (NULL).
 
 
+PERMISSÕES
+
+O acesso é por ação, não por nome de cargo. backend/cmd/permissions.go tem
+a lista de permissões e o map rolePermissions (cargo -> permissões), que é
+a fonte única da verdade. Toda checagem passa por can(usuario, permissao).
+Criar um cargo = uma linha nesse map + o cargo em services.validRoles.
+
+Cargos (valor gravado no banco entre parênteses):
+
+| Permissão               | Admin | Gestor | Almoxarife | Solicitante | Auditor |
+|-------------------------|:-----:|:------:|:----------:|:-----------:|:-------:|
+| material.editar         |   x   |   x    |     x      |             |         |
+| material.remover        |   x   |   x    |            |             |         |
+| estoque.movimentar      |   x   |   x    |     x      |             |         |
+| requisicao.criar        |   x   |   x    |     x      |      x      |         |
+| requisicao.aprovar      |   x   |   x    |            |             |         |
+| movimentacoes.ver_todas |   x   |   x    |     x      |             |    x    |
+| movimentacoes.exportar  |   x   |   x    |     x      |             |    x    |
+| usuarios.gerenciar      |   x   |   x    |            |             |         |
+| obras.gerenciar         |   x   |   x    |            |             |         |
+| obras.todas             |   x   |        |            |             |         |
+
+Administrador (admin), Gestor (gestor), Almoxarife (almoxarife),
+Solicitante (solicitante), Auditor (auditor).
+
+- superadmin pode tudo (can() devolve true) e continua reservado a
+  superadmin@gmail.com: não aparece no dropdown e não pode ser alterado,
+  removido nem ter a senha trocada por outra pessoa.
+- Todo cargo vê dashboard, materiais e estoque.
+- requisicao.* só existem no map: a requisição de material ainda não foi
+  feita.
+- material.editar também cadastra material. Cadastrar com estoque inicial
+  maior que zero é uma entrada, e exige poder movimentar a obra.
+- Sem movimentacoes.ver_todas (o solicitante), o histórico, a exportação e
+  a atividade recente do dashboard mostram só o que a pessoa registrou.
+- Sem movimentacoes.exportar, /movimentacoes/exportar responde 403.
+
+Obra: a permissão diz O QUE a pessoa faz; a obra diz ONDE.
+- obras.todas (só admin) age em qualquer obra e usa "Todas as obras".
+- Sem ela, estoque.movimentar e obras.gerenciar valem só na obra vinculada
+  ao usuário (canMoveStockAt, canEditSite em authorization.go).
+- Cadastrar obra exige obras.gerenciar + obras.todas (admin).
+
+Gestão de usuários (usuarios.gerenciar), regras em permissions.go:
+- O gestor só cria e edita Almoxarife e Solicitante (manageableRoles).
+- O gestor não altera, não remove e não troca a senha de admin, de outro
+  gestor, de auditor nem de ninguém de outra obra; e só vincula à própria
+  obra (canManageUser, canAssignRole, canAssignSite).
+- Qualquer um troca a própria senha.
+
+A tela esconde botões e abas pelas flags de permissão (CanManageUsers,
+CanEditMaterial, CanRemoveMaterial, CanExport, CanManageSites...). Isso é
+só UX: o backend confere a permissão em todo POST.
+
+Migração: na inicialização, gerente vira gestor e basico vira solicitante
+(idempotente, em database.CreateTables).
+
+
 OBRAS
 
 /obras?busca=texto&situacao=ANDAMENTO|PARALISADA|CONCLUIDA
-Só admin/superadmin cadastram e editam. Obra não é apagada: vira CONCLUIDA.
+Cadastrar: admin. Editar, paralisar, retomar e encerrar: quem tem
+obras.gerenciar, na obra ao seu alcance (ver PERMISSÕES). Obra não é
+apagada: vira CONCLUIDA.
 O almoxarifado central é criado pela migração, é único e fica sempre em
 andamento. Nome não pode repetir (sem diferenciar maiúsculas).
 Obra concluída é só consulta: não aceita entrada nem saída.
@@ -116,17 +182,19 @@ O seletor do topo (POST /obra-atual) guarda a obra em sessoes.obra_id.
 Ele tem busca (sem acento e sem diferenciar maiúsculas), montada pelo
 app.js em cima do <select data-searchable>.
 Dashboard, materiais, estoque e movimentações mostram só essa obra.
-"Todas as obras" (NULL) é só para admin e superadmin; os outros caem no
-almoxarifado central. Entrada e saída exigem uma obra específica, e o
+"Todas as obras" (NULL) é só para quem tem obras.todas (admin e
+superadmin); os outros caem na obra deles ou, sem vínculo, no almoxarifado
+central. Entrada e saída exigem uma obra específica, e o
 formulário leva obra_id para conferir que a obra não mudou em outra aba.
 
 
 OBRA DO USUÁRIO
 
 usuario_obras liga cada usuário (que não é admin) a uma obra. É definida
-por admin no cadastro e na edição do usuário. Quem não é admin entra no
-sistema pela obra dele. Gerente movimenta e edita só essa obra; básico só
-consulta. A aba Obras mostra a equipe de cada obra.
+no cadastro e na edição do usuário (o gestor só vincula à obra dele).
+Quem não é admin entra no sistema pela obra dele. Gestor e almoxarife
+movimentam só essa obra; solicitante e auditor consultam. A aba Obras
+mostra a equipe de cada obra.
 
 
 BUSCA EM TEMPO REAL
@@ -155,6 +223,8 @@ FILTRO DE MOVIMENTAÇÕES
 
 /movimentacoes?tipo=ENTRADA|SAIDA|ATUALIZACAO
 Tipo vazio ou desconhecido devolve o histórico completo.
+MovementFilter.UserID > 0 limita ao que esse usuário registrou (usado para
+quem não tem movimentacoes.ver_todas).
 
 
 RODAR

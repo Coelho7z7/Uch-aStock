@@ -93,7 +93,7 @@ Cada comando executa e encerra o processo, sem subir o servidor web:
 
 ```bash
 go run ./backend/cmd reset-password <email> <nova-senha>
-go run ./backend/cmd create-user "<nome>" <email> "<senha>" <admin|gerente|basico>
+go run ./backend/cmd create-user "<nome>" <email> "<senha>" <admin|gestor|almoxarife|solicitante|auditor>
 go run ./backend/cmd rename-user <email> "<novo-nome>"
 go run ./backend/cmd change-email <email-atual> <novo-email>
 ```
@@ -158,24 +158,26 @@ Comentários: os novos ficam em português. Os arquivos antigos em `services/` t
 
 ## 5. Permissões e cargos
 
-Hierarquia, do maior para o menor:
+O acesso é **por ação**, não por nome de cargo. A fonte única da verdade é o map `rolePermissions` em `backend/cmd/permissions.go`, e toda checagem passa por `can(usuario, permissao)`. **Nunca** escreva `if user.Role == "admin"` num handler: use a permissão da ação. A matriz completa está em `INFORMACOES.MD`, seção PERMISSÕES.
 
 | Cargo | Pode |
 |---|---|
-| `superadmin` | tudo que o admin pode; identidade **reservada** a `superadmin@gmail.com` |
-| `admin` | tudo: usuários e cargos, obras (inclusive paralisar/concluir), catálogo de materiais, entrada e saída em qualquer obra, visão "Todas as obras" |
-| `gerente` | entrada e saída e edição dos dados **só da obra vinculada a ele**; consulta as outras; **não** muda situação de obra, não cria obra nem material, **não acessa a aba de usuários** |
-| `basico` | consulta: escolhe qualquer obra no seletor, mas não movimenta estoque nem edita nada |
+| `superadmin` | tudo (`can` sempre true); identidade **reservada** a `superadmin@gmail.com` |
+| `admin` | todas as permissões, inclusive `obras.todas`: age em qualquer obra e usa "Todas as obras" |
+| `gestor` | todas, menos `obras.todas`: movimenta e gerencia **só a obra vinculada a ele**; em usuários, só cria e edita almoxarife e solicitante da própria obra |
+| `almoxarife` | edita o catálogo de materiais, movimenta estoque da própria obra, vê e exporta todas as movimentações |
+| `solicitante` | consulta; no histórico vê **só as próprias** movimentações |
+| `auditor` | só leitura: vê e exporta todas as movimentações |
 
-Cada usuário que não é admin tem **uma** obra (tabela `usuario_obras`; a regra de uma só é garantida em `services.setUserSiteTx`). Ele entra no sistema por ela. A regra de quem gerencia qual obra mora em `canManageSite` (`backend/cmd/authorization.go`).
+A permissão diz **o que** a pessoa faz; a obra diz **onde**. Cada usuário que não é admin tem **uma** obra (tabela `usuario_obras`; a regra de uma só é garantida em `services.setUserSiteTx`) e entra no sistema por ela. As regras que juntam as duas coisas moram em `backend/cmd/authorization.go` (`canMoveStockAt`, `canEditSite`) e as da gestão de usuários em `permissions.go` (`canManageUser`, `canAssignRole`, `canAssignSite`).
+
+Os cargos antigos `gerente` e `basico` são migrados na inicialização para `gestor` e `solicitante`. Todo `INSERT` em `usuarios` informa o `role`: o DEFAULT da coluna ainda é `'basico'`.
 
 Regras que o código garante e que **não devem ser afrouxadas**:
 
 - Só `superadmin@gmail.com` pode ter o cargo `superadmin`. `database.CreateTables()` corrige isso a cada inicialização, mesmo que alguém mexa direto no banco.
 - `create-user` não aceita `superadmin` como cargo.
-- Autorização é sempre checada **no servidor** (`requireAdmin`, `requireSiteManager`), nunca só escondendo botão no HTML.
-
-**A conta `basico` enxerga formulários de admin que não consegue enviar. Isso é proposital** — é a conta de demonstração do sistema. Não é bug, não "conserte".
+- Autorização é sempre checada **no servidor** (`requirePermission`, `can`, `canMoveStockAt`, `canEditSite`, `canManageUser`). Os templates escondem botões e abas por flags de permissão (`CanManageUsers`, `CanEditMaterial`...), mas isso é só UX: o POST confere de novo.
 
 ---
 
