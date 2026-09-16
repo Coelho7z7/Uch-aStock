@@ -27,13 +27,13 @@ func TestCanEveryRoleEveryPermission(t *testing.T) {
 		{services.RoleSuperadmin, allPermissions},
 		{services.RoleAdmin, allPermissions},
 		{services.RoleManager, []Permission{
-			PermEditMaterial, PermRemoveMaterial, PermMoveStock,
+			PermMoveStock,
 			PermCreateRequest, PermApproveRequest,
 			PermViewAllMovements, PermExportMovements,
 			PermManageUsers, PermManageSites,
 		}},
 		{services.RoleStorekeeper, []Permission{
-			PermEditMaterial, PermMoveStock, PermCreateRequest,
+			PermMoveStock, PermCreateRequest,
 			PermViewAllMovements, PermExportMovements,
 		}},
 		{services.RoleRequester, []Permission{PermCreateRequest}},

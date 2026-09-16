@@ -251,38 +251,3 @@ func TestPaginatedMaterialsQuantityFollowsSite(t *testing.T) {
 		}
 	}
 }
-
-func TestMaterialStockedOutsideSite(t *testing.T) {
-	userID := setupTestDB(t)
-	central := centralID(t)
-	siteA := createTestSite(t, "Obra A", SiteStatusInProgress)
-
-	cement := createTestMaterial(t, userID, "Cimento", 10, 5) // saldo 10 no central
-	sand := createTestMaterial(t, userID, "Areia", 0, 1)      // saldo 0 no central
-	if err := AddStockWeb(sand, siteA, 4, userID, ""); err != nil {
-		t.Fatal(err)
-	}
-
-	cases := []struct {
-		name       string
-		materialID int
-		siteID     int
-		want       bool
-	}{
-		{"cimento visto da obra A: tem estoque no central", cement, siteA, true},
-		{"cimento visto do central: só lá", cement, central, false},
-		{"areia vista da obra A: só lá (o zero no central não conta)", sand, siteA, false},
-		{"areia vista do central: tem estoque na obra A", sand, central, true},
-		{"usuário sem obra: qualquer saldo positivo conta", sand, 0, true},
-		{"material inexistente", 99999, siteA, false},
-	}
-	for _, c := range cases {
-		got, err := MaterialStockedOutsideSite(c.materialID, c.siteID)
-		if err != nil {
-			t.Fatalf("%s: %v", c.name, err)
-		}
-		if got != c.want {
-			t.Errorf("%s: MaterialStockedOutsideSite = %v, esperado %v", c.name, got, c.want)
-		}
-	}
-}

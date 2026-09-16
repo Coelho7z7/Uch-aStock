@@ -163,9 +163,9 @@ O acesso é **por ação**, não por nome de cargo. A fonte única da verdade é
 | Cargo | Pode |
 |---|---|
 | `superadmin` | tudo (`can` sempre true); identidade **reservada** a `superadmin@gmail.com` |
-| `admin` | todas as permissões, inclusive `obras.todas`: age em qualquer obra e usa "Todas as obras" |
-| `gestor` | todas, menos `obras.todas`: movimenta e gerencia **só a obra vinculada a ele**; em usuários, só cria e edita almoxarife e solicitante da própria obra |
-| `almoxarife` | edita o catálogo de materiais, movimenta estoque da própria obra, vê e exporta todas as movimentações |
+| `admin` | todas as permissões, inclusive `obras.todas` (age em qualquer obra e usa "Todas as obras") e o catálogo de materiais (criar, editar, remover, limite mínimo), que é exclusivo dele |
+| `gestor` | movimenta estoque e gerencia **só a obra vinculada a ele**; em usuários, só cria e edita almoxarife e solicitante da própria obra; **não** mexe no catálogo de materiais |
+| `almoxarife` | movimenta estoque da própria obra, vê e exporta todas as movimentações; **não** mexe no catálogo de materiais |
 | `solicitante` | consulta; no histórico vê **só as próprias** movimentações |
 | `auditor` | só leitura: vê e exporta todas as movimentações |
 

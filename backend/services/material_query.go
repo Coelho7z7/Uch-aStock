@@ -254,20 +254,6 @@ func UpdateMaterialWeb(materialID int, name string, unit string, minimum float64
 	return tx.Commit()
 }
 
-// MaterialStockedOutsideSite indica se o material tem saldo maior que zero
-// em alguma obra diferente de siteID. Com siteID 0 (usuário sem obra),
-// qualquer saldo positivo conta.
-func MaterialStockedOutsideSite(materialID, siteID int) (bool, error) {
-	var stocked bool
-	err := database.DB.QueryRow(`
-		SELECT EXISTS(
-			SELECT 1 FROM saldos
-			WHERE produto_id = ? AND obra_id <> ? AND quantidade > 0
-		)
-	`, materialID, siteID).Scan(&stocked)
-	return stocked, err
-}
-
 func DeleteMaterialWeb(materialID int) error {
 	result, err := database.DB.Exec(`
 		UPDATE produtos

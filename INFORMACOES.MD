@@ -118,8 +118,8 @@ Cargos (valor gravado no banco entre parênteses):
 
 | Permissão               | Admin | Gestor | Almoxarife | Solicitante | Auditor |
 |-------------------------|:-----:|:------:|:----------:|:-----------:|:-------:|
-| material.editar         |   x   |   x    |     x      |             |         |
-| material.remover        |   x   |   x    |            |             |         |
+| material.editar         |   x   |        |            |             |         |
+| material.remover        |   x   |        |            |             |         |
 | estoque.movimentar      |   x   |   x    |     x      |             |         |
 | requisicao.criar        |   x   |   x    |     x      |      x      |         |
 | requisicao.aprovar      |   x   |   x    |            |             |         |
@@ -138,12 +138,13 @@ Solicitante (solicitante), Auditor (auditor).
 - Todo cargo vê dashboard, materiais e estoque.
 - requisicao.* só existem no map: a requisição de material ainda não foi
   feita.
-- material.editar também cadastra material. Cadastrar com estoque inicial
-  maior que zero é uma entrada, e exige poder movimentar a obra.
-- O catálogo é da empresa toda. Sem obras.todas, editar ou remover só vale
-  para material cujo estoque (saldo > 0) está apenas na própria obra:
-  material com estoque em outra obra só o admin altera
-  (services.MaterialStockedOutsideSite).
+- O catálogo de materiais é da empresa toda e é exclusivo do admin (e do
+  superadmin): material.editar cadastra e edita nome, unidade e limite
+  mínimo; material.remover remove. Gestor e almoxarife só movimentam o
+  estoque (entrada e saída) na própria obra.
+- O limite mínimo (produtos.limite_minimo) é um campo único do material,
+  igual para todas as obras. Por isso também fica só com o admin. Se um
+  dia precisar ser por obra, é mudança de schema (coluna em saldos).
 - Sem movimentacoes.ver_todas (o solicitante), o histórico, a exportação e
   a atividade recente do dashboard mostram só o que a pessoa registrou.
 - Sem movimentacoes.exportar, /movimentacoes/exportar responde 403.

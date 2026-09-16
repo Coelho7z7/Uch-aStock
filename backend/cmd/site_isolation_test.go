@@ -16,21 +16,24 @@ import (
 	"uchoastock/backend/services"
 )
 
-// isolationFixture é um banco com duas obras (A e B), um gestor da obra A
-// e dados na obra B que ele não pode alterar.
+// isolationFixture é um banco com duas obras (A e B), um gestor e um
+// almoxarife da obra A, um almoxarife da obra B e um administrador.
 type isolationFixture struct {
-	siteA, siteB       int
-	materialA          int // estoque só na obra A
-	materialB          int // estoque na obra B
-	storekeeperA       int // almoxarife da obra A
-	storekeeperB       int // almoxarife da obra B
-	managerToken       string
-	managerSessionHash string
+	siteA, siteB int
+	materialA    int // estoque só na obra A
+	materialB    int // estoque na obra B
+	storekeeperA int // ID do almoxarife da obra A
+	storekeeperB int // ID do almoxarife da obra B
+
+	// Tokens de sessão de cada pessoa que envia os POSTs.
+	adminToken       string
+	managerToken     string
+	storekeeperToken string
 }
 
-// setupIsolation monta o banco de teste e a sessão do gestor da obra A.
-// Os handlers leem os templates em frontend/html, por isso o teste roda
-// na raiz do projeto (e volta para a pasta original no fim).
+// setupIsolation monta o banco de teste e as sessões. Os handlers leem os
+// templates em frontend/html, por isso o teste roda na raiz do projeto (e
+// volta para a pasta original no fim).
 func setupIsolation(t *testing.T) isolationFixture {
 	t.Helper()
 
@@ -89,11 +92,18 @@ func setupIsolation(t *testing.T) isolationFixture {
 	f.materialA = queryID(t, `SELECT id FROM produtos WHERE nome = 'Areia A'`)
 	f.materialB = queryID(t, `SELECT id FROM produtos WHERE nome = 'Cimento B'`)
 
-	if f.managerToken, err = createSession(managerID); err != nil {
-		t.Fatal(err)
+	for _, s := range []struct {
+		userID int
+		token  *string
+	}{
+		{adminID, &f.adminToken},
+		{managerID, &f.managerToken},
+		{f.storekeeperA, &f.storekeeperToken},
+	} {
+		if *s.token, err = createSession(s.userID); err != nil {
+			t.Fatal(err)
+		}
 	}
-	hash := sha256.Sum256([]byte(f.managerToken))
-	f.managerSessionHash = hex.EncodeToString(hash[:])
 	return f
 }
 
@@ -142,82 +152,44 @@ func snapshot(t *testing.T) string {
 	return out.String()
 }
 
-// post envia um formulário como o gestor da obra A, passando pelo mesmo
+// post envia um formulário com a sessão do token, passando pelo mesmo
 // middleware das rotas de verdade.
-func (f isolationFixture) post(handler authenticatedHandler, path string, form url.Values) *httptest.ResponseRecorder {
+func post(token string, handler authenticatedHandler, path string, form url.Values) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	request.AddCookie(&http.Cookie{Name: "sessao", Value: f.managerToken})
+	request.AddCookie(&http.Cookie{Name: "sessao", Value: token})
 	recorder := httptest.NewRecorder()
 	withUser(handler).ServeHTTP(recorder, request)
 	return recorder
 }
 
-func (f isolationFixture) selectSite(t *testing.T, siteID int) {
+// selectSite troca a obra da sessão do token, como o seletor do topo faz
+// (ele deixa qualquer um escolher qualquer obra, para consulta).
+func selectSite(t *testing.T, token string, siteID int) {
 	t.Helper()
-	if err := services.SetSessionSite(f.managerSessionHash, siteID); err != nil {
+	hash := sha256.Sum256([]byte(token))
+	if err := services.SetSessionSite(hex.EncodeToString(hash[:]), siteID); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// TestManagerCannotTouchAnotherSite tenta, como gestor da obra A, alterar
-// estoque, material, usuário e dados da obra B mandando o ID direto no
-// POST — inclusive trocando a obra da sessão para B, o que o seletor
-// permite (para consulta). Nenhuma tentativa pode gravar nada.
-func TestManagerCannotTouchAnotherSite(t *testing.T) {
-	f := setupIsolation(t)
-	id := func(n int) string { return fmt.Sprint(n) }
+type attack struct {
+	name      string
+	token     string
+	sessionAt int
+	handler   authenticatedHandler
+	path      string
+	form      url.Values
+}
 
-	attacks := []struct {
-		name      string
-		sessionAt int
-		handler   authenticatedHandler
-		path      string
-		form      url.Values
-	}{
-		// Estoque.
-		{"entrada na obra B com a sessão na obra A", f.siteA, stockHandler, "/estoque",
-			url.Values{"acao": {"entrada"}, "material_id": {id(f.materialB)}, "quantidade": {"5"}, "obra_id": {id(f.siteB)}}},
-		{"entrada na obra B com a sessão na obra B", f.siteB, stockHandler, "/estoque",
-			url.Values{"acao": {"entrada"}, "material_id": {id(f.materialB)}, "quantidade": {"5"}, "obra_id": {id(f.siteB)}}},
-		{"saída na obra B com a sessão na obra B", f.siteB, stockHandler, "/estoque",
-			url.Values{"acao": {"saida"}, "material_id": {id(f.materialB)}, "quantidade": {"5"}, "obra_id": {id(f.siteB)}}},
-
-		// Material.
-		{"cadastrar material com estoque inicial na obra B", f.siteB, materialHandler, "/materiais",
-			url.Values{"nome": {"Invasor"}, "quantidade": {"5"}, "unidade": {"un"}, "limite_minimo": {"1"}, "obra_id": {id(f.siteB)}}},
-		{"editar material com estoque na obra B", f.siteA, editMaterialHandler, "/alterar-material",
-			url.Values{"acao": {"atualizar"}, "material_id": {id(f.materialB)}, "nome": {"Alterado"}, "unidade": {"kg"}, "limite_minimo": {"0"}}},
-		{"remover material com estoque na obra B", f.siteA, editMaterialHandler, "/alterar-material",
-			url.Values{"acao": {"remover"}, "material_id": {id(f.materialB)}}},
-
-		// Usuários.
-		{"mudar o cargo do almoxarife da obra B", f.siteA, userHandler, "/usuarios",
-			url.Values{"acao": {"alterar_permissao"}, "usuario_id": {id(f.storekeeperB)}, "role": {"solicitante"}, "obra_id": {id(f.siteB)}}},
-		{"trazer o almoxarife da obra B para a obra A", f.siteA, userHandler, "/usuarios",
-			url.Values{"acao": {"alterar_permissao"}, "usuario_id": {id(f.storekeeperB)}, "role": {"almoxarife"}, "obra_id": {id(f.siteA)}}},
-		{"trocar a senha do almoxarife da obra B", f.siteA, userHandler, "/usuarios",
-			url.Values{"acao": {"redefinir_senha"}, "usuario_id": {id(f.storekeeperB)}, "senha": {"invasao!1"}}},
-		{"remover o almoxarife da obra B", f.siteA, userHandler, "/usuarios",
-			url.Values{"acao": {"remover"}, "usuario_id": {id(f.storekeeperB)}}},
-		{"criar usuário na obra B", f.siteA, userHandler, "/usuarios",
-			url.Values{"acao": {"criar"}, "nome": {"Invasor"}, "email": {"invasor@empresa.com"}, "senha": {"senha!123"}, "role": {"almoxarife"}, "obra_id": {id(f.siteB)}}},
-		{"mandar o almoxarife da obra A para a obra B", f.siteA, userHandler, "/usuarios",
-			url.Values{"acao": {"alterar_permissao"}, "usuario_id": {id(f.storekeeperA)}, "role": {"almoxarife"}, "obra_id": {id(f.siteB)}}},
-
-		// Dados e situação da obra.
-		{"editar os dados da obra B", f.siteB, siteHandler, "/obras",
-			url.Values{"acao": {"atualizar"}, "obra_id": {id(f.siteB)}, "nome": {"Obra B"}, "cidade": {"Invadida"}, "situacao": {"ANDAMENTO"}}},
-		{"paralisar a obra B", f.siteB, siteHandler, "/obras",
-			url.Values{"acao": {"situacao"}, "obra_id": {id(f.siteB)}, "situacao": {"PARALISADA"}}},
-		{"encerrar a obra B", f.siteA, siteHandler, "/obras",
-			url.Values{"acao": {"situacao"}, "obra_id": {id(f.siteB)}, "situacao": {"CONCLUIDA"}}},
-	}
-
+// runAttacks envia cada POST e confere que o servidor não aceitou e que o
+// banco ficou exatamente igual.
+func runAttacks(t *testing.T, attacks []attack) {
+	t.Helper()
 	for _, a := range attacks {
-		f.selectSite(t, a.sessionAt)
+		selectSite(t, a.token, a.sessionAt)
 		before := snapshot(t)
-		response := f.post(a.handler, a.path, a.form)
+		response := post(a.token, a.handler, a.path, a.form)
 		if response.Code == http.StatusSeeOther {
 			t.Errorf("%s: o servidor aceitou (303 para %s)", a.name, response.Header().Get("Location"))
 		}
@@ -225,10 +197,52 @@ func TestManagerCannotTouchAnotherSite(t *testing.T) {
 			t.Errorf("%s: o banco mudou (status %d)", a.name, response.Code)
 		}
 	}
+}
+
+// TestManagerCannotTouchAnotherSite tenta, como gestor da obra A, alterar
+// estoque, usuário e dados da obra B mandando o ID direto no POST —
+// inclusive trocando a obra da sessão para B. Nenhuma tentativa pode
+// gravar nada.
+func TestManagerCannotTouchAnotherSite(t *testing.T) {
+	f := setupIsolation(t)
+	id := func(n int) string { return fmt.Sprint(n) }
+	g := f.managerToken
+
+	runAttacks(t, []attack{
+		// Estoque.
+		{"entrada na obra B com a sessão na obra A", g, f.siteA, stockHandler, "/estoque",
+			url.Values{"acao": {"entrada"}, "material_id": {id(f.materialB)}, "quantidade": {"5"}, "obra_id": {id(f.siteB)}}},
+		{"entrada na obra B com a sessão na obra B", g, f.siteB, stockHandler, "/estoque",
+			url.Values{"acao": {"entrada"}, "material_id": {id(f.materialB)}, "quantidade": {"5"}, "obra_id": {id(f.siteB)}}},
+		{"saída na obra B com a sessão na obra B", g, f.siteB, stockHandler, "/estoque",
+			url.Values{"acao": {"saida"}, "material_id": {id(f.materialB)}, "quantidade": {"5"}, "obra_id": {id(f.siteB)}}},
+
+		// Usuários.
+		{"mudar o cargo do almoxarife da obra B", g, f.siteA, userHandler, "/usuarios",
+			url.Values{"acao": {"alterar_permissao"}, "usuario_id": {id(f.storekeeperB)}, "role": {"solicitante"}, "obra_id": {id(f.siteB)}}},
+		{"trazer o almoxarife da obra B para a obra A", g, f.siteA, userHandler, "/usuarios",
+			url.Values{"acao": {"alterar_permissao"}, "usuario_id": {id(f.storekeeperB)}, "role": {"almoxarife"}, "obra_id": {id(f.siteA)}}},
+		{"trocar a senha do almoxarife da obra B", g, f.siteA, userHandler, "/usuarios",
+			url.Values{"acao": {"redefinir_senha"}, "usuario_id": {id(f.storekeeperB)}, "senha": {"invasao!1"}}},
+		{"remover o almoxarife da obra B", g, f.siteA, userHandler, "/usuarios",
+			url.Values{"acao": {"remover"}, "usuario_id": {id(f.storekeeperB)}}},
+		{"criar usuário na obra B", g, f.siteA, userHandler, "/usuarios",
+			url.Values{"acao": {"criar"}, "nome": {"Invasor"}, "email": {"invasor@empresa.com"}, "senha": {"senha!123"}, "role": {"almoxarife"}, "obra_id": {id(f.siteB)}}},
+		{"mandar o almoxarife da obra A para a obra B", g, f.siteA, userHandler, "/usuarios",
+			url.Values{"acao": {"alterar_permissao"}, "usuario_id": {id(f.storekeeperA)}, "role": {"almoxarife"}, "obra_id": {id(f.siteB)}}},
+
+		// Dados e situação da obra.
+		{"editar os dados da obra B", g, f.siteB, siteHandler, "/obras",
+			url.Values{"acao": {"atualizar"}, "obra_id": {id(f.siteB)}, "nome": {"Obra B"}, "cidade": {"Invadida"}, "situacao": {"ANDAMENTO"}}},
+		{"paralisar a obra B", g, f.siteB, siteHandler, "/obras",
+			url.Values{"acao": {"situacao"}, "obra_id": {id(f.siteB)}, "situacao": {"PARALISADA"}}},
+		{"encerrar a obra B", g, f.siteA, siteHandler, "/obras",
+			url.Values{"acao": {"situacao"}, "obra_id": {id(f.siteB)}, "situacao": {"CONCLUIDA"}}},
+	})
 
 	// Controle: as mesmas ações na obra A funcionam. Sem isto, o teste
 	// passaria até com o gestor bloqueado em tudo por um erro de montagem.
-	f.selectSite(t, f.siteA)
+	selectSite(t, g, f.siteA)
 	controls := []struct {
 		name    string
 		handler authenticatedHandler
@@ -237,15 +251,84 @@ func TestManagerCannotTouchAnotherSite(t *testing.T) {
 	}{
 		{"entrada na obra A", stockHandler, "/estoque",
 			url.Values{"acao": {"entrada"}, "material_id": {id(f.materialA)}, "quantidade": {"2"}, "obra_id": {id(f.siteA)}}},
-		{"editar material só da obra A", editMaterialHandler, "/alterar-material",
-			url.Values{"acao": {"atualizar"}, "material_id": {id(f.materialA)}, "nome": {"Areia fina A"}, "unidade": {"m³"}, "limite_minimo": {"1"}}},
 		{"mudar o cargo do almoxarife da obra A", userHandler, "/usuarios",
 			url.Values{"acao": {"alterar_permissao"}, "usuario_id": {id(f.storekeeperA)}, "role": {"solicitante"}, "obra_id": {id(f.siteA)}}},
 		{"paralisar a obra A", siteHandler, "/obras",
 			url.Values{"acao": {"situacao"}, "obra_id": {id(f.siteA)}, "situacao": {"PARALISADA"}}},
 	}
 	for _, c := range controls {
-		if response := f.post(c.handler, c.path, c.form); response.Code != http.StatusSeeOther {
+		if response := post(g, c.handler, c.path, c.form); response.Code != http.StatusSeeOther {
+			t.Errorf("controle %s: status %d, esperado 303", c.name, response.Code)
+		}
+	}
+}
+
+// TestOnlyAdminChangesMaterialCatalog confere que o catálogo de materiais
+// é exclusivo do administrador: gestor e almoxarife não cadastram, não
+// editam e não removem material de obra nenhuma — nem da própria — mesmo
+// mandando o POST direto. Movimentar estoque na própria obra continua
+// liberado para os dois.
+func TestOnlyAdminChangesMaterialCatalog(t *testing.T) {
+	f := setupIsolation(t)
+	id := func(n int) string { return fmt.Sprint(n) }
+
+	var attacks []attack
+	for _, who := range []struct{ role, token string }{
+		{"gestor", f.managerToken},
+		{"almoxarife", f.storekeeperToken},
+	} {
+		for _, m := range []struct {
+			label string
+			id    int
+		}{
+			{"da própria obra", f.materialA},
+			{"da obra B", f.materialB},
+		} {
+			attacks = append(attacks,
+				attack{who.role + ": editar material " + m.label, who.token, f.siteA, editMaterialHandler, "/alterar-material",
+					url.Values{"acao": {"atualizar"}, "material_id": {id(m.id)}, "nome": {"Alterado"}, "unidade": {"kg"}, "limite_minimo": {"0"}}},
+				attack{who.role + ": mudar só o limite mínimo do material " + m.label, who.token, f.siteA, editMaterialHandler, "/alterar-material",
+					url.Values{"acao": {"atualizar"}, "material_id": {id(m.id)}, "nome": {"Areia A"}, "unidade": {"m³"}, "limite_minimo": {"50"}}},
+				attack{who.role + ": remover material " + m.label, who.token, f.siteA, editMaterialHandler, "/alterar-material",
+					url.Values{"acao": {"remover"}, "material_id": {id(m.id)}}},
+			)
+		}
+		attacks = append(attacks,
+			attack{who.role + ": cadastrar material sem estoque", who.token, f.siteA, materialHandler, "/materiais",
+				url.Values{"nome": {"Novo"}, "quantidade": {"0"}, "unidade": {"un"}, "limite_minimo": {"1"}, "obra_id": {id(f.siteA)}}},
+			attack{who.role + ": cadastrar material com estoque na própria obra", who.token, f.siteA, materialHandler, "/materiais",
+				url.Values{"nome": {"Novo"}, "quantidade": {"5"}, "unidade": {"un"}, "limite_minimo": {"1"}, "obra_id": {id(f.siteA)}}},
+		)
+	}
+	runAttacks(t, attacks)
+
+	// Controle: os dois movimentam estoque na própria obra, e o
+	// administrador edita, cadastra e remove material.
+	for _, token := range []string{f.managerToken, f.storekeeperToken} {
+		selectSite(t, token, f.siteA)
+		response := post(token, stockHandler, "/estoque",
+			url.Values{"acao": {"entrada"}, "material_id": {id(f.materialA)}, "quantidade": {"1"}, "obra_id": {id(f.siteA)}})
+		if response.Code != http.StatusSeeOther {
+			t.Errorf("controle entrada na própria obra: status %d, esperado 303", response.Code)
+		}
+	}
+
+	selectSite(t, f.adminToken, f.siteB)
+	adminControls := []struct {
+		name    string
+		handler authenticatedHandler
+		path    string
+		form    url.Values
+	}{
+		{"admin edita material da obra B", editMaterialHandler, "/alterar-material",
+			url.Values{"acao": {"atualizar"}, "material_id": {id(f.materialB)}, "nome": {"Cimento CP-II"}, "unidade": {"saco"}, "limite_minimo": {"8"}}},
+		{"admin cadastra material com estoque na obra B", materialHandler, "/materiais",
+			url.Values{"nome": {"Brita"}, "quantidade": {"4"}, "unidade": {"m³"}, "limite_minimo": {"1"}, "obra_id": {id(f.siteB)}}},
+		{"admin remove material", editMaterialHandler, "/alterar-material",
+			url.Values{"acao": {"remover"}, "material_id": {id(f.materialA)}}},
+	}
+	for _, c := range adminControls {
+		if response := post(f.adminToken, c.handler, c.path, c.form); response.Code != http.StatusSeeOther {
 			t.Errorf("controle %s: status %d, esperado 303", c.name, response.Code)
 		}
 	}

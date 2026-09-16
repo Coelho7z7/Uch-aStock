@@ -12,6 +12,9 @@ import (
 type Permission string
 
 const (
+	// PermEditMaterial é cadastrar material e editar nome, unidade e limite
+	// mínimo. O catálogo é um só para a empresa (o limite mínimo também é
+	// um campo único do material), por isso só o administrador tem.
 	PermEditMaterial     Permission = "material.editar"
 	PermRemoveMaterial   Permission = "material.remover"
 	PermMoveStock        Permission = "estoque.movimentar"
@@ -42,16 +45,17 @@ var rolePermissions = map[string][]Permission{
 		PermViewAllMovements, PermExportMovements,
 		PermManageUsers, PermManageSites, PermAllSites,
 	},
-	// O gestor tem tudo menos PermAllSites: ele age na obra dele. Na
-	// gestão de usuários há mais um limite, em manageableRoles.
+	// O gestor age na obra dele (sem PermAllSites) e não mexe no catálogo
+	// de materiais, que é da empresa toda. Na gestão de usuários há mais
+	// um limite, em manageableRoles.
 	services.RoleManager: {
-		PermEditMaterial, PermRemoveMaterial, PermMoveStock,
+		PermMoveStock,
 		PermCreateRequest, PermApproveRequest,
 		PermViewAllMovements, PermExportMovements,
 		PermManageUsers, PermManageSites,
 	},
 	services.RoleStorekeeper: {
-		PermEditMaterial, PermMoveStock, PermCreateRequest,
+		PermMoveStock, PermCreateRequest,
 		PermViewAllMovements, PermExportMovements,
 	},
 	// Sem PermViewAllMovements, o solicitante vê só as movimentações

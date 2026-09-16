@@ -34,7 +34,14 @@ func stockHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		Page         int
 		// CanManageUsers mostra a aba Usuários.
 		CanManageUsers bool
-	}{User: user, Scope: scope, CanManageUsers: can(user, PermManageUsers)}
+		// CanEditMaterial mostra a aba Alterar material.
+		CanEditMaterial bool
+	}{
+		User:            user,
+		Scope:           scope,
+		CanManageUsers:  can(user, PermManageUsers),
+		CanEditMaterial: can(user, PermEditMaterial),
+	}
 
 	messages := map[string]string{
 		"entrada":    "Entrada registrada com sucesso.",

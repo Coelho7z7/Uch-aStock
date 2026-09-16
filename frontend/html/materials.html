@@ -92,7 +92,7 @@
 
                 <nav class="materials-tabs" aria-label="Opções de materiais">
                     <a class="material-tab-active" href="/materiais">Materiais</a>
-                    <a href="/alterar-material">Alterar material</a>
+                    {{ if .CanEditMaterial }}<a href="/alterar-material">Alterar material</a>{{ end }}
                     <a href="/estoque">Estoque</a>
                 </nav>
 
