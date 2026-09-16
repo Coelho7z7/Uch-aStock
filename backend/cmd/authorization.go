@@ -38,60 +38,64 @@ func isAdmin(r *http.Request) bool {
 	if err != nil {
 		return false
 	}
+	return hasAdminRole(user)
+}
+
+// hasAdminRole é a mesma regra de isAdmin, para quando o usuário já foi
+// carregado e não vale a pena consultar o banco de novo.
+func hasAdminRole(user *models.User) bool {
 	role := strings.ToLower(strings.TrimSpace(user.Role))
 	return role == "admin" || role == "superadmin"
 }
 
-// isManager indica se o usuário logado tem a permissão "gerente".
-// Um gerente pode cadastrar novos usuários (com permissão básica), mas não
-// pode remover usuários nem alterar permissões — isso continua exclusivo
-// do administrador.
-func isManager(r *http.Request) bool {
-	userID, authenticated := userFromSession(r)
-	if !authenticated {
-		return false
-	}
-
-	user, err := services.GetUserByID(userID)
-	return err == nil && strings.EqualFold(strings.TrimSpace(user.Role), "gerente")
+// canViewUsersTab indica se o usuário logado pode acessar a aba de
+// administração de usuários. Só administradores: o gerente cuida da
+// obra dele, não das contas.
+func canViewUsersTab(r *http.Request) bool {
+	return isAdmin(r)
 }
 
-// canViewUsersTab indica se o usuário logado pode acessar a aba de
-// administração de usuários (administradores e gerentes).
-func canViewUsersTab(r *http.Request) bool {
-	return isAdmin(r) || isManager(r)
+// canManageSite indica se o usuário pode registrar entrada e saída e
+// editar os dados da obra siteID. Administrador pode em todas; gerente,
+// só na obra em que atua; conta básica só consulta. siteID 0 ("Todas as
+// obras") nunca é uma obra que se possa gerenciar.
+func canManageSite(user *models.User, siteID int) bool {
+	if siteID <= 0 {
+		return false
+	}
+	if hasAdminRole(user) {
+		return true
+	}
+	role := strings.ToLower(strings.TrimSpace(user.Role))
+	return role == "gerente" && user.SiteID == siteID
 }
 
 func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 	if isAdmin(r) {
 		return true
 	}
-	tmpl, err := template.ParseFiles("frontend/html/access_denied.html")
-	if err != nil {
-		http.Error(w, "Acesso negado", http.StatusForbidden)
-		return false
-	}
-	w.WriteHeader(http.StatusForbidden)
-	if err := tmpl.Execute(w, nil); err != nil {
-		return false
-	}
+	renderAccessDenied(w)
 	return false
 }
 
-// requireAdminOrManager bloqueia o acesso de quem não é administrador nem
-// gerente — usado na tela de usuários, que gerentes também podem abrir.
-func requireAdminOrManager(w http.ResponseWriter, r *http.Request) bool {
-	if canViewUsersTab(r) {
+// requireSiteManager é o requireAdmin das telas de obra: deixa passar
+// quem pode gerenciar a obra (ver canManageSite) e mostra "Acesso negado"
+// para o resto.
+func requireSiteManager(w http.ResponseWriter, user *models.User, siteID int) bool {
+	if canManageSite(user, siteID) {
 		return true
 	}
+	renderAccessDenied(w)
+	return false
+}
+
+// renderAccessDenied responde 403 com a tela de acesso negado.
+func renderAccessDenied(w http.ResponseWriter) {
 	tmpl, err := template.ParseFiles("frontend/html/access_denied.html")
 	if err != nil {
 		http.Error(w, "Acesso negado", http.StatusForbidden)
-		return false
+		return
 	}
 	w.WriteHeader(http.StatusForbidden)
-	if err := tmpl.Execute(w, nil); err != nil {
-		return false
-	}
-	return false
+	_ = tmpl.Execute(w, nil)
 }

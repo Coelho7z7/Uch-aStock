@@ -8,9 +8,9 @@
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=11">
-    <link rel="stylesheet" href="/css/layout.css?v=11">
-    <link rel="stylesheet" href="/css/pages.css?v=11">
+    <link rel="stylesheet" href="/css/components.css?v=13">
+    <link rel="stylesheet" href="/css/layout.css?v=13">
+    <link rel="stylesheet" href="/css/pages.css?v=15">
 </head>
 
 <body>
@@ -29,6 +29,7 @@
 
             <nav>
                 <a href="/dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>Dashboard</a>
+                <a href="/obras"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4v18M12 9h7v12M8 9h1M8 13h1M8 17h1M15 13h1M15 17h1"></path></svg>Obras</a>
                 <a href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
                 <a class="tab-active" href="/estoque"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM7 7V4h10v3M8 11h8M8 15h5"></path></svg>Estoque</a>
                 <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
@@ -52,6 +53,8 @@
                 </button>
                 <h2>Estoque</h2>
 
+                {{ template "site-switcher" .Scope }}
+
                 <div class="user">
                     <span class="user-name">{{ .User.Name }}</span>
                     {{ if eq .User.Role "superadmin" }}
@@ -70,9 +73,9 @@
 
                 <header class="page-hero">
                     <div class="page-hero-text">
-                        <span class="eyebrow">Operação</span>
+                        <span class="eyebrow">{{ if .Scope.Current }}{{ .Scope.Current.Name }}{{ else }}Todas as obras{{ end }}</span>
                         <h3>Controle de estoque</h3>
-                        <p>Informe a quantidade e registre a entrada ou a saída de cada material. A observação diz para qual obra foi ou quem retirou.</p>
+                        <p>{{ if .Scope.CanMove }}Informe a quantidade e registre a entrada ou a saída de cada material nesta obra. A observação diz quem retirou ou para qual etapa foi.{{ else }}Consulta do saldo de cada material.{{ end }}</p>
                     </div>
                 </header>
 
@@ -82,10 +85,18 @@
                     <a class="material-tab-active" href="/estoque">Estoque</a>
                 </nav>
 
-                <form class="materials-filter" method="GET" action="/estoque">
+                <form class="materials-filter" method="GET" action="/estoque" data-live-search>
                     <input type="search" name="busca" value="{{ .Search }}" placeholder="Buscar material ou ID" aria-label="Buscar material">
                     <button type="submit">Buscar</button>
                 </form>
+
+                {{ if not .Scope.Current }}
+                <p class="scope-notice">Você está vendo a soma de todas as obras. Para registrar entrada ou saída, selecione uma obra no topo.</p>
+                {{ else if not .Scope.CanMove }}
+                <p class="scope-notice">Obra concluída: só consulta. Entrada e saída não são aceitas.</p>
+                {{ else if not .Scope.CanManage }}
+                <p class="scope-notice">{{ if and .Scope.IsManager .Scope.OwnSiteName }}Você gerencia a obra {{ .Scope.OwnSiteName }}. Esta aqui é só para consulta.{{ else if .Scope.IsManager }}Você ainda não está vinculado a nenhuma obra: por enquanto, só consulta. Peça a um administrador para definir a sua obra.{{ else }}Sua conta é de consulta: entrada e saída são registradas pelo gerente da obra ou por um administrador.{{ end }}</p>
+                {{ end }}
 
                 {{ if .Message }}
                 <p class="form-success" role="status">
@@ -99,15 +110,15 @@
                 </p>
                 {{ end }}
 
-                <div class="page-table stock-table">
+                <div class="page-table stock-table" data-live-region="tabela">
                 <table>
 
                     <thead>
                         <tr>
                             <th>ID</th>
                             <th>Material</th>
-                            <th>Estoque atual</th>
-                            <th>Movimentar</th>
+                            <th>{{ if .Scope.Current }}Saldo na obra{{ else }}Saldo total{{ end }}</th>
+                            {{ if .Scope.CanMove }}<th>Movimentar</th>{{ end }}
                         </tr>
                     </thead>
 
@@ -125,6 +136,7 @@
                                 <span class="stock-quantity {{ .StockStatus }}">{{ .FormattedQuantity }}</span><span class="unit-label">{{ .Unit }}</span>
                             </td>
 
+                            {{ if $.Scope.CanMove }}
                             <td class="material-actions">
 
                                 <form
@@ -134,6 +146,7 @@
                                 </form>
 
                                 <input type="hidden" name="material_id" value="{{ .ID }}" form="stock-form-{{ .ID }}">
+                                <input type="hidden" name="obra_id" value="{{ $.Scope.SiteID }}" form="stock-form-{{ .ID }}">
                                 <input type="hidden" name="busca" value="{{ $.Search }}" form="stock-form-{{ .ID }}">
                                 <input type="hidden" name="pagina" value="{{ $.Page }}" form="stock-form-{{ .ID }}">
 
@@ -152,7 +165,7 @@
                                     type="text"
                                     name="observacao"
                                     maxlength="120"
-                                    placeholder="Obra / observação"
+                                    placeholder="Etapa / quem retirou"
                                     aria-label="Observação da movimentação de {{ .Name }}"
                                     form="stock-form-{{ .ID }}">
 
@@ -174,13 +187,14 @@
                                 </button>
 
                             </td>
+                            {{ end }}
 
                         </tr>
 
                         {{ else }}
 
                         <tr>
-                            <td colspan="4">
+                            <td colspan="{{ if $.Scope.CanMove }}4{{ else }}3{{ end }}">
                                 <div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg><span>{{ if $.Search }}Nenhum material encontrado para essa busca.{{ else }}Nenhum material cadastrado.{{ end }}</span></div>
                             </td>
                         </tr>
@@ -192,6 +206,7 @@
                 </table>
                 </div>
 
+                <div data-live-region="paginacao">
                 {{ if gt .TotalPages 1 }}
 
                 <div class="pagination">
@@ -209,6 +224,7 @@
                 </div>
 
                 {{ end }}
+                </div>
 
             </section>
 
@@ -216,7 +232,7 @@
 
     </div>
 
-    <script src="/js/app.js?v=13"></script>
+    <script src="/js/app.js?v=16"></script>
 
 </body>
 

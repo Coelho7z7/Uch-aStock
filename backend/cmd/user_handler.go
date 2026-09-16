@@ -14,8 +14,8 @@ import (
 // userHandler exibe a lista de usuários cadastrados e processa a
 // criação de novos usuários, a alteração de permissão, a troca de senha
 // e a remoção.
-// A tela é acessível a administradores e gerentes; remover e alterar
-// permissão continuam restritos a administradores (checado abaixo).
+// A tela inteira é restrita a administradores: o gerente cuida da obra
+// dele, não das contas.
 func userHandler(w http.ResponseWriter, r *http.Request) {
 	user, authenticated := loggedUser(r)
 	if !authenticated {
@@ -23,16 +23,20 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := user.ID
-	if !requireAdminOrManager(w, r) {
+	if !requireAdmin(w, r) {
 		return
 	}
 
-	admin := isAdmin(r)
+	scope, ok := requireSiteScope(w, r, user)
+	if !ok {
+		return
+	}
 
 	const usersPerPage = 8
 
 	data := struct {
 		User         *models.User
+		Scope        siteScope
 		Users        []models.User
 		UserID       int
 		IsAdmin      bool
@@ -40,13 +44,14 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 		Name         string
 		Email        string
 		Role         string
+		SiteID       int
 		Message      string
 		Error        string
 		Page         int
 		TotalPages   int
 		PreviousPage int
 		NextPage     int
-	}{User: user, UserID: userID, IsAdmin: admin}
+	}{User: user, Scope: scope, UserID: userID, IsAdmin: true}
 
 	data.Message = map[string]string{
 		"criado":     "Usuário criado com sucesso.",
@@ -63,14 +68,9 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 			data.Email = strings.TrimSpace(r.FormValue("email"))
 			data.Role = r.FormValue("role")
 			password := r.FormValue("senha")
+			data.SiteID, _ = strconv.Atoi(r.FormValue("obra_id"))
 
-			// Gerente só pode cadastrar usuários com permissão básica —
-			// não pode criar outro admin/gerente por aqui.
-			if !admin {
-				data.Role = "basico"
-			}
-
-			if err := services.CreateUserWeb(data.Name, data.Email, password, data.Role); err != nil {
+			if err := services.CreateUserWeb(data.Name, data.Email, password, data.Role, data.SiteID); err != nil {
 				data.Error = err.Error()
 			} else {
 				http.Redirect(w, r, "/usuarios?sucesso=criado", http.StatusSeeOther)
@@ -78,19 +78,17 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 		case "alterar_permissao":
-			if !admin {
-				data.Error = "Apenas administradores podem alterar permissões."
-				break
-			}
-
 			targetID, idErr := strconv.Atoi(r.FormValue("usuario_id"))
 			newRole := r.FormValue("role")
+			siteID, siteErr := strconv.Atoi(r.FormValue("obra_id"))
 
 			if idErr != nil {
 				data.Error = "Usuário inválido."
+			} else if siteErr != nil {
+				data.Error = "Obra inválida."
 			} else if targetID == userID {
 				data.Error = "Você não pode alterar a sua própria permissão."
-			} else if err := services.UpdateUserRoleWeb(targetID, newRole); err != nil {
+			} else if err := services.UpdateUserAccessWeb(targetID, newRole, siteID); err != nil {
 				data.Error = err.Error()
 			} else {
 				http.Redirect(w, r, "/usuarios?sucesso=atualizado", http.StatusSeeOther)
@@ -98,11 +96,6 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 		case "redefinir_senha":
-			if !admin {
-				data.Error = "Apenas administradores podem trocar a senha de um usuário."
-				break
-			}
-
 			targetID, idErr := strconv.Atoi(r.FormValue("usuario_id"))
 
 			if idErr != nil {
@@ -115,11 +108,6 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 		case "remover":
-			if !admin {
-				data.Error = "Apenas administradores podem remover usuários."
-				break
-			}
-
 			targetID, idErr := strconv.Atoi(r.FormValue("usuario_id"))
 
 			if idErr != nil {
@@ -164,7 +152,7 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 	data.PreviousPage = page - 1
 	data.NextPage = page + 1
 
-	tmpl, err := template.ParseFiles("frontend/html/users.html")
+	tmpl, err := template.ParseFiles("frontend/html/users.html", "frontend/html/site_switcher.html")
 	if err != nil {
 		http.Error(w, "Erro ao carregar usuários", http.StatusInternalServerError)
 		return

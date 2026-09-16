@@ -39,10 +39,23 @@ func TestCreateTablesIsIdempotent(t *testing.T) {
 		{"produtos", "unidade"},
 		{"produtos", "limite_minimo"},
 		{"movimentacoes", "observacao"},
+		{"movimentacoes", "obra_id"},
+		{"sessoes", "obra_id"},
+		{"saldos", "quantidade"},
+		{"usuario_obras", "obra_id"},
 	} {
 		if !columnExists(t, c.table, c.column) {
 			t.Errorf("coluna %s.%s não foi criada", c.table, c.column)
 		}
+	}
+
+	// Rodou duas vezes, mas o almoxarifado central só pode existir uma.
+	var centrals int
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM obras WHERE tipo = 'CENTRAL'`).Scan(&centrals); err != nil {
+		t.Fatalf("contar almoxarifado central: %v", err)
+	}
+	if centrals != 1 {
+		t.Errorf("almoxarifados centrais = %d, esperado 1", centrals)
 	}
 }
 
@@ -127,5 +140,81 @@ func TestCreateTablesMigratesOldSchema(t *testing.T) {
 	}
 	if adminRole != "admin" {
 		t.Errorf("admin@gmail.com ficou com o cargo %q, esperado admin", adminRole)
+	}
+}
+
+// TestMigrateStockToSites simula um banco de antes das obras, com estoque
+// e histórico, e confere que tudo vai para o almoxarifado central uma
+// vez só, mesmo com várias inicializações.
+func TestMigrateStockToSites(t *testing.T) {
+	openTestDB(t)
+	if _, err := DB.Exec(`
+		CREATE TABLE produtos (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			nome TEXT NOT NULL,
+			quantidade INTEGER NOT NULL,
+			ativo INTEGER NOT NULL DEFAULT 1
+		);
+		CREATE TABLE movimentacoes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			produto_id INTEGER NOT NULL,
+			usuario_id INTEGER NOT NULL,
+			tipo TEXT NOT NULL,
+			quantidade INTEGER NOT NULL,
+			data DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+		INSERT INTO produtos (nome, quantidade) VALUES ('Cimento', 40), ('Areia', 2.5), ('Brita', 0);
+		INSERT INTO movimentacoes (produto_id, usuario_id, tipo, quantidade) VALUES
+			(1, 1, 'ENTRADA', 50), (1, 1, 'SAIDA', 10), (2, 1, 'ATUALIZACAO', 0);
+	`); err != nil {
+		t.Fatalf("montar banco antigo: %v", err)
+	}
+
+	for run := 1; run <= 3; run++ {
+		if err := CreateTables(); err != nil {
+			t.Fatalf("execução %d falhou: %v", run, err)
+		}
+	}
+
+	var centralID int
+	if err := DB.QueryRow(`SELECT id FROM obras WHERE tipo = 'CENTRAL'`).Scan(&centralID); err != nil {
+		t.Fatalf("ler central: %v", err)
+	}
+
+	rows, err := DB.Query(`SELECT p.nome, s.obra_id, s.quantidade FROM saldos s JOIN produtos p ON p.id = s.produto_id ORDER BY p.id`)
+	if err != nil {
+		t.Fatalf("ler saldos: %v", err)
+	}
+	defer rows.Close()
+
+	want := map[string]float64{"Cimento": 40, "Areia": 2.5, "Brita": 0}
+	found := 0
+	for rows.Next() {
+		var name string
+		var siteID int
+		var quantity float64
+		if err := rows.Scan(&name, &siteID, &quantity); err != nil {
+			t.Fatal(err)
+		}
+		found++
+		if siteID != centralID || quantity != want[name] {
+			t.Errorf("saldo de %s = %v na obra %d, esperado %v no central (%d)", name, quantity, siteID, want[name], centralID)
+		}
+	}
+	if found != len(want) {
+		t.Errorf("%d saldos criados, esperado %d (a cópia não pode repetir)", found, len(want))
+	}
+
+	var withSite, withoutSite int
+	if err := DB.QueryRow(`
+		SELECT
+			COALESCE(SUM(CASE WHEN obra_id = ? THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN obra_id IS NULL THEN 1 ELSE 0 END), 0)
+		FROM movimentacoes
+	`, centralID).Scan(&withSite, &withoutSite); err != nil {
+		t.Fatalf("ler movimentações: %v", err)
+	}
+	if withSite != 2 || withoutSite != 1 {
+		t.Errorf("movimentações no central = %d e sem obra = %d, esperado 2 e 1", withSite, withoutSite)
 	}
 }

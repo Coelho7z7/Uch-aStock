@@ -100,7 +100,7 @@ func runCreateUserCommand(args []string) {
 		os.Exit(1)
 	}
 
-	if err := services.CreateUserWeb(args[0], args[1], args[2], args[3]); err != nil {
+	if err := services.CreateUserWeb(args[0], args[1], args[2], args[3], 0); err != nil {
 		fmt.Println("Erro ao criar usuário:", err)
 		os.Exit(1)
 	}
@@ -160,6 +160,9 @@ func registerRoutes() {
 	http.HandleFunc("/logout", logoutHandler)
 
 	http.HandleFunc("/dashboard", dashboardHandler)
+
+	http.HandleFunc("/obras", siteHandler)
+	http.HandleFunc("/obra-atual", siteSwitchHandler)
 
 	http.HandleFunc("/materiais", materialHandler)
 	http.HandleFunc("/alterar-material", editMaterialHandler)

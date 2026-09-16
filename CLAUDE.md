@@ -163,15 +163,17 @@ Hierarquia, do maior para o menor:
 | Cargo | Pode |
 |---|---|
 | `superadmin` | tudo que o admin pode; identidade **reservada** a `superadmin@gmail.com` |
-| `admin` | tudo: criar/remover usuários, alterar cargos, todas as telas |
-| `gerente` | ver a aba de usuários e cadastrar usuário `basico`; **não** remove usuário nem altera cargo |
-| `basico` | operação normal do sistema |
+| `admin` | tudo: usuários e cargos, obras (inclusive paralisar/concluir), catálogo de materiais, entrada e saída em qualquer obra, visão "Todas as obras" |
+| `gerente` | entrada e saída e edição dos dados **só da obra vinculada a ele**; consulta as outras; **não** muda situação de obra, não cria obra nem material, **não acessa a aba de usuários** |
+| `basico` | consulta: escolhe qualquer obra no seletor, mas não movimenta estoque nem edita nada |
+
+Cada usuário que não é admin tem **uma** obra (tabela `usuario_obras`; a regra de uma só é garantida em `services.setUserSiteTx`). Ele entra no sistema por ela. A regra de quem gerencia qual obra mora em `canManageSite` (`backend/cmd/authorization.go`).
 
 Regras que o código garante e que **não devem ser afrouxadas**:
 
 - Só `superadmin@gmail.com` pode ter o cargo `superadmin`. `database.CreateTables()` corrige isso a cada inicialização, mesmo que alguém mexa direto no banco.
 - `create-user` não aceita `superadmin` como cargo.
-- Autorização é sempre checada **no servidor** (`requireAdmin`, `requireAdminOrManager`), nunca só escondendo botão no HTML.
+- Autorização é sempre checada **no servidor** (`requireAdmin`, `requireSiteManager`), nunca só escondendo botão no HTML.
 
 **A conta `basico` enxerga formulários de admin que não consegue enviar. Isso é proposital** — é a conta de demonstração do sistema. Não é bug, não "conserte".
 
@@ -216,8 +218,9 @@ Regras:
 
 O `app.js` e os templates dependem delas pelo nome. Renomear quebra em runtime, **sem erro de compilação**:
 
-- Montadas pelo template: `.activity-ENTRADA` / `.activity-SAIDA` / `.activity-ATUALIZACAO` (de `activity-{{ .Type }}`) e `.stock-quantity.empty` / `.low` / `.normal` (de `{{ .StockStatus }}`).
-- Consultadas pelo JS: `.sidebar` · `.content table` · `.cards .card` · `.mobile-menu-button` · `.mobile-sidebar-overlay` · `.login-card` · `.form-success` · `.form-error` · `[data-confirm]` · `[data-open]`.
+- Montadas pelo template: `.activity-ENTRADA` / `.activity-SAIDA` / `.activity-ATUALIZACAO` (de `activity-{{ .Type }}`) `.stock-quantity.empty` / `.low` / `.normal` (de `{{ .StockStatus }}`) e `.site-status-ANDAMENTO` / `.site-status-PARALISADA` / `.site-status-CONCLUIDA` (de `site-status-{{ .Status }}`).
+- Consultadas pelo JS: `.sidebar` · `.content table` · `.cards .card` · `.mobile-menu-button` · `.mobile-sidebar-overlay` · `.login-card` · `.form-success` · `.form-error` · `[data-confirm]` · `[data-confirm-optional]` · `[data-autosubmit]` · `[data-live-search]` · `[data-live-region]` · `[data-searchable]` · `[data-site-field]` · `[data-open]`.
+- **Busca em tempo real:** todo formulário de filtro com `data-live-search` busca enquanto se digita, trocando só os elementos `data-live-region` (tabela, paginação, contadores) pelos da resposta do servidor. Por isso, **botão dentro de uma região nunca recebe ouvinte direto** (`querySelectorAll(...).forEach(addEventListener)`): use delegação no `document`, senão o botão para de funcionar depois da primeira busca.
 - Aplicadas pelo JS: todas as `gs-*` · `.modal-closing` · `.mobile-menu-open`.
 - Os modais abrem pelo atributo **`hidden`**, não por classe. Por isso existe a regra `.modal-create[hidden] { display: none }` — sem ela os modais nascem abertos.
 
@@ -229,7 +232,8 @@ Antes de renomear qualquer classe, confira se ela aparece em `frontend/js/app.js
 
 Entradas e saídas mexem em dados que não podem ficar inconsistentes.
 
-- **Sempre em transação.** Alterar a quantidade e registrar a movimentação acontecem dentro de um único `tx`, com `defer tx.Rollback()`. Ver `AddStockWeb` e `RegisterStockExitWeb` em `backend/services/stock_service.go` como referência.
+- **Saldo é por obra.** A quantidade mora em `saldos` (material + obra), não em `produtos.quantidade` — essa coluna é do tempo de um estoque só e não deve ser lida nem gravada. Toda entrada e saída acontece numa obra específica e grava `movimentacoes.obra_id`. Obra concluída não aceita movimentação.
+- **Sempre em transação.** Alterar o saldo e registrar a movimentação acontecem dentro de um único `tx`, com `defer tx.Rollback()`. Ver `AddStockWeb` e `RegisterStockExitWeb` em `backend/services/stock_service.go` como referência.
 - **Estoque nunca fica negativo.** Validar a quantidade disponível antes de debitar.
 - **Quantidade sempre maior que zero** em entrada e saída.
 - **Toda mudança de quantidade gera movimentação.** Saída sem registro em `movimentacoes` é bug.

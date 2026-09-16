@@ -1,0 +1,15 @@
+{{/* Seletor de obra da topbar. Cada handler carrega este arquivo junto
+     com a tela (template.ParseFiles) e a tela chama
+     {{ template "site-switcher" .Scope }}. Fica num arquivo só para as
+     sete telas internas não repetirem a mesma lógica. */}}
+{{ define "site-switcher" }}
+<form class="site-switcher" method="POST" action="/obra-atual">
+    <input type="hidden" name="voltar" value="{{ .ReturnTo }}">
+    <label class="site-switcher-label" for="site-switcher">Obra</label>
+    <select id="site-switcher" name="obra_id" data-autosubmit data-searchable data-search-placeholder="Buscar obra...">
+        {{ if .CanSeeAll }}<option value="0"{{ if not .Current }} selected{{ end }}>Todas as obras</option>{{ end }}
+        {{ range .Sites }}<option value="{{ .ID }}"{{ if $.Current }}{{ if eq .ID $.Current.ID }} selected{{ end }}{{ end }}>{{ .Name }}{{ if eq .Status "CONCLUIDA" }} (concluída){{ else if eq .Status "PARALISADA" }} (paralisada){{ end }}</option>{{ end }}
+    </select>
+    <noscript><button type="submit">Trocar</button></noscript>
+</form>
+{{ end }}

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"database/sql"
 	"errors"
 	"strings"
 
@@ -36,10 +37,11 @@ func ListPaginatedUsers(search string, page, perPage int) ([]models.User, int, e
 	}
 
 	rows, err := database.DB.Query(`
-		SELECT id, nome, email, role
-		FROM usuarios
-		WHERE ativo = 1 AND (nome LIKE ? OR email LIKE ?)
-		ORDER BY nome
+		SELECT u.id, u.nome, u.email, u.role, COALESCE(o.id, 0), COALESCE(o.nome, '')
+		FROM usuarios u
+		`+userSiteJoin+`
+		WHERE u.ativo = 1 AND (u.nome LIKE ? OR u.email LIKE ?)
+		ORDER BY u.nome
 		LIMIT ? OFFSET ?
 	`, filter, filter, perPage, offset)
 	if err != nil {
@@ -50,7 +52,7 @@ func ListPaginatedUsers(search string, page, perPage int) ([]models.User, int, e
 	users := make([]models.User, 0, perPage)
 	for rows.Next() {
 		var user models.User
-		if err := rows.Scan(&user.ID, &user.Name, &user.Email, &user.Role); err != nil {
+		if err := rows.Scan(&user.ID, &user.Name, &user.Email, &user.Role, &user.SiteID, &user.SiteName); err != nil {
 			return nil, 0, err
 		}
 		user.Active = true
@@ -64,10 +66,10 @@ func ListPaginatedUsers(search string, page, perPage int) ([]models.User, int, e
 }
 
 // CreateUserWeb cadastra um novo usuário a partir do painel de
-// administração. Um gerente só pode cadastrar usuários com permissão
-// "basico" — quem chama esta função decide isso antes, passando a role
-// já validada (o handler força "basico" quando quem cria não é admin).
-func CreateUserWeb(name, email, password, role string) error {
+// administração (restrito a administradores, validado no handler) ou do
+// comando create-user. siteID é a obra em que a pessoa vai atuar; 0 é
+// "nenhuma". Para administrador a obra é ignorada: ele vê todas.
+func CreateUserWeb(name, email, password, role string, siteID int) error {
 	name = strings.TrimSpace(name)
 	email = strings.ToLower(strings.TrimSpace(email))
 	role = strings.TrimSpace(role)
@@ -97,13 +99,61 @@ func CreateUserWeb(name, email, password, role string) error {
 		return errors.New("Erro ao proteger a senha.")
 	}
 
-	if _, err := database.DB.Exec(`
+	// Usuário e vínculo com a obra entram juntos: se a obra for inválida,
+	// o usuário também não é criado.
+	tx, err := database.DB.Begin()
+	if err != nil {
+		return errors.New("Erro ao cadastrar usuário.")
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(`
 		INSERT INTO usuarios (nome, email, senha, role, ativo)
 		VALUES (?, ?, ?, ?, 1)
-	`, name, email, string(hash), role); err != nil {
+	`, name, email, string(hash), role)
+	if err != nil {
 		return errors.New("Esse email já está cadastrado.")
 	}
+	userID, err := result.LastInsertId()
+	if err != nil {
+		return errors.New("Erro ao cadastrar usuário.")
+	}
 
+	if err := setUserSiteTx(tx, int(userID), role, siteID); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return errors.New("Erro ao cadastrar usuário.")
+	}
+	return nil
+}
+
+// setUserSiteTx troca a obra do usuário: apaga o vínculo antigo e grava o
+// novo. É o "apagar antes" que garante uma obra só por usuário.
+// Administrador fica sem vínculo, mesmo que uma obra tenha sido enviada.
+func setUserSiteTx(tx *sql.Tx, userID int, role string, siteID int) error {
+	if siteID < 0 {
+		return errors.New("Obra inválida.")
+	}
+	if _, err := tx.Exec(`DELETE FROM usuario_obras WHERE usuario_id = ?`, userID); err != nil {
+		return errors.New("Erro ao salvar a obra do usuário.")
+	}
+	if role == "admin" || siteID == 0 {
+		return nil
+	}
+
+	var exists int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM obras WHERE id = ? AND ativo = 1`, siteID).Scan(&exists); err != nil {
+		return errors.New("Erro ao salvar a obra do usuário.")
+	}
+	if exists == 0 {
+		return errors.New("Obra não encontrada.")
+	}
+
+	if _, err := tx.Exec(`INSERT INTO usuario_obras (usuario_id, obra_id) VALUES (?, ?)`, userID, siteID); err != nil {
+		return errors.New("Erro ao salvar a obra do usuário.")
+	}
 	return nil
 }
 
@@ -114,11 +164,11 @@ func isSuperAdmin(user *models.User) bool {
 		strings.EqualFold(strings.TrimSpace(user.Email), "superadmin@gmail.com")
 }
 
-// UpdateUserRoleWeb altera a permissão de um usuário.
+// UpdateUserAccessWeb altera a permissão e a obra de um usuário, juntas.
 // O cargo SuperAdmin é exclusivo do superadmin@gmail.com e nunca pode ser alterado —
 // nem por outro administrador. Restrito a administradores (validado no
 // handler, e o SuperAdmin também conta como administrador).
-func UpdateUserRoleWeb(targetID int, newRole string) error {
+func UpdateUserAccessWeb(targetID int, newRole string, siteID int) error {
 	newRole = strings.TrimSpace(newRole)
 	if !validRoles[newRole] {
 		return errors.New("Permissão inválida.")
@@ -132,10 +182,22 @@ func UpdateUserRoleWeb(targetID int, newRole string) error {
 		return errors.New("O cargo SuperAdmin é protegido e não pode ser alterado.")
 	}
 
-	if _, err := database.DB.Exec(`UPDATE usuarios SET role = ? WHERE id = ?`, newRole, targetID); err != nil {
+	tx, err := database.DB.Begin()
+	if err != nil {
 		return errors.New("Erro ao atualizar a permissão.")
 	}
+	defer tx.Rollback()
 
+	if _, err := tx.Exec(`UPDATE usuarios SET role = ? WHERE id = ?`, newRole, targetID); err != nil {
+		return errors.New("Erro ao atualizar a permissão.")
+	}
+	if err := setUserSiteTx(tx, targetID, newRole, siteID); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return errors.New("Erro ao atualizar a permissão.")
+	}
 	return nil
 }
 

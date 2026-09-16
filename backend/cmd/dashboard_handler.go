@@ -11,6 +11,7 @@ import (
 
 type DashboardData struct {
 	User       *models.User
+	Scope      siteScope
 	LowStock   []models.LowStockMaterial
 	Activities []models.Movement
 	Summary    services.DashboardSummary
@@ -33,13 +34,18 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	summary, err := services.GetDashboardSummary()
+	scope, ok := requireSiteScope(w, r, user)
+	if !ok {
+		return
+	}
+
+	summary, err := services.GetDashboardSummary(scope.SiteID())
 	if err != nil {
 		http.Error(w, "Erro ao carregar resumo", http.StatusInternalServerError)
 		return
 	}
 
-	activities, err := services.GetMovementsWeb()
+	activities, err := services.GetMovementsFilteredWeb(services.MovementFilter{SiteID: scope.SiteID()})
 	if err != nil {
 		http.Error(w, "Erro ao carregar atividades", http.StatusInternalServerError)
 		return
@@ -48,7 +54,7 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
 		activities = activities[:5]
 	}
 
-	lowStock, err := services.GetLowStockMaterials(lowStockPanelSize)
+	lowStock, err := services.GetLowStockMaterials(lowStockPanelSize, scope.SiteID())
 	if err != nil {
 		http.Error(w, "Erro ao carregar materiais em falta", http.StatusInternalServerError)
 		return
@@ -61,6 +67,7 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := DashboardData{
 		User:          user,
+		Scope:         scope,
 		LowStock:      lowStock,
 		Activities:    activities,
 		Summary:       summary,
@@ -68,7 +75,7 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
 		GeneratedAt:   time.Now().Local().Format("02/01/2006 às 15:04"),
 	}
 
-	tmpl, err := template.ParseFiles("frontend/html/dashboard.html")
+	tmpl, err := template.ParseFiles("frontend/html/dashboard.html", "frontend/html/site_switcher.html")
 	if err != nil {
 		http.Error(w, "Erro ao carregar o dashboard", http.StatusInternalServerError)
 		return

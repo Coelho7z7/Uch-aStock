@@ -10,9 +10,9 @@
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=11">
-    <link rel="stylesheet" href="/css/layout.css?v=11">
-    <link rel="stylesheet" href="/css/pages.css?v=11">
+    <link rel="stylesheet" href="/css/components.css?v=13">
+    <link rel="stylesheet" href="/css/layout.css?v=13">
+    <link rel="stylesheet" href="/css/pages.css?v=15">
 </head>
 
 <body>
@@ -31,10 +31,11 @@
 
             <nav>
                 <a class="tab-active" href="/dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>Dashboard</a>
+                <a href="/obras"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4v18M12 9h7v12M8 9h1M8 13h1M8 17h1M15 13h1M15 17h1"></path></svg>Obras</a>
                 <a href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
                 <a href="/estoque"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM7 7V4h10v3M8 11h8M8 15h5"></path></svg>Estoque</a>
                 <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
-                {{ if or (eq .User.Role "admin") (eq .User.Role "superadmin") (eq .User.Role "gerente") }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
+                {{ if or (eq .User.Role "admin") (eq .User.Role "superadmin") }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
             </nav>
 
             <div class="sidebar-footer">
@@ -56,6 +57,8 @@
                     <h2>Dashboard</h2>
                 </div>
 
+                {{ template "site-switcher" .Scope }}
+
                 <div class="user">
                     <span class="user-name">{{ .User.Name }}</span>
                     {{ if eq .User.Role "superadmin" }}
@@ -74,9 +77,9 @@
 
     <header class="page-hero">
         <div class="page-hero-text">
-            <span class="eyebrow">Resumo da operação</span>
-            <h3>Visão geral</h3>
-            <p>Quantidades em estoque, materiais que precisam de reposição e o que mudou hoje.</p>
+            <span class="eyebrow">{{ if .Scope.Current }}{{ .Scope.Current.FormattedType }} · {{ .Scope.Current.FormattedStatus }}{{ else }}Todas as obras{{ end }}</span>
+            <h3>{{ if .Scope.Current }}{{ .Scope.Current.Name }}{{ else }}Visão geral{{ end }}</h3>
+            <p>{{ if .Scope.Current }}Estoque desta obra, materiais que precisam de reposição e o que mudou hoje.{{ else }}A empresa inteira: cada alerta diz em qual obra o material está acabando.{{ end }}</p>
             <span class="page-hero-meta">Atualizado em {{ .GeneratedAt }}</span>
         </div>
     </header>
@@ -87,21 +90,21 @@
             <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 9h18M3 15h18M8 4v5M16 4v5M6 15v5M12 15v5M18 15v5"/><rect x="3" y="4" width="18" height="16" rx="1.5"/></svg></span>
             <span class="card-title">Materiais</span>
             <strong>{{ .Summary.TotalMaterials }}</strong>
-            <small>Materiais cadastrados</small>
+            <small>{{ if .Scope.Current }}Com estoque nesta obra{{ else }}Materiais cadastrados{{ end }}</small>
         </div>
 
         <div class="card">
             <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 20 7v10l-8 4-8-4V7l8-4Z"/><path d="m4 7 8 4 8-4M12 11v10"/></svg></span>
             <span class="card-title">Zerados</span>
             <strong>{{ .Summary.EmptyStock }}</strong>
-            <small>Sem nenhuma unidade</small>
+            <small>{{ if .Scope.Current }}Sem nenhuma unidade{{ else }}Contando cada obra{{ end }}</small>
         </div>
 
         <div class="card card-alert">
             <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span>
             <span class="card-title">Em falta</span>
             <strong>{{ .Summary.LowStock }}</strong>
-            <small>Prestes a acabar</small>
+            <small>{{ if .Scope.Current }}Prestes a acabar{{ else }}Prestes a acabar, por obra{{ end }}</small>
         </div>
 
         <div class="card card-today">
@@ -149,7 +152,7 @@
                 <tbody>
                     {{ range .LowStock }}
                     <tr>
-                        <td class="activity-material">{{ .Name }}</td>
+                        <td class="activity-material">{{ .Name }}{{ if not $.Scope.Current }}<span class="row-site-name">{{ .SiteName }}</span>{{ end }}</td>
                         <td>
                             <span class="stock-quantity {{ .StockStatus }}">{{ .FormattedQuantity }}</span><span class="unit-label">{{ .Unit }}</span>
                         </td>
@@ -211,7 +214,7 @@
                 {{ range .Activities }}
                 <tr>
                     <td><span class="activity-type activity-{{ .Type }}">{{ if eq .Type "ENTRADA" }}Adicionado{{ else if eq .Type "SAIDA" }}Saída{{ else }}Atualizado{{ end }}</span></td>
-                    <td class="activity-material">{{ .Material }}</td>
+                    <td class="activity-material">{{ .Material }}{{ if not $.Scope.Current }}{{ if .SiteName }}<span class="row-site-name">{{ .SiteName }}</span>{{ end }}{{ end }}</td>
                     <td>{{ if eq .Type "ATUALIZACAO" }}-{{ else }}{{ .FormattedQuantity }}<span class="unit-label">{{ .Unit }}</span>{{ end }}</td>
                     <td>{{ .FormattedDate }} às {{ .FormattedTime }}</td>
                 </tr>
@@ -236,6 +239,6 @@
 
     </div>
 
-    <script src="/js/app.js?v=13"></script>
+    <script src="/js/app.js?v=16"></script>
 </body>
 </html>

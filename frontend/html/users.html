@@ -8,9 +8,9 @@
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=11">
-    <link rel="stylesheet" href="/css/layout.css?v=11">
-    <link rel="stylesheet" href="/css/pages.css?v=11">
+    <link rel="stylesheet" href="/css/components.css?v=13">
+    <link rel="stylesheet" href="/css/layout.css?v=13">
+    <link rel="stylesheet" href="/css/pages.css?v=15">
 </head>
 
 <body class="materials-page">
@@ -29,6 +29,7 @@
 
             <nav>
                 <a href="/dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>Dashboard</a>
+                <a href="/obras"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4v18M12 9h7v12M8 9h1M8 13h1M8 17h1M15 13h1M15 17h1"></path></svg>Obras</a>
                 <a href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
                 <a href="/estoque"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM7 7V4h10v3M8 11h8M8 15h5"></path></svg>Estoque</a>
                 <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
@@ -51,6 +52,8 @@
                     </svg>
                 </button>
                 <h2>Usuários</h2>
+
+                {{ template "site-switcher" .Scope }}
 
                 <div class="user">
                     <span class="user-name">{{ .User.Name }}</span>
@@ -81,7 +84,7 @@
                     </div>
                 </header>
 
-                <form class="materials-filter" method="GET" action="/usuarios">
+                <form class="materials-filter" method="GET" action="/usuarios" data-live-search>
                     <input type="search" name="busca" value="{{ .Search }}" placeholder="Buscar por nome ou email">
                     <button type="submit">Filtrar</button>
                 </form>
@@ -98,7 +101,7 @@
                 </p>
                 {{ end }}
 
-                <div class="materials-table page-table users-table">
+                <div class="materials-table page-table users-table" data-live-region="tabela">
 
                     <table>
 
@@ -108,6 +111,7 @@
                                 <th>Nome</th>
                                 <th>Email</th>
                                 <th>Permissão</th>
+                                <th>Obra</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
@@ -141,6 +145,8 @@
                                     <span class="role-badge role-badge-basic">Usuário</span>
                                     {{ end }}
                                 </td>
+
+                                <td>{{ if or (eq .Role "admin") (eq .Role "superadmin") }}<span class="muted-dash">Todas</span>{{ else if .SiteName }}{{ .SiteName }}{{ else }}<span class="muted-dash">—</span>{{ end }}</td>
 
                                 <td class="material-actions">
 
@@ -187,7 +193,8 @@
                                         aria-label="Alterar permissão de {{ .Name }}"
                                         data-id="{{ .ID }}"
                                         data-name="{{ .Name }}"
-                                        data-role="{{ .Role }}">
+                                        data-role="{{ .Role }}"
+                                        data-site="{{ .SiteID }}">
                                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path></svg>
                                     </button>
 
@@ -217,7 +224,7 @@
                             {{ else }}
 
                             <tr>
-                                <td colspan="5"><div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg><span>Nenhum usuário encontrado.</span><button type="button" class="empty-table-cta" data-open="create-user-modal">Cadastrar usuário</button></div></td>
+                                <td colspan="6"><div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg><span>Nenhum usuário encontrado.</span><button type="button" class="empty-table-cta" data-open="create-user-modal">Cadastrar usuário</button></div></td>
                             </tr>
 
                             {{ end }}
@@ -245,18 +252,21 @@
                             <input type="email" name="email" id="new-user-email" value="{{ .Email }}" placeholder="usuario@gmail.com" required>
                             <label for="new-user-password">Senha</label>
                             <input type="password" name="senha" id="new-user-password" minlength="6" required>
-                            {{ if .IsAdmin }}
                             <label for="new-user-role">Permissão</label>
                             <select name="role" id="new-user-role">
-                                <option value="basico">Usuário</option>
-                                <option value="gerente">Gerente</option>
-                                <option value="admin">Administrador</option>
+                                <option value="basico"{{ if eq .Role "basico" }} selected{{ end }}>Usuário</option>
+                                <option value="gerente"{{ if eq .Role "gerente" }} selected{{ end }}>Gerente</option>
+                                <option value="admin"{{ if eq .Role "admin" }} selected{{ end }}>Administrador</option>
                             </select>
                             <small class="role-help">O cargo SuperAdmin é reservado exclusivamente para superadmin@gmail.com.</small>
-                            {{ else }}
-                            <input type="hidden" name="role" value="basico">
-                            <small class="role-help">Gerentes só podem cadastrar usuários com permissão de Usuário.</small>
-                            {{ end }}
+                            <div class="user-site-field" data-site-field{{ if eq .Role "admin" }} hidden{{ end }}>
+                                <label for="new-user-site">Obra</label>
+                                <select name="obra_id" id="new-user-site" data-searchable data-search-placeholder="Buscar obra...">
+                                    <option value="0">Nenhuma</option>
+                                    {{ range .Scope.Sites }}<option value="{{ .ID }}"{{ if eq .ID $.SiteID }} selected{{ end }}>{{ .Name }}{{ if eq .Status "CONCLUIDA" }} (concluída){{ end }}</option>{{ end }}
+                                </select>
+                                <small class="role-help">O gerente registra entrada e saída e edita os dados só desta obra. O usuário comum só consulta, e entra no sistema por ela.</small>
+                            </div>
                             <button class="save-button" type="submit">Criar usuário</button>
                         </form>
                     </div>
@@ -267,7 +277,7 @@
                         <div class="modal-create-header">
                             <div>
                                 <span class="edit-kicker">Usuários</span>
-                                <h3 id="edit-user-title">Alterar permissão</h3>
+                                <h3 id="edit-user-title">Alterar permissão e obra</h3>
                             </div>
                             <button class="close-modal-button" type="button" id="close-edit-user" aria-label="Fechar">&times;</button>
                         </div>
@@ -282,6 +292,14 @@
                                 <option value="gerente">Gerente</option>
                                 <option value="admin">Administrador</option>
                             </select>
+                            <div class="user-site-field" data-site-field>
+                                <label for="edit-user-site">Obra</label>
+                                <select name="obra_id" id="edit-user-site" data-searchable data-search-placeholder="Buscar obra...">
+                                    <option value="0">Nenhuma</option>
+                                    {{ range .Scope.Sites }}<option value="{{ .ID }}">{{ .Name }}{{ if eq .Status "CONCLUIDA" }} (concluída){{ end }}</option>{{ end }}
+                                </select>
+                                <small class="role-help">Administrador não tem obra: ele vê e gerencia todas.</small>
+                            </div>
                             <button class="save-button" type="submit">Salvar alterações</button>
                         </form>
                     </div>
@@ -309,23 +327,25 @@
                     </div>
                 </div>
 
+                <div data-live-region="paginacao">
                 {{ if gt .TotalPages 1 }}
 
                 <div class="pagination">
 
                     {{ if gt .Page 1 }}
-                    <a href="/usuarios?pagina={{ .PreviousPage }}">« Anterior</a>
+                    <a href="/usuarios?pagina={{ .PreviousPage }}{{ if .Search }}&busca={{ .Search }}{{ end }}">« Anterior</a>
                     {{ end }}
 
                     <span>Página {{ .Page }} de {{ .TotalPages }}</span>
 
                     {{ if lt .Page .TotalPages }}
-                    <a href="/usuarios?pagina={{ .NextPage }}">Próxima »</a>
+                    <a href="/usuarios?pagina={{ .NextPage }}{{ if .Search }}&busca={{ .Search }}{{ end }}">Próxima »</a>
                     {{ end }}
 
                 </div>
 
                 {{ end }}
+                </div>
 
             </section>
 
@@ -333,11 +353,10 @@
 
     </div>
 
-    <script src="/js/app.js?v=13"></script>
+    <script src="/js/app.js?v=16"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const createModal = document.getElementById('create-user-modal');
-            const openCreateButtons = document.querySelectorAll('#open-create-user, [data-open="create-user-modal"]');
             const closeCreate = document.getElementById('close-create-user');
             const editModal = document.getElementById('edit-user-modal');
             const closeEdit = document.getElementById('close-edit-user');
@@ -364,10 +383,12 @@
                 lockScroll();
             };
 
-            openCreateButtons.forEach(function (button) {
-                button.addEventListener('click', function () {
-                    openModal(createModal, createModal.querySelector('input'));
-                });
+            // Os botões das linhas são ouvidos no document ("delegação"), e
+            // não um por um: a busca em tempo real troca a tabela inteira, e
+            // um ouvinte preso a um botão antigo sumiria junto com ele.
+            document.addEventListener('click', function (event) {
+                if (!event.target.closest('#open-create-user, [data-open="create-user-modal"]')) return;
+                openModal(createModal, createModal.querySelector('input'));
             });
             if (closeCreate) {
                 closeCreate.addEventListener('click', function () { closeModal(createModal); });
@@ -379,14 +400,32 @@
             const idField = document.getElementById('edit-user-id');
             const nameDisplayField = document.getElementById('edit-user-name-display');
             const roleField = document.getElementById('edit-user-role');
+            const siteField = document.getElementById('edit-user-site');
 
-            document.querySelectorAll('.edit-material-button[data-id]').forEach(function (button) {
-                button.addEventListener('click', function () {
-                    idField.value = button.dataset.id;
-                    nameDisplayField.value = button.dataset.name;
-                    roleField.value = button.dataset.role;
-                    openModal(editModal, roleField);
-                });
+            // Administrador não tem obra: o campo some quando a permissão
+            // escolhida é Administrador (o servidor também ignora a obra).
+            document.querySelectorAll('select[name="role"]').forEach(function (roleSelect) {
+                const field = roleSelect.form.querySelector('[data-site-field]');
+                if (!field) return;
+                const sync = function () {
+                    field.hidden = roleSelect.value === 'admin';
+                };
+                roleSelect.addEventListener('change', sync);
+                sync();
+            });
+
+            document.addEventListener('click', function (event) {
+                const button = event.target.closest('.edit-material-button[data-id]');
+                if (!button) return;
+                idField.value = button.dataset.id;
+                nameDisplayField.value = button.dataset.name;
+                roleField.value = button.dataset.role;
+                siteField.value = button.dataset.site || '0';
+                // "change" atualiza o botão da lista com busca e mostra ou
+                // esconde o campo Obra conforme a permissão.
+                siteField.dispatchEvent(new Event('change'));
+                roleField.dispatchEvent(new Event('change'));
+                openModal(editModal, roleField);
             });
             if (closeEdit) {
                 closeEdit.addEventListener('click', function () { closeModal(editModal); });
@@ -401,13 +440,13 @@
             const passwordNameField = document.getElementById('password-user-name-display');
             const passwordValueField = document.getElementById('password-user-value');
 
-            document.querySelectorAll('.edit-material-button[data-password-id]').forEach(function (button) {
-                button.addEventListener('click', function () {
-                    passwordIdField.value = button.dataset.passwordId;
-                    passwordNameField.value = button.dataset.passwordName;
-                    passwordValueField.value = '';
-                    openModal(passwordModal, passwordValueField);
-                });
+            document.addEventListener('click', function (event) {
+                const button = event.target.closest('.edit-material-button[data-password-id]');
+                if (!button) return;
+                passwordIdField.value = button.dataset.passwordId;
+                passwordNameField.value = button.dataset.passwordName;
+                passwordValueField.value = '';
+                openModal(passwordModal, passwordValueField);
             });
             if (closePassword) {
                 closePassword.addEventListener('click', function () { closeModal(passwordModal); });

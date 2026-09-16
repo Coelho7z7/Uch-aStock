@@ -8,9 +8,9 @@
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=11">
-    <link rel="stylesheet" href="/css/layout.css?v=11">
-    <link rel="stylesheet" href="/css/pages.css?v=11">
+    <link rel="stylesheet" href="/css/components.css?v=13">
+    <link rel="stylesheet" href="/css/layout.css?v=13">
+    <link rel="stylesheet" href="/css/pages.css?v=15">
 </head>
 
 <body class="materials-page">
@@ -29,6 +29,7 @@
 
             <nav>
                 <a href="/dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>Dashboard</a>
+                <a href="/obras"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4v18M12 9h7v12M8 9h1M8 13h1M8 17h1M15 13h1M15 17h1"></path></svg>Obras</a>
                 <a class="tab-active" href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
                 <a href="/estoque"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM7 7V4h10v3M8 11h8M8 15h5"></path></svg>Estoque</a>
                 <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
@@ -51,6 +52,8 @@
                     </svg>
                 </button>
                 <h2>Materiais</h2>
+
+                {{ template "site-switcher" .Scope }}
 
                 <div class="user">
                     <span class="user-name">{{ .User.Name }}</span>
@@ -87,7 +90,7 @@
                     <a href="/estoque">Estoque</a>
                 </nav>
 
-                <form class="materials-filter" method="GET" action="/materiais">
+                <form class="materials-filter" method="GET" action="/materiais" data-live-search>
                     <input type="search" name="busca" value="{{ .Search }}" placeholder="Buscar material ou ID" aria-label="Buscar material">
                     <select name="ordem" aria-label="Ordenar materiais">
                         <option value="recentes" {{ if eq .Order "recentes" }}selected{{ end }}>Mais recentes</option>
@@ -109,7 +112,7 @@
                 </p>
                 {{ end }}
 
-                <div class="materials-table page-table materials-list-table">
+                <div class="materials-table page-table materials-list-table" data-live-region="tabela">
 
                     <table>
 
@@ -117,7 +120,7 @@
                             <tr>
                                 <th>ID</th>
                                 <th>Material</th>
-                                <th>Estoque</th>
+                                <th>{{ if .Scope.Current }}Saldo na obra{{ else }}Saldo total{{ end }}</th>
                                 <th>Avisar em</th>
                                 <th>Ações</th>
                             </tr>
@@ -155,6 +158,7 @@
 
                 </div>
 
+                <div data-live-region="paginacao">
                 {{ if gt .TotalPages 1 }}
 
                 <div class="pagination">
@@ -172,6 +176,7 @@
                 </div>
 
                 {{ end }}
+                </div>
 
                 <div
                     class="modal-create"
@@ -202,6 +207,7 @@
                         </div>
 
                         <form class="create-form" action="/materiais" method="POST">
+                            <input type="hidden" name="obra_id" value="{{ .Scope.SiteID }}">
 
                             <label for="material-name">Nome do material</label>
                             <input id="material-name" type="text" name="nome" value="{{ .Name }}" placeholder="Ex.: Cimento CP-II 50kg" required>
@@ -222,7 +228,7 @@
                                 </div>
                             </div>
 
-                            <small class="role-help">Aceita decimais com vírgula, como 2,5. O material aparece como "acabando" quando o estoque chegar ao limite de aviso.</small>
+                            <small class="role-help">{{ with .TargetSite }}A quantidade inicial entra em <strong>{{ .Name }}</strong>. {{ end }}Aceita decimais com vírgula, como 2,5. O material aparece como "acabando" quando o saldo de uma obra chegar ao limite de aviso.</small>
 
                             <button type="submit">Cadastrar material</button>
 
@@ -238,7 +244,7 @@
 
     </div>
 
-    <script src="/js/app.js?v=13"></script>
+    <script src="/js/app.js?v=16"></script>
 
 </body>
 

@@ -59,7 +59,13 @@ func movementHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	scope, ok := requireSiteScope(w, r, user)
+	if !ok {
+		return
+	}
+
 	filter, problem := readMovementFilter(r)
+	filter.SiteID = scope.SiteID()
 
 	movements, err := services.GetMovementsFilteredWeb(filter)
 	if err != nil {
@@ -88,7 +94,7 @@ func movementHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	movements = movements[start:end]
 
-	tmpl, err := template.ParseFiles("frontend/html/movements.html")
+	tmpl, err := template.ParseFiles("frontend/html/movements.html", "frontend/html/site_switcher.html")
 	if err != nil {
 		http.Error(w, "Erro ao carregar movimentações", http.StatusInternalServerError)
 		return
@@ -96,6 +102,7 @@ func movementHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := struct {
 		User           *models.User
+		Scope          siteScope
 		Movements      []models.Movement
 		Page           int
 		TotalPages     int
@@ -110,6 +117,7 @@ func movementHandler(w http.ResponseWriter, r *http.Request) {
 		Error          string
 	}{
 		User:           user,
+		Scope:          scope,
 		Movements:      movements,
 		Page:           page,
 		TotalPages:     totalPages,
@@ -140,12 +148,20 @@ func movementHandler(w http.ResponseWriter, r *http.Request) {
 // UTF-8 (os bytes EF BB BF): é assim que o Excel em português separa as colunas e
 // mostra os acentos sem pedir importação manual.
 func movementExportHandler(w http.ResponseWriter, r *http.Request) {
-	if _, authenticated := userFromSession(r); !authenticated {
+	user, authenticated := loggedUser(r)
+	if !authenticated {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
+	scope, ok := requireSiteScope(w, r, user)
+	if !ok {
+		return
+	}
+
+	// O arquivo traz o mesmo recorte da tela: a obra selecionada e os filtros.
 	filter, _ := readMovementFilter(r)
+	filter.SiteID = scope.SiteID()
 
 	movements, err := services.GetMovementsFilteredWeb(filter)
 	if err != nil {
@@ -162,7 +178,7 @@ func movementExportHandler(w http.ResponseWriter, r *http.Request) {
 	writer := csv.NewWriter(w)
 	writer.Comma = ';'
 
-	_ = writer.Write([]string{"Data", "Hora", "Tipo", "Material", "Quantidade", "Unidade", "Usuário", "Observação"})
+	_ = writer.Write([]string{"Data", "Hora", "Obra", "Tipo", "Material", "Quantidade", "Unidade", "Usuário", "Observação"})
 	for _, movement := range movements {
 		quantity, unit := movement.FormattedQuantity, movement.Unit
 		if movement.Type == "ATUALIZACAO" {
@@ -171,6 +187,7 @@ func movementExportHandler(w http.ResponseWriter, r *http.Request) {
 		_ = writer.Write([]string{
 			movement.FormattedDate,
 			movement.FormattedTime,
+			csvSafe(movement.SiteName),
 			movement.FormattedType,
 			csvSafe(movement.Material),
 			quantity,

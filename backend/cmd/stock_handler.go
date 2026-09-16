@@ -22,8 +22,14 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	scope, ok := requireSiteScope(w, r, user)
+	if !ok {
+		return
+	}
+
 	data := struct {
 		User         *models.User
+		Scope        siteScope
 		Materials    []models.Material
 		Search       string
 		Message      string
@@ -33,7 +39,7 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		TotalPages   int
 		Page         int
 		IsAdmin      bool
-	}{User: user, IsAdmin: canViewUsersTab(r)}
+	}{User: user, Scope: scope, IsAdmin: canViewUsersTab(r)}
 
 	messages := map[string]string{
 		"entrada":    "Entrada registrada com sucesso.",
@@ -51,7 +57,10 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodPost {
-		if !requireAdmin(w, r) {
+		// Administrador movimenta em qualquer obra; gerente, só na dele.
+		// Para o admin a checagem de obra fica para o switch abaixo, que
+		// explica o problema ("selecione uma obra") em vez de negar acesso.
+		if !hasAdminRole(user) && !requireSiteManager(w, user, scope.SiteID()) {
 			return
 		}
 		materialID, idErr := strconv.Atoi(r.FormValue("material_id"))
@@ -59,16 +68,24 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		note := r.FormValue("observacao")
 		action := r.FormValue("acao")
 
+		// A obra vem da sessão, não do formulário: o obra_id do formulário
+		// só serve para conferir que ninguém trocou de obra em outra aba.
 		var opErr error
 		switch {
+		case !sameSiteAsForm(r, scope):
+			data.Error = siteChangedMessage
+		case scope.Current == nil:
+			data.Error = "Selecione uma obra no topo para registrar entrada ou saída."
+		case !scope.CanMove():
+			opErr = services.ErrSiteFinished
 		case idErr != nil:
 			data.Error = "Material inválido."
 		case qtyErr != nil || quantity <= 0:
 			data.Error = "Informe uma quantidade maior que zero."
 		case action == "entrada":
-			opErr = services.AddStockWeb(materialID, quantity, user.ID, note)
+			opErr = services.AddStockWeb(materialID, scope.Current.ID, quantity, user.ID, note)
 		case action == "saida":
-			opErr = services.RegisterStockExitWeb(materialID, quantity, user.ID, note)
+			opErr = services.RegisterStockExitWeb(materialID, scope.Current.ID, quantity, user.ID, note)
 		default:
 			data.Error = "Ação inválida."
 		}
@@ -85,7 +102,7 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	materials, total, err := services.PaginatedMaterials(data.Search, page, materialsPerPage)
+	materials, total, err := services.PaginatedMaterials(data.Search, page, materialsPerPage, scope.SiteID())
 	if err != nil {
 		log.Println("erro em PaginatedMaterials:", err)
 		http.Error(w, "Erro ao buscar materiais", http.StatusInternalServerError)
@@ -107,7 +124,7 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		data.Message = messages[r.URL.Query().Get("sucesso")]
 	}
 
-	tmpl, err := template.ParseFiles("frontend/html/stock.html")
+	tmpl, err := template.ParseFiles("frontend/html/stock.html", "frontend/html/site_switcher.html")
 	if err != nil {
 		http.Error(w, "Erro ao carregar estoque", http.StatusInternalServerError)
 		return

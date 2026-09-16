@@ -25,8 +25,22 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	scope, ok := requireSiteScope(w, r, user)
+	if !ok {
+		return
+	}
+
+	// O estoque inicial de um material novo entra na obra selecionada. Na
+	// visão de todas as obras, entra no almoxarifado central.
+	targetSite := scope.Current
+	if targetSite == nil {
+		targetSite = scope.Central()
+	}
+
 	data := struct {
 		User         *models.User
+		Scope        siteScope
+		TargetSite   *models.Site
 		Materials    []models.Material
 		Units        []string
 		Name         string
@@ -43,12 +57,14 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 		NextPage     int
 		IsAdmin      bool
 	}{
-		User:     user,
-		Units:    utils.MaterialUnits,
-		Quantity: "0",
-		Unit:     "un",
-		Minimum:  utils.FormatQuantity(services.LowStockThreshold),
-		IsAdmin:  canViewUsersTab(r),
+		User:       user,
+		Scope:      scope,
+		TargetSite: targetSite,
+		Units:      utils.MaterialUnits,
+		Quantity:   "0",
+		Unit:       "un",
+		Minimum:    utils.FormatQuantity(services.LowStockThreshold),
+		IsAdmin:    canViewUsersTab(r),
 	}
 
 	data.Message = map[string]string{
@@ -72,6 +88,10 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 		minimum, minimumErr := utils.ParseQuantity(data.Minimum)
 
 		switch {
+		case !sameSiteAsForm(r, scope):
+			data.Error = siteChangedMessage
+		case targetSite == nil:
+			data.Error = "Almoxarifado central não encontrado."
 		case data.Name == "":
 			data.Error = "Informe o nome do material."
 		case quantityErr != nil || quantity < 0:
@@ -79,7 +99,7 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 		case minimumErr != nil || minimum < 0:
 			data.Error = "Informe um limite de aviso válido."
 		default:
-			if err := services.CreateMaterialWeb(data.Name, quantity, data.Unit, minimum, user.ID); err != nil {
+			if err := services.CreateMaterialWeb(data.Name, quantity, data.Unit, minimum, targetSite.ID, user.ID); err != nil {
 				data.Error = err.Error()
 			} else {
 				http.Redirect(w, r, "/materiais?sucesso=cadastrado", http.StatusSeeOther)
@@ -107,6 +127,7 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 		page,
 		materialsPerPage,
 		data.Order,
+		scope.SiteID(),
 	)
 	if err != nil {
 		log.Println("erro em PaginatedMaterials:", err)
@@ -125,7 +146,7 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 	data.PreviousPage = page - 1
 	data.NextPage = page + 1
 
-	tmpl, err := template.ParseFiles("frontend/html/materials.html")
+	tmpl, err := template.ParseFiles("frontend/html/materials.html", "frontend/html/site_switcher.html")
 	if err != nil {
 		http.Error(w, "Erro ao carregar materiais", http.StatusInternalServerError)
 		return
@@ -159,8 +180,14 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 		"removido":   "Material removido com sucesso.",
 	}
 
+	scope, ok := requireSiteScope(w, r, user)
+	if !ok {
+		return
+	}
+
 	data := struct {
 		User         *models.User
+		Scope        siteScope
 		Materials    []models.Material
 		Units        []string
 		Editing      *models.Material
@@ -173,6 +200,7 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 		IsAdmin      bool
 	}{
 		User:    user,
+		Scope:   scope,
 		Units:   utils.MaterialUnits,
 		Message: messages[r.URL.Query().Get("sucesso")],
 		IsAdmin: canViewUsersTab(r),
@@ -235,7 +263,7 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 		page = 1
 	}
 
-	materials, total, err := services.PaginatedMaterials("", page, materialsPerPage)
+	materials, total, err := services.PaginatedMaterials("", page, materialsPerPage, scope.SiteID())
 	if err != nil {
 		log.Println("erro em PaginatedMaterials:", err)
 		http.Error(w, "Erro ao buscar materiais", http.StatusInternalServerError)
@@ -253,7 +281,7 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 	data.PreviousPage = page - 1
 	data.NextPage = page + 1
 
-	tmpl, err := template.ParseFiles("frontend/html/edit_material.html")
+	tmpl, err := template.ParseFiles("frontend/html/edit_material.html", "frontend/html/site_switcher.html")
 	if err != nil {
 		http.Error(w, "Erro ao carregar alteração de material", http.StatusInternalServerError)
 		return

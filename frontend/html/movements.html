@@ -10,9 +10,9 @@
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=11">
-    <link rel="stylesheet" href="/css/layout.css?v=11">
-    <link rel="stylesheet" href="/css/pages.css?v=11">
+    <link rel="stylesheet" href="/css/components.css?v=13">
+    <link rel="stylesheet" href="/css/layout.css?v=13">
+    <link rel="stylesheet" href="/css/pages.css?v=15">
 </head>
 
 <body>
@@ -31,6 +31,7 @@
 
             <nav>
                 <a href="/dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>Dashboard</a>
+                <a href="/obras"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4v18M12 9h7v12M8 9h1M8 13h1M8 17h1M15 13h1M15 17h1"></path></svg>Obras</a>
                 <a href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
                 <a href="/estoque"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM7 7V4h10v3M8 11h8M8 15h5"></path></svg>Estoque</a>
                 <a class="tab-active" href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
@@ -54,6 +55,8 @@
                 </button>
                 <h2>Movimentações</h2>
 
+                {{ template "site-switcher" .Scope }}
+
                 <div class="user">
                     <span class="user-name">{{ .User.Name }}</span>
                     {{ if eq .User.Role "superadmin" }}
@@ -74,19 +77,20 @@
                     <div class="page-hero-text">
                         <span class="eyebrow">Histórico</span>
                         <h3>Histórico de movimentações</h3>
-                        <p>Todas as entradas, saídas e atualizações, da mais recente para a mais antiga.</p>
-                        <span class="page-hero-meta">{{ .Total }} registro(s)</span>
+                        <p>{{ if .Scope.Current }}Entradas e saídas de <strong>{{ .Scope.Current.Name }}</strong>, da mais recente para a mais antiga.{{ else }}Entradas, saídas e atualizações de todas as obras, da mais recente para a mais antiga.{{ end }}</p>
+                        <span class="page-hero-meta" data-live-region="contagem">{{ .Total }} registro(s)</span>
                     </div>
                 </header>
 
-                <nav class="materials-tabs" aria-label="Filtrar movimentações por tipo">
+                <nav class="materials-tabs" aria-label="Filtrar movimentações por tipo" data-live-region="abas">
                     <a href="/movimentacoes?{{ template "filtros" . }}"{{ if eq .Filter "" }} class="material-tab-active"{{ end }}>Todas</a>
                     <a href="/movimentacoes?tipo=ENTRADA{{ template "filtros" . }}"{{ if eq .Filter "ENTRADA" }} class="material-tab-active"{{ end }}>Entradas</a>
                     <a href="/movimentacoes?tipo=SAIDA{{ template "filtros" . }}"{{ if eq .Filter "SAIDA" }} class="material-tab-active"{{ end }}>Saídas</a>
-                    <a href="/movimentacoes?tipo=ATUALIZACAO{{ template "filtros" . }}"{{ if eq .Filter "ATUALIZACAO" }} class="material-tab-active"{{ end }}>Atualizações</a>
+                    {{/* Atualização de cadastro não acontece em obra nenhuma: a aba só faz sentido na visão de todas as obras. */}}
+                    {{ if not .Scope.Current }}<a href="/movimentacoes?tipo=ATUALIZACAO{{ template "filtros" . }}"{{ if eq .Filter "ATUALIZACAO" }} class="material-tab-active"{{ end }}>Atualizações</a>{{ end }}
                 </nav>
 
-                <form class="movements-filter" method="GET" action="/movimentacoes">
+                <form class="movements-filter" method="GET" action="/movimentacoes" data-live-search>
                     {{ if .Filter }}<input type="hidden" name="tipo" value="{{ .Filter }}">{{ end }}
 
                     <div class="filter-field">
@@ -104,7 +108,7 @@
                         <input type="date" id="filter-to" name="ate" value="{{ .To }}">
                     </div>
 
-                    <div class="filter-actions">
+                    <div class="filter-actions" data-live-region="acoes-filtro">
                         <button type="submit">Filtrar</button>
                         {{ if or .MaterialSearch .From .To }}<a class="button-secondary" href="/movimentacoes{{ if .Filter }}?tipo={{ .Filter }}{{ end }}">Limpar</a>{{ end }}
                         <a class="button-secondary" href="/movimentacoes/exportar?tipo={{ .Filter }}{{ template "filtros" . }}">Exportar CSV</a>
@@ -117,11 +121,12 @@
                 </p>
                 {{ end }}
 
-                <div class="page-table movement-table">
+                <div class="page-table movement-table" data-live-region="tabela">
                 <table>
                     <thead>
                         <tr>
                             <th>Data</th>
+                            {{ if not .Scope.Current }}<th>Obra</th>{{ end }}
                             <th>Tipo</th>
                             <th>Material</th>
                             <th>Quantidade</th>
@@ -134,6 +139,7 @@
                         {{ range .Movements }}
                         <tr>
                             <td class="movement-when">{{ .FormattedDate }}<span class="movement-time">{{ .FormattedTime }}</span></td>
+                            {{ if not $.Scope.Current }}<td>{{ if .SiteName }}{{ .SiteName }}{{ else }}<span class="muted-dash">—</span>{{ end }}</td>{{ end }}
                             <td><span class="activity-type activity-{{ .Type }}">{{ .FormattedType }}</span></td>
                             <td class="activity-material">{{ .Material }}</td>
                             <td>{{ if eq .Type "ATUALIZACAO" }}<span class="muted-dash">—</span>{{ else }}{{ .FormattedQuantity }}<span class="unit-label">{{ .Unit }}</span>{{ end }}</td>
@@ -142,13 +148,14 @@
                         </tr>
                         {{ else }}
                         <tr>
-                            <td colspan="6"><div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg><span>{{ if or $.Filter $.MaterialSearch $.From $.To }}Nenhuma movimentação com esses filtros.{{ else }}Nenhuma movimentação registrada.{{ end }}</span></div></td>
+                            <td colspan="{{ if $.Scope.Current }}6{{ else }}7{{ end }}"><div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg><span>{{ if or $.Filter $.MaterialSearch $.From $.To }}Nenhuma movimentação com esses filtros.{{ else }}Nenhuma movimentação registrada.{{ end }}</span></div></td>
                         </tr>
                         {{ end }}
                     </tbody>
                 </table>
                 </div>
 
+                <div data-live-region="paginacao">
                 {{ if gt .TotalPages 1 }}
 
                 <div class="pagination">
@@ -166,6 +173,7 @@
                 </div>
 
                 {{ end }}
+                </div>
 
             </section>
 
@@ -173,7 +181,7 @@
 
     </div>
 
-    <script src="/js/app.js?v=13"></script>
+    <script src="/js/app.js?v=16"></script>
 
 </body>
 </html>

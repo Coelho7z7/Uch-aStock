@@ -1,7 +1,6 @@
 package services
 
 import (
-	"bufio"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -13,49 +12,23 @@ import (
 )
 
 // ErrInsufficientStock é devolvido quando a saída pedida é maior que o
-// estoque. É um erro "sentinela": quem chama confere com errors.Is em vez
-// de comparar o texto da mensagem, que pode mudar (e muda: a mensagem
-// final diz quanto ainda há).
+// saldo da obra. É um erro "sentinela": quem chama confere com errors.Is
+// em vez de comparar o texto da mensagem, que pode mudar (e muda: a
+// mensagem final diz quanto ainda há).
 var ErrInsufficientStock = errors.New("estoque insuficiente")
 
+// ErrSiteFinished é devolvido quando alguém tenta movimentar material
+// numa obra concluída. Obra concluída é só para consulta.
+var ErrSiteFinished = errors.New("obra concluída: só consulta, não aceita entrada nem saída")
+
 // maxNoteLength limita a observação da movimentação. Dá para
-// "Obra Jardim Europa - bloco B - retirado pelo João" com folga.
+// "Bloco B, laje 4 - retirado pelo João" com folga.
 const maxNoteLength = 120
 
-func AddStock(reader *bufio.Reader, userID int) {
-	id, err := utils.ReadInt(reader, "Digite o ID do produto: ")
-	if err != nil {
-		fmt.Println("ID inválido.")
-		return
-	}
-
-	materialID, name, currentStock, unit, err := getStockData(id)
-	if err != nil {
-		fmt.Println("Material não encontrado.")
-		return
-	}
-
-	fmt.Println("Material:", name)
-	fmt.Println("Estoque atual:", utils.FormatQuantity(currentStock), unit)
-
-	quantity := utils.ReadValidQuantity(reader, "Quantidade que chegou: ")
-	if quantity <= 0 {
-		fmt.Println("A quantidade deve ser maior que zero.")
-		return
-	}
-
-	if err := AddStockWeb(materialID, float64(quantity), userID, ""); err != nil {
-		fmt.Println("Erro ao atualizar estoque:", err)
-		return
-	}
-
-	fmt.Println("Estoque atualizado com sucesso!")
-}
-
-// AddStockWeb registra a chegada de material: soma a quantidade e grava
-// a entrada no histórico, na mesma transação. note é a observação
-// opcional (de onde veio, nota fiscal...).
-func AddStockWeb(materialID int, quantity float64, userID int, note string) error {
+// AddStockWeb registra a chegada de material numa obra: soma ao saldo
+// daquela obra e grava a entrada no histórico, na mesma transação. note
+// é a observação opcional (de onde veio, nota fiscal...).
+func AddStockWeb(materialID, siteID int, quantity float64, userID int, note string) error {
 	quantity = utils.RoundQuantity(quantity)
 	if quantity <= 0 {
 		return fmt.Errorf("a quantidade deve ser maior que zero")
@@ -71,13 +44,58 @@ func AddStockWeb(materialID int, quantity float64, userID int, note string) erro
 	}
 	defer tx.Rollback()
 
-	// ROUND no próprio UPDATE: a conta é feita pelo SQLite, e assim o
-	// resíduo de fração binária nunca chega a ser gravado.
+	if _, err := activeMaterialUnitTx(tx, materialID); err != nil {
+		return err
+	}
+	if err := requireOperableSiteTx(tx, siteID); err != nil {
+		return err
+	}
+	if err := addToBalanceTx(tx, materialID, siteID, quantity); err != nil {
+		return err
+	}
+	if err := registerMovementTx(tx, materialID, siteID, userID, "ENTRADA", quantity, note); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// RegisterStockExitWeb registra a saída de material de uma obra. O saldo
+// daquela obra nunca fica negativo: material que está em outra obra não
+// conta, porque não está fisicamente ali.
+func RegisterStockExitWeb(materialID, siteID int, quantity float64, userID int, note string) error {
+	quantity = utils.RoundQuantity(quantity)
+	if quantity <= 0 {
+		return fmt.Errorf("a quantidade deve ser maior que zero")
+	}
+	note, err := normalizeNote(note)
+	if err != nil {
+		return err
+	}
+
+	tx, err := database.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	unit, err := activeMaterialUnitTx(tx, materialID)
+	if err != nil {
+		return err
+	}
+	if err := requireOperableSiteTx(tx, siteID); err != nil {
+		return err
+	}
+
+	// A checagem do saldo está dentro do próprio UPDATE (o "AND ... >= ?").
+	// Se não houver o suficiente, nenhuma linha muda. Assim não existe
+	// intervalo entre ler o saldo e debitar em que outra saída possa
+	// passar na frente.
 	result, err := tx.Exec(`
-		UPDATE produtos
-		SET quantidade = ROUND(quantidade + ?, 3)
-		WHERE id = ? AND ativo = 1
-	`, quantity, materialID)
+		UPDATE saldos
+		SET quantidade = ROUND(quantidade - ?, 3)
+		WHERE produto_id = ? AND obra_id = ? AND ROUND(quantidade, 3) >= ?
+	`, quantity, materialID, siteID, quantity)
 	if err != nil {
 		return err
 	}
@@ -87,138 +105,89 @@ func AddStockWeb(materialID int, quantity float64, userID int, note string) erro
 		return err
 	}
 	if rows == 0 {
-		return fmt.Errorf("material não encontrado")
-	}
-
-	if err := registerMovementTx(tx, materialID, userID, "ENTRADA", quantity, note); err != nil {
-		return err
-	}
-
-	return tx.Commit()
-}
-
-func RegisterStockExit(reader *bufio.Reader, userID int) {
-	id, err := utils.ReadInt(reader, "Digite o ID do produto: ")
-	if err != nil {
-		fmt.Println("ID inválido.")
-		return
-	}
-
-	materialID, name, currentStock, unit, err := getStockData(id)
-	if err != nil {
-		fmt.Println("Material não encontrado.")
-		return
-	}
-
-	fmt.Println("Material:", name)
-	fmt.Println("Estoque atual:", utils.FormatQuantity(currentStock), unit)
-
-	quantity := utils.ReadValidQuantity(reader, "Quantidade que saiu: ")
-	if quantity <= 0 {
-		fmt.Println("A quantidade deve ser maior que zero.")
-		return
-	}
-
-	if err := RegisterStockExitWeb(materialID, float64(quantity), userID, ""); err != nil {
-		if errors.Is(err, ErrInsufficientStock) {
-			fmt.Println("Estoque insuficiente.")
-			fmt.Println("Estoque disponível:", utils.FormatQuantity(currentStock), unit)
-			return
+		available, err := balanceTx(tx, materialID, siteID)
+		if err != nil {
+			return err
 		}
-
-		fmt.Println("Erro ao registrar saída:", err)
-		return
-	}
-
-	fmt.Println("Saída registrada com sucesso!")
-}
-
-// RegisterStockExitWeb registra a retirada de material. Confere o
-// estoque antes de debitar — ele nunca pode ficar negativo — e grava a
-// saída no histórico, tudo na mesma transação.
-func RegisterStockExitWeb(materialID int, quantity float64, userID int, note string) error {
-	quantity = utils.RoundQuantity(quantity)
-	if quantity <= 0 {
-		return fmt.Errorf("a quantidade deve ser maior que zero")
-	}
-	note, err := normalizeNote(note)
-	if err != nil {
-		return err
-	}
-
-	tx, err := database.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	var stock float64
-	var unit string
-
-	err = tx.QueryRow(`
-		SELECT quantidade, unidade
-		FROM produtos
-		WHERE id = ? AND ativo = 1
-	`, materialID).Scan(&stock, &unit)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return fmt.Errorf("material não encontrado")
-		}
-
-		return err
-	}
-
-	if quantity > utils.RoundQuantity(stock) {
 		// %w "embrulha" o erro sentinela: a mensagem ganha o detalhe, e
 		// errors.Is(err, ErrInsufficientStock) continua dando true.
-		return fmt.Errorf("%w: há só %s %s", ErrInsufficientStock, utils.FormatQuantity(stock), unit)
+		return fmt.Errorf("%w: há só %s %s nesta obra", ErrInsufficientStock, utils.FormatQuantity(available), unit)
 	}
 
-	_, err = tx.Exec(`
-		UPDATE produtos
-		SET quantidade = ROUND(quantidade - ?, 3)
-		WHERE id = ?
-	`, quantity, materialID)
-
-	if err != nil {
-		return err
-	}
-
-	if err := registerMovementTx(
-		tx,
-		materialID,
-		userID,
-		"SAIDA",
-		quantity,
-		note,
-	); err != nil {
+	if err := registerMovementTx(tx, materialID, siteID, userID, "SAIDA", quantity, note); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-func getStockData(materialID int) (int, string, float64, string, error) {
-	var name string
-	var quantity float64
+// activeMaterialUnitTx confere que o material existe e não foi removido,
+// e devolve a unidade dele (para a mensagem de saldo insuficiente).
+func activeMaterialUnitTx(tx *sql.Tx, materialID int) (string, error) {
 	var unit string
-
-	err := database.DB.QueryRow(`
-		SELECT id, nome, quantidade, unidade
-		FROM produtos
-		WHERE id = ?
-	`, materialID).Scan(&materialID, &name, &quantity, &unit)
-
-	return materialID, name, quantity, unit, err
+	err := tx.QueryRow(`SELECT unidade FROM produtos WHERE id = ? AND ativo = 1`, materialID).Scan(&unit)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", fmt.Errorf("material não encontrado")
+	}
+	return unit, err
 }
 
-func registerMovementTx(tx *sql.Tx, materialID int, userID int, movementType string, quantity float64, note string) error {
+// requireOperableSiteTx confere que a obra existe e aceita movimentação.
+// Paralisada aceita (dá para devolver ou retirar material); concluída não.
+func requireOperableSiteTx(tx *sql.Tx, siteID int) error {
+	var status string
+	err := tx.QueryRow(`SELECT situacao FROM obras WHERE id = ? AND ativo = 1`, siteID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("obra não encontrada")
+	}
+	if err != nil {
+		return err
+	}
+	if status == SiteStatusFinished {
+		return ErrSiteFinished
+	}
+	return nil
+}
+
+// addToBalanceTx soma quantity ao saldo do material na obra. Se ainda não
+// existe saldo daquele material ali, o INSERT cria; se já existe, o
+// ON CONFLICT transforma o INSERT num UPDATE que soma. ROUND no próprio
+// SQL: a conta é feita pelo SQLite, e o resíduo de fração binária nunca
+// chega a ser gravado.
+func addToBalanceTx(tx *sql.Tx, materialID, siteID int, quantity float64) error {
+	_, err := tx.Exec(`
+		INSERT INTO saldos (produto_id, obra_id, quantidade)
+		VALUES (?, ?, ROUND(?, 3))
+		ON CONFLICT (produto_id, obra_id)
+		DO UPDATE SET quantidade = ROUND(quantidade + excluded.quantidade, 3)
+	`, materialID, siteID, quantity)
+	return err
+}
+
+// balanceTx devolve o saldo do material na obra (0 se nunca passou por lá).
+func balanceTx(tx *sql.Tx, materialID, siteID int) (float64, error) {
+	var quantity float64
+	err := tx.QueryRow(`
+		SELECT COALESCE(SUM(quantidade), 0)
+		FROM saldos
+		WHERE produto_id = ? AND obra_id = ?
+	`, materialID, siteID).Scan(&quantity)
+	return quantity, err
+}
+
+// registerMovementTx grava uma linha no histórico. siteID 0 grava a obra
+// como NULL: é o caso da atualização de cadastro, que não acontece em
+// nenhuma obra.
+func registerMovementTx(tx *sql.Tx, materialID, siteID, userID int, movementType string, quantity float64, note string) error {
+	var site any
+	if siteID > 0 {
+		site = siteID
+	}
 	_, err := tx.Exec(`
 		INSERT INTO movimentacoes
-		(produto_id, usuario_id, tipo, quantidade, observacao)
-		VALUES (?, ?, ?, ?, ?)
-	`, materialID, userID, movementType, quantity, note)
+		(produto_id, obra_id, usuario_id, tipo, quantidade, observacao)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, materialID, site, userID, movementType, quantity, note)
 	return err
 }
 

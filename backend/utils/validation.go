@@ -20,10 +20,6 @@ func ValidateName(name string) bool {
 	return strings.TrimSpace(name) != ""
 }
 
-func ValidateQuantity(quantity int) bool {
-	return quantity >= 0
-}
-
 // ValidateUnit indica se a unidade está na lista de MaterialUnits.
 func ValidateUnit(unit string) bool {
 	for _, valid := range MaterialUnits {

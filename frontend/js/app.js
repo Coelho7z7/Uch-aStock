@@ -105,20 +105,23 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Modal de cadastro de material (Materiais). Mais de um botão pode abrir
     // o mesmo modal (o cabeçalho da lista e o CTA do estado vazio).
+    //
+    // O clique é ouvido no document ("delegação") em vez de em cada botão:
+    // o CTA do estado vazio fica dentro da tabela, que a busca em tempo
+    // real troca por uma nova, e um ouvinte preso ao botão antigo sumiria
+    // junto com ele.
     const createModal = document.getElementById("create-material-modal");
-    const openCreateButtons = document.querySelectorAll("#open-create-material, [data-open='create-material-modal']");
     const closeCreateModal = document.getElementById("close-create-material");
 
-    if (createModal && openCreateButtons.length && closeCreateModal) {
+    if (createModal && closeCreateModal) {
         const closeModal = function () {
             createModal.hidden = true;
         };
 
-        openCreateButtons.forEach(function (button) {
-            button.addEventListener("click", function () {
-                createModal.hidden = false;
-                createModal.querySelector("input")?.focus();
-            });
+        document.addEventListener("click", function (event) {
+            if (!event.target.closest("#open-create-material, [data-open='create-material-modal']")) return;
+            createModal.hidden = false;
+            createModal.querySelector("input")?.focus();
         });
 
         closeCreateModal.addEventListener("click", closeModal);
@@ -149,6 +152,9 @@ document.addEventListener("DOMContentLoaded", function () {
 // desliga as classes gs-*.
 // ---------------------------------------------------------------------
 function initAnimations() {
+    enableSearchableSelects();
+    enableLiveSearch();
+    enableAutoSubmitSelects();
     enableFormLoadingState();
     enableDeleteConfirmation();
     enableToasts();
@@ -166,6 +172,297 @@ function initAnimations() {
     animateCounters();
     animateModalClosing();
     animateLoginError();
+}
+
+// Tira acentos e deixa minúsculo, para a busca achar "Maceió" digitando
+// "maceio". normalize("NFD") separa a letra do acento ("ó" vira "o" +
+// "´") e o replace apaga os acentos soltos.
+function foldText(text) {
+    return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+// Lista com busca para <select data-searchable> (o seletor de obra do
+// topo e o campo Obra dos usuários).
+//
+// O <select> original continua no formulário, só escondido: é ele que
+// guarda o valor e é enviado ao servidor. Na frente dele fica um botão
+// que abre um painel com um campo de busca e a lista filtrada. Sem
+// JavaScript, o <select> comum aparece e funciona.
+//
+// Teclado: seta para baixo/cima percorre a lista, Enter escolhe, Esc fecha.
+// Ao escolher, o <select> recebe o valor e dispara "change" — por isso o
+// envio automático do seletor de obra continua funcionando.
+function enableSearchableSelects() {
+    document.querySelectorAll("select[data-searchable]").forEach(function (select, index) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "gs-combobox";
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "gs-combobox-button";
+        button.id = (select.id || "gs-combobox-" + index) + "-botao";
+        button.setAttribute("aria-haspopup", "listbox");
+        button.setAttribute("aria-expanded", "false");
+
+        const panel = document.createElement("div");
+        panel.className = "gs-combobox-panel";
+        panel.hidden = true;
+
+        const listId = button.id + "-lista";
+        const input = document.createElement("input");
+        input.type = "search";
+        input.className = "gs-combobox-search";
+        input.placeholder = select.dataset.searchPlaceholder || "Buscar...";
+        input.setAttribute("aria-label", input.placeholder);
+        input.setAttribute("aria-controls", listId);
+        input.autocomplete = "off";
+
+        const list = document.createElement("ul");
+        list.className = "gs-combobox-list";
+        list.id = listId;
+        list.setAttribute("role", "listbox");
+
+        const empty = document.createElement("p");
+        empty.className = "gs-combobox-empty";
+        empty.textContent = "Nada encontrado.";
+        empty.hidden = true;
+
+        panel.append(input, list, empty);
+        wrapper.append(button, panel);
+        select.after(wrapper);
+        select.classList.add("gs-combobox-native");
+
+        // O <label for="..."> do select passa a apontar para o botão.
+        if (select.id) {
+            document.querySelectorAll('label[for="' + select.id + '"]').forEach(function (label) {
+                label.htmlFor = button.id;
+            });
+        }
+
+        let items = [];
+        let active = -1;
+
+        const syncLabel = function () {
+            const option = select.options[select.selectedIndex];
+            button.textContent = option ? option.text : "Selecionar";
+        };
+
+        const setActive = function (position) {
+            items.forEach(function (item, i) {
+                item.classList.toggle("gs-combobox-active", i === position);
+            });
+            active = position;
+            if (items[position]) {
+                input.setAttribute("aria-activedescendant", items[position].id);
+                items[position].scrollIntoView({ block: "nearest" });
+            } else {
+                input.removeAttribute("aria-activedescendant");
+            }
+        };
+
+        const render = function () {
+            const term = foldText(input.value.trim());
+            list.innerHTML = "";
+            items = [];
+            Array.from(select.options).forEach(function (option, i) {
+                if (term && !foldText(option.text).includes(term)) return;
+                const item = document.createElement("li");
+                item.id = listId + "-" + i;
+                item.setAttribute("role", "option");
+                item.setAttribute("aria-selected", option.selected ? "true" : "false");
+                item.dataset.value = option.value;
+                item.textContent = option.text;
+                // mousedown com preventDefault mantém o foco no campo de
+                // busca; sem isso o painel fecharia antes do clique contar.
+                item.addEventListener("mousedown", function (event) {
+                    event.preventDefault();
+                });
+                item.addEventListener("click", function () {
+                    choose(option.value);
+                });
+                list.append(item);
+                items.push(item);
+            });
+            empty.hidden = items.length > 0;
+            const selected = items.findIndex(function (item) {
+                return item.dataset.value === select.value;
+            });
+            setActive(selected >= 0 ? selected : (items.length ? 0 : -1));
+        };
+
+        const open = function () {
+            panel.hidden = false;
+            button.setAttribute("aria-expanded", "true");
+            input.value = "";
+            render();
+            input.focus();
+        };
+
+        const close = function (returnFocus) {
+            if (panel.hidden) return;
+            panel.hidden = true;
+            button.setAttribute("aria-expanded", "false");
+            if (returnFocus) button.focus();
+        };
+
+        const choose = function (value) {
+            const changed = select.value !== value;
+            select.value = value;
+            syncLabel();
+            close(true);
+            if (changed) select.dispatchEvent(new Event("change", { bubbles: true }));
+        };
+
+        button.addEventListener("click", function () {
+            if (panel.hidden) {
+                open();
+            } else {
+                close(false);
+            }
+        });
+        button.addEventListener("keydown", function (event) {
+            if (event.key === "ArrowDown") {
+                event.preventDefault();
+                open();
+            }
+        });
+
+        input.addEventListener("input", render);
+        input.addEventListener("keydown", function (event) {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                if (!items.length) return;
+                const step = event.key === "ArrowDown" ? 1 : -1;
+                setActive((active + step + items.length) % items.length);
+            } else if (event.key === "Enter") {
+                // Enter aqui escolhe a opção; não pode enviar o formulário.
+                event.preventDefault();
+                if (items[active]) choose(items[active].dataset.value);
+            } else if (event.key === "Escape") {
+                // stopPropagation: o Esc fecha só a lista, não o modal em volta.
+                event.preventDefault();
+                event.stopPropagation();
+                close(true);
+            } else if (event.key === "Tab") {
+                close(false);
+            }
+        });
+
+        document.addEventListener("click", function (event) {
+            if (!wrapper.contains(event.target)) close(false);
+        });
+
+        // Se outro script mudar o valor (o modal de editar usuário preenche
+        // a obra), ele dispara "change" e o botão acompanha.
+        select.addEventListener("change", syncLabel);
+        syncLabel();
+    });
+}
+
+// Busca em tempo real. Vale para todo <form data-live-search> (os filtros
+// de obras, materiais, estoque, movimentações e usuários).
+//
+// Enquanto a pessoa digita, a página filtrada é pedida ao servidor com
+// fetch — o mesmo endereço que o botão "Filtrar" abriria — e só os
+// pedaços marcados com data-live-region (tabela, paginação, contadores)
+// são trocados pelos da resposta. O campo de busca não é trocado, então o
+// foco e o cursor ficam onde estavam. Sem JavaScript, o formulário
+// continua funcionando do jeito normal, pelo botão.
+//
+// Duas proteções:
+// - espera 300 ms sem digitar antes de pedir, para não fazer uma
+//   requisição por letra;
+// - AbortController cancela o pedido anterior ainda em andamento. Sem
+//   isso, uma resposta lenta de "ci" poderia chegar depois da de
+//   "cimento" e mostrar o resultado errado.
+function enableLiveSearch() {
+    document.querySelectorAll("form[data-live-search]").forEach(function (form) {
+        let timer = null;
+        let controller = null;
+
+        const search = function () {
+            const params = new URLSearchParams(new FormData(form));
+            // Campo vazio sai da URL: "?busca=&ordem=nome" vira "?ordem=nome".
+            Array.from(params.keys()).forEach(function (key) {
+                if (!params.get(key).trim()) params.delete(key);
+            });
+            const query = params.toString();
+            const url = form.getAttribute("action") + (query ? "?" + query : "");
+
+            if (controller) controller.abort();
+            controller = new AbortController();
+            form.setAttribute("aria-busy", "true");
+
+            fetch(url, { signal: controller.signal })
+                .then(function (response) { return response.text(); })
+                .then(function (html) {
+                    const fresh = new DOMParser().parseFromString(html, "text/html");
+                    const regions = document.querySelectorAll("[data-live-region]");
+                    const replacements = Array.from(regions).map(function (region) {
+                        return fresh.querySelector('[data-live-region="' + region.dataset.liveRegion + '"]');
+                    });
+
+                    // Resposta sem as regiões esperadas (sessão expirou e veio
+                    // a tela de login, por exemplo): abre a página inteira.
+                    if (replacements.some(function (item) { return !item; })) {
+                        window.location.href = url;
+                        return;
+                    }
+
+                    regions.forEach(function (region, index) {
+                        region.replaceWith(document.importNode(replacements[index], true));
+                    });
+                    // A URL acompanha a busca: F5 ou compartilhar o link mantém o filtro.
+                    history.replaceState(null, "", url);
+
+                    initResponsiveTableLabels();
+                    const term = form.querySelector('input[type="search"]');
+                    if (term && term.value.trim()) {
+                        document.querySelectorAll("[data-live-region] tbody td").forEach(function (cell) {
+                            highlightSearch(cell, term.value);
+                        });
+                    }
+                })
+                .catch(function (error) {
+                    if (error.name === "AbortError") return;
+                    window.location.href = url;
+                })
+                .finally(function () {
+                    form.removeAttribute("aria-busy");
+                });
+        };
+
+        // "input" dispara a cada letra, e também quando muda um <select> ou
+        // uma data. Nesses dois a busca é imediata: não há digitação a esperar.
+        form.addEventListener("input", function (event) {
+            clearTimeout(timer);
+            const typing = event.target.matches('input[type="search"], input[type="text"]');
+            timer = setTimeout(search, typing ? 300 : 0);
+        });
+
+        // Enter ou o botão "Filtrar" também buscam sem recarregar a página.
+        form.addEventListener("submit", function (event) {
+            event.preventDefault();
+            clearTimeout(timer);
+            search();
+        });
+    });
+}
+
+// Envia o formulário assim que a opção do <select data-autosubmit> muda —
+// é o seletor de obra do topo. Sem JS, o botão "Trocar" do <noscript>
+// faz o mesmo papel. requestSubmit (e não submit) dispara o evento de
+// envio normal, então o estado de carregando continua funcionando.
+function enableAutoSubmitSelects() {
+    document.querySelectorAll("select[data-autosubmit]").forEach(function (select) {
+        select.addEventListener("change", function () {
+            if (select.form.requestSubmit) {
+                select.form.requestSubmit();
+            } else {
+                select.form.submit();
+            }
+        });
+    });
 }
 
 // Revela suavemente o bloco principal da página (conteúdo interno,
@@ -385,8 +682,21 @@ function initLoginLockCountdown() {
 // que tenha um botão com "data-confirm" — funciona em qualquer página,
 // sem precisar duplicar HTML/JS de modal em cada tela (materiais,
 // usuários, etc.).
+//
+// Por padrão o modal fala em remoção. O botão pode trocar o título
+// (data-confirm-title), o texto do botão (data-confirm-ok) e o tom
+// (data-confirm-tone="warning"). Botão com data-confirm-optional ainda
+// não pede confirmação, mas o script da tela pode colocar o data-confirm
+// nele depois — como na tela de obras, que só confirma quando a situação
+// muda para paralisada ou concluída.
 function enableDeleteConfirmation() {
-    if (!document.querySelector("form [data-confirm]")) return;
+    if (!document.querySelector("form [data-confirm], form [data-confirm-optional]")) return;
+
+    const trashIcon = '<svg viewBox="0 0 24 24"><path d="M3 6h18"></path>' +
+        '<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>' +
+        '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg>';
+    const warningIcon = '<svg viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>' +
+        '<path d="M12 9v4M12 17h.01"></path></svg>';
 
     let modal = document.getElementById("gs-confirm-modal");
     if (!modal) {
@@ -397,11 +707,7 @@ function enableDeleteConfirmation() {
         modal.innerHTML =
             '<div class="modal-confirm-content" role="alertdialog" aria-modal="true" ' +
             'aria-labelledby="gs-confirm-title" aria-describedby="gs-confirm-text">' +
-            '<div class="modal-confirm-icon" aria-hidden="true">' +
-            '<svg viewBox="0 0 24 24"><path d="M3 6h18"></path>' +
-            '<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>' +
-            '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg>' +
-            "</div>" +
+            '<div class="modal-confirm-icon" aria-hidden="true">' + trashIcon + "</div>" +
             '<h3 id="gs-confirm-title">Confirmar remoção</h3>' +
             '<p id="gs-confirm-text"></p>' +
             '<div class="modal-confirm-actions">' +
@@ -411,6 +717,8 @@ function enableDeleteConfirmation() {
         document.body.appendChild(modal);
     }
 
+    const titleEl = modal.querySelector("#gs-confirm-title");
+    const iconEl = modal.querySelector(".modal-confirm-icon");
     const textEl = modal.querySelector("#gs-confirm-text");
     const confirmButton = modal.querySelector("#gs-confirm-ok");
     const cancelButton = modal.querySelector("#gs-confirm-cancel");
@@ -418,6 +726,14 @@ function enableDeleteConfirmation() {
 
     const close = function () {
         modal.hidden = true;
+        // enableFormLoadingState já marcou o botão como "carregando" antes
+        // de este modal segurar o envio. Sem desfazer isso, o botão ficava
+        // travado depois do Cancelar e não dava para enviar de novo.
+        if (pendingForm) {
+            pendingForm.querySelectorAll(".gs-loading").forEach(function (button) {
+                button.classList.remove("gs-loading");
+            });
+        }
         pendingForm = null;
     };
 
@@ -430,6 +746,11 @@ function enableDeleteConfirmation() {
 
         event.preventDefault();
         pendingForm = form;
+        const warning = button.dataset.confirmTone === "warning";
+        modal.classList.toggle("modal-confirm-warning", warning);
+        iconEl.innerHTML = warning ? warningIcon : trashIcon;
+        titleEl.textContent = button.dataset.confirmTitle || "Confirmar remoção";
+        confirmButton.textContent = button.dataset.confirmOk || "Remover";
         textEl.textContent = button.dataset.confirm;
         modal.hidden = false;
     });

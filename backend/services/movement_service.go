@@ -21,28 +21,33 @@ func IsValidMovementType(movementType string) bool {
 // MovementFilter reúne os filtros opcionais do histórico. Campo vazio
 // significa "sem filtro" naquele critério. From e To vêm no formato
 // AAAA-MM-DD e são inclusivos — quem chama já validou o formato.
+//
+// SiteID 0 traz o histórico de todas as obras, inclusive as atualizações
+// de cadastro (que não têm obra). Com uma obra escolhida, só aparece o
+// que aconteceu nela.
 type MovementFilter struct {
 	Type     string
 	Material string
 	From     string
 	To       string
-}
-
-// GetMovementsWeb devolve o histórico completo, do mais recente para o
-// mais antigo.
-func GetMovementsWeb() ([]models.Movement, error) {
-	return GetMovementsFilteredWeb(MovementFilter{})
+	SiteID   int
 }
 
 // GetMovementsFilteredWeb devolve o histórico aplicando os filtros no
-// próprio SQL. Só pedaços fixos de SQL são concatenados; todo valor
-// digitado pelo usuário entra por placeholder "?".
+// próprio SQL, do mais recente para o mais antigo. Só pedaços fixos de
+// SQL são concatenados; todo valor digitado pelo usuário entra por
+// placeholder "?".
+//
+// O JOIN com obras é LEFT porque a atualização de cadastro não tem obra:
+// com JOIN comum, essas linhas sumiriam do histórico.
 func GetMovementsFilteredWeb(filter MovementFilter) ([]models.Movement, error) {
 	query := `
 		SELECT
 			m.id,
 			m.produto_id,
 			m.usuario_id,
+			COALESCE(m.obra_id, 0),
+			COALESCE(o.nome, ''),
 			m.data,
 			p.nome,
 			p.unidade,
@@ -53,10 +58,15 @@ func GetMovementsFilteredWeb(filter MovementFilter) ([]models.Movement, error) {
 		FROM movimentacoes m
 		JOIN produtos p ON p.id = m.produto_id
 		JOIN usuarios u ON u.id = m.usuario_id
+		LEFT JOIN obras o ON o.id = m.obra_id
 		WHERE 1 = 1
 	`
 	var args []any
 
+	if filter.SiteID > 0 {
+		query += ` AND m.obra_id = ?`
+		args = append(args, filter.SiteID)
+	}
 	if validMovementTypes[filter.Type] {
 		query += ` AND m.tipo = ?`
 		args = append(args, filter.Type)
@@ -93,6 +103,8 @@ func GetMovementsFilteredWeb(filter MovementFilter) ([]models.Movement, error) {
 			&movement.ID,
 			&movement.MaterialID,
 			&movement.UserID,
+			&movement.SiteID,
+			&movement.SiteName,
 			&date,
 			&movement.Material,
 			&movement.Unit,
@@ -131,82 +143,6 @@ func GetMovementsFilteredWeb(filter MovementFilter) ([]models.Movement, error) {
 	return movements, nil
 }
 
-func registerMovement(materialID int, userID int, movementType string, quantity float64, note string) error {
-	_, err := database.DB.Exec(`
-		INSERT INTO movimentacoes
-		(produto_id, usuario_id, tipo, quantidade, observacao)
-		VALUES (?, ?, ?, ?, ?)
-	`, materialID, userID, movementType, quantity, note)
-
-	return err
-}
-
-func ListMovements() {
-	rows, err := database.DB.Query(`
-		SELECT
-			m.data,
-			p.nome,
-			u.nome,
-			m.tipo,
-			m.quantidade
-		FROM movimentacoes m
-		JOIN produtos p ON p.id = m.produto_id
-		JOIN usuarios u ON u.id = m.usuario_id
-		ORDER BY m.data DESC
-	`)
-	if err != nil {
-		fmt.Println("Erro ao buscar movimentações:", err)
-		return
-	}
-	defer rows.Close()
-
-	found := false
-
-	for rows.Next() {
-		var date string
-		var material string
-		var user string
-		var movementType string
-		var quantity float64
-
-		if err := rows.Scan(&date, &material, &user, &movementType, &quantity); err != nil {
-			fmt.Println("Erro ao ler movimentação:", err)
-			return
-		}
-
-		formattedDate, err := parseMovementDate(date)
-		if err != nil {
-			fmt.Println("Erro ao formatar data:", err)
-			return
-		}
-
-		fmt.Println("========== MOVIMENTAÇÃO ==========")
-		fmt.Println("Material:", material)
-		fmt.Println("Usuário:", user)
-		fmt.Println("Tipo:", movementType)
-
-		if movementType == "ATUALIZACAO" {
-			fmt.Println("Quantidade: -")
-		} else {
-			fmt.Println("Quantidade:", utils.FormatQuantity(quantity))
-		}
-
-		fmt.Println("Data:", formattedDate.Local().Format("02/01/2006 15:04:05"))
-		fmt.Println("==================================")
-
-		found = true
-	}
-
-	if err := rows.Err(); err != nil {
-		fmt.Println("Erro ao percorrer movimentações:", err)
-		return
-	}
-
-	if !found {
-		fmt.Println("Nenhuma movimentação registrada.")
-	}
-}
-
 func parseMovementDate(date string) (time.Time, error) {
 	formats := []string{
 		time.RFC3339,
@@ -223,18 +159,20 @@ func parseMovementDate(date string) (time.Time, error) {
 }
 
 // CountTodayMovements conta quantas entradas e quantas saídas foram
-// registradas hoje, para o cartão de resumo do turno.
+// registradas hoje na obra (siteID 0 = todas), para o cartão de resumo
+// do turno.
 //
 // O 'localtime' nas duas datas é essencial: o SQLite grava CURRENT_TIMESTAMP
 // em UTC, então comparar direto com date('now') faria o "hoje" virar à
 // meia-noite de Londres — no Brasil o turno mudaria de dia às 21h.
-func CountTodayMovements() (entries int, exits int, err error) {
+func CountTodayMovements(siteID int) (entries int, exits int, err error) {
 	err = database.DB.QueryRow(`
 		SELECT
 			COALESCE(SUM(CASE WHEN tipo = 'ENTRADA' THEN 1 ELSE 0 END), 0),
 			COALESCE(SUM(CASE WHEN tipo = 'SAIDA'   THEN 1 ELSE 0 END), 0)
 		FROM movimentacoes
 		WHERE date(data, 'localtime') = date('now', 'localtime')
-	`).Scan(&entries, &exits)
+			AND (? = 0 OR obra_id = ?)
+	`, siteID, siteID).Scan(&entries, &exits)
 	return entries, exits, err
 }

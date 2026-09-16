@@ -39,6 +39,18 @@ func createSession(userID int) (string, error) {
 	return token, nil
 }
 
+// sessionTokenHash devolve o hash do token do cookie de sessão, que é
+// como a sessão está identificada no banco. Não confere se a sessão é
+// válida: isso é papel de userFromSession.
+func sessionTokenHash(r *http.Request) (string, bool) {
+	cookie, err := r.Cookie("sessao")
+	if err != nil {
+		return "", false
+	}
+	hash := sha256.Sum256([]byte(cookie.Value))
+	return hex.EncodeToString(hash[:]), true
+}
+
 // userFromSession lê o cookie de sessão da requisição e retorna o ID
 // do usuário logado, se a sessão existir e ainda não tiver expirado.
 func userFromSession(r *http.Request) (int, bool) {

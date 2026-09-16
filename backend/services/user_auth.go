@@ -1,15 +1,12 @@
 package services
 
 import (
-	"bufio"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	database "uchoastock/backend/database"
 	"uchoastock/backend/models"
-	"uchoastock/backend/utils"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -172,21 +169,4 @@ func pruneLoginAttempts() {
 			delete(loginAttempts, key)
 		}
 	}
-}
-
-// Login continua sendo usado pelo sistema do terminal.
-func Login(reader *bufio.Reader) (*models.User, bool) {
-	email := strings.ToLower(strings.TrimSpace(utils.ReadText(reader, "Email: ")))
-	password := utils.ReadText(reader, "Senha: ")
-
-	user, success := AuthenticateUser(email, password)
-	if !success {
-		fmt.Println("Email ou senha incorretos.")
-		return nil, false
-	}
-
-	fmt.Println("Login realizado com sucesso!")
-	fmt.Println("Bem-vindo,", user.Name)
-
-	return user, true
 }

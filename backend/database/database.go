@@ -83,6 +83,39 @@ func CreateTables() error {
 
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
+
+	-- Obras e locais onde fica material. tipo é 'CENTRAL' (o almoxarifado
+	-- central, que abastece as obras) ou 'OBRA'. situacao é 'ANDAMENTO',
+	-- 'PARALISADA' ou 'CONCLUIDA': obra nunca é apagada, porque o
+	-- histórico vai apontar para ela.
+	CREATE TABLE IF NOT EXISTS obras (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		nome TEXT NOT NULL,
+		tipo TEXT NOT NULL DEFAULT 'OBRA',
+		cidade TEXT NOT NULL DEFAULT '',
+		responsavel TEXT NOT NULL DEFAULT '',
+		situacao TEXT NOT NULL DEFAULT 'ANDAMENTO',
+		ativo INTEGER NOT NULL DEFAULT 1,
+		criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	-- Quanto existe de cada material em cada obra. O catálogo (produtos) é
+	-- um só para a empresa; o que muda de uma obra para outra é o saldo.
+	CREATE TABLE IF NOT EXISTS saldos (
+		produto_id INTEGER NOT NULL REFERENCES produtos(id),
+		obra_id INTEGER NOT NULL REFERENCES obras(id),
+		quantidade REAL NOT NULL DEFAULT 0,
+		PRIMARY KEY (produto_id, obra_id)
+	);
+
+	-- Em qual obra cada usuário atua. Hoje é uma obra por usuário (regra
+	-- garantida em services); a chave composta deixa o banco pronto caso
+	-- isso vire mais de uma. Administradores não têm vínculo: veem todas.
+	CREATE TABLE IF NOT EXISTS usuario_obras (
+		usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+		obra_id INTEGER NOT NULL REFERENCES obras(id),
+		PRIMARY KEY (usuario_id, obra_id)
+	);
 	`
 
 	_, err := DB.Exec(query)
@@ -148,6 +181,8 @@ func CreateTables() error {
 		{"produtos", "unidade", "TEXT NOT NULL DEFAULT 'un'"},
 		{"produtos", "limite_minimo", fmt.Sprintf("INTEGER NOT NULL DEFAULT %d", DefaultMinimumStock)},
 		{"movimentacoes", "observacao", "TEXT NOT NULL DEFAULT ''"},
+		// Obra escolhida no seletor do topo. NULL é "Todas as obras".
+		{"sessoes", "obra_id", "INTEGER REFERENCES obras(id)"},
 	}
 	for _, c := range newColumns {
 		if err = addColumnIfMissing(c.table, c.column, c.definition); err != nil {
@@ -225,7 +260,68 @@ func CreateTables() error {
 		}
 	}
 
-	return nil
+	// Todo banco tem um almoxarifado central: é de onde o material sai
+	// para as obras. O NOT EXISTS faz o INSERT rodar uma vez só, e não
+	// recria o central se alguém tiver mudado o nome dele.
+	if _, err = DB.Exec(`
+		INSERT INTO obras (nome, tipo)
+		SELECT 'Almoxarifado central', 'CENTRAL'
+		WHERE NOT EXISTS (SELECT 1 FROM obras WHERE tipo = 'CENTRAL')
+	`); err != nil {
+		return err
+	}
+
+	return migrateStockToSites()
+}
+
+// migrateStockToSites passa o estoque para o modelo por obra: a
+// quantidade de cada material vira saldo no almoxarifado central, e as
+// entradas e saídas antigas passam a apontar para ele. As atualizações
+// de cadastro ficam sem obra, porque o catálogo é da empresa toda.
+//
+// O sinal de que a migração já rodou é a coluna movimentacoes.obra_id:
+// ela nasce aqui, na mesma transação da cópia. Assim a cópia nunca roda
+// duas vezes (o que dobraria o estoque) e, se algo falhar no meio, o
+// ROLLBACK desfaz tudo, inclusive a coluna, e a próxima inicialização
+// tenta de novo do zero.
+//
+// produtos.quantidade continua existindo, mas o sistema não lê nem grava
+// mais nela; fica só como cópia do estoque de antes da migração.
+func migrateStockToSites() error {
+	var done int
+	if err := DB.QueryRow(`
+		SELECT COUNT(*)
+		FROM pragma_table_info('movimentacoes')
+		WHERE name = 'obra_id'
+	`).Scan(&done); err != nil {
+		return err
+	}
+	if done > 0 {
+		return nil
+	}
+
+	tx, err := DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	steps := []string{
+		`ALTER TABLE movimentacoes ADD COLUMN obra_id INTEGER REFERENCES obras(id)`,
+		`INSERT INTO saldos (produto_id, obra_id, quantidade)
+		 SELECT p.id, (SELECT id FROM obras WHERE tipo = 'CENTRAL'), ROUND(p.quantidade, 3)
+		 FROM produtos p`,
+		`UPDATE movimentacoes
+		 SET obra_id = (SELECT id FROM obras WHERE tipo = 'CENTRAL')
+		 WHERE tipo IN ('ENTRADA', 'SAIDA')`,
+	}
+	for _, step := range steps {
+		if _, err := tx.Exec(step); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 // addColumnIfMissing adiciona uma coluna à tabela só se ela ainda não
