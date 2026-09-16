@@ -1,6 +1,8 @@
 package database
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -385,5 +387,47 @@ func TestCreateTablesRollsBackOnFailure(t *testing.T) {
 				t.Errorf("depois de migrar de novo: saldo %v e %d movimentação ligada, esperado 40 e 1", balance, linked)
 			}
 		})
+	}
+}
+
+// TestEveryConnectionHasForeignKeys abre uma segunda conexão ao mesmo banco
+// (o sistema usa uma só, mas o database/sql pode trocá-la) e confere que
+// as duas estão com chave estrangeira ligada — e que ela é de fato
+// aplicada, recusando um saldo de material que não existe.
+func TestEveryConnectionHasForeignKeys(t *testing.T) {
+	openTestDB(t)
+	if err := CreateTables(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Libera uma segunda conexão só neste teste.
+	DB.SetMaxOpenConns(2)
+	t.Cleanup(func() { DB.SetMaxOpenConns(1) })
+
+	ctx := context.Background()
+	first, err := DB.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	second, err := DB.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+
+	for name, conn := range map[string]*sql.Conn{"primeira": first, "segunda": second} {
+		var enabled int
+		if err := conn.QueryRowContext(ctx, `PRAGMA foreign_keys`).Scan(&enabled); err != nil {
+			t.Fatal(err)
+		}
+		if enabled != 1 {
+			t.Errorf("%s conexão com foreign_keys = %d, esperado 1", name, enabled)
+		}
+	}
+
+	_, err = second.ExecContext(ctx, `INSERT INTO saldos (produto_id, obra_id, quantidade) VALUES (999, 999, 1)`)
+	if err == nil || !strings.Contains(strings.ToUpper(err.Error()), "FOREIGN KEY") {
+		t.Errorf("saldo de material inexistente na segunda conexão: erro = %v, esperado FOREIGN KEY", err)
 	}
 }

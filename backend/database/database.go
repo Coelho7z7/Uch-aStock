@@ -34,21 +34,31 @@ func dbPath() string {
 	return "backend/data/uchoastock.db"
 }
 
+// dsn é o endereço de conexão: o caminho do banco mais os PRAGMAs que
+// toda conexão precisa. foreign_keys vale por conexão, e o SQLite nasce
+// com ela desligada. Antes o PRAGMA era rodado uma vez só, depois de
+// abrir; se o database/sql trocasse a conexão (por exemplo, depois de um
+// erro do driver), a nova ficaria sem conferir chave estrangeira, sem
+// aviso. Na string de conexão, o driver roda o PRAGMA em toda conexão que
+// abre.
+//
+// O driver corta no primeiro "?" e usa o que vem antes como caminho, sem
+// tratar como URI: caminho relativo, "C:/..." e acentos funcionam como
+// estão.
+func dsn() string {
+	return dbPath() + "?_pragma=foreign_keys(1)"
+}
+
 func Connect() error {
 	var err error
 
-	DB, err = sql.Open("sqlite", dbPath())
+	DB, err = sql.Open("sqlite", dsn())
 	if err != nil {
 		return err
 	}
 	DB.SetMaxOpenConns(1)
 
-	if err := DB.Ping(); err != nil {
-		return err
-	}
-
-	_, err = DB.Exec("PRAGMA foreign_keys = ON")
-	return err
+	return DB.Ping()
 }
 
 // CreateTables cria as tabelas e roda todas as migrações numa transação
