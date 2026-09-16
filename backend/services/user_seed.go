@@ -7,6 +7,7 @@ import (
 	"os"
 
 	database "uchoastock/backend/database"
+	"uchoastock/backend/utils"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -28,8 +29,73 @@ func seedPassword(envVar string) (password string, generated bool, err error) {
 	return base64.RawURLEncoding.EncodeToString(buf), true, nil
 }
 
+// superadminResetEnvVar é a saída de emergência da identidade reservada.
+//
+// Por que ela existe: a conta superadmin@gmail.com é a única que ninguém
+// pode redefinir pelo painel, e isso é de propósito — um admin que
+// pudesse trocar a senha dela passaria a agir como SuperAdmin, e o
+// histórico de movimentações, que é registrado por usuário, atribuiria a
+// ele o que outra pessoa fez. O efeito colateral é que, se essa conta
+// perder a senha, não sobra por onde recuperá-la sem acesso ao servidor.
+//
+// Com esta variável definida, a inicialização regrava a senha dela. Não
+// é uma porta nova: quem consegue definir uma variável de ambiente já
+// controla o deploy e conseguiria o mesmo por outros caminhos, só que
+// com mais trabalho.
+const superadminResetEnvVar = "SUPERADMIN_RESET_PASSWORD"
+
+// resetSuperadminPassword regrava a senha da identidade reservada quando
+// a variável de emergência está definida, e não faz nada quando ela não
+// está.
+//
+// Valor inválido não derruba a inicialização: o sistema continua no ar
+// para todo mundo e o motivo fica explicado no log. Parar o servidor por
+// causa de uma variável mal digitada trocaria o problema de uma conta
+// pelo problema de todas.
+func resetSuperadminPassword() error {
+	password := os.Getenv(superadminResetEnvVar)
+	if password == "" {
+		return nil
+	}
+
+	if !utils.ValidatePassword(password) {
+		fmt.Printf("[seed] %s tem valor inválido: a senha precisa de no mínimo 6 caracteres e 1 caractere especial. A senha do SuperAdmin NÃO foi alterada.\n", superadminResetEnvVar)
+		return nil
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("gerar senha do SuperAdmin: %w", err)
+	}
+
+	result, err := database.DB.Exec(`
+		UPDATE usuarios SET senha = ?
+		WHERE LOWER(TRIM(email)) = 'superadmin@gmail.com' AND ativo = 1
+	`, string(hash))
+	if err != nil {
+		return fmt.Errorf("redefinir senha do SuperAdmin: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("redefinir senha do SuperAdmin: %w", err)
+	}
+	if rows == 0 {
+		fmt.Printf("[seed] %s está definida, mas não há conta ativa com o email superadmin@gmail.com. Nada foi alterado.\n", superadminResetEnvVar)
+		return nil
+	}
+
+	// O aviso é obrigatório: enquanto a variável existir, a senha volta a
+	// esse valor a cada inicialização. Sem ele, uma troca de senha feita
+	// depois seria desfeita no deploy seguinte, sem explicação aparente.
+	fmt.Printf("[seed] senha do SuperAdmin redefinida pela variável %s. REMOVA essa variável do ambiente agora: enquanto ela estiver definida, a senha volta a esse valor a cada inicialização.\n", superadminResetEnvVar)
+	return nil
+}
+
 // SeedDefaultUsers cria as contas padrão que ainda não existem. Conta que
-// já existe nunca tem a senha trocada.
+// já existe nunca tem a senha trocada — a única exceção é a identidade
+// reservada quando a variável de emergência está definida, tratada no
+// fim por resetSuperadminPassword.
 //
 // A senha temporária só é gerada e mostrada no log quando a conta é
 // criada. Antes ela era impressa a cada inicialização, mesmo com a conta
@@ -93,5 +159,5 @@ func SeedDefaultUsers() error {
 		}
 	}
 
-	return nil
+	return resetSuperadminPassword()
 }
