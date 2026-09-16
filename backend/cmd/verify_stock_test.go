@@ -189,3 +189,40 @@ func TestVerifyStockMigrateReportsForeignKeyViolations(t *testing.T) {
 		t.Errorf("banco já migrado com violação: código %d\n%s", code, out.String())
 	}
 }
+
+// Banco já migrado com um item de requisição órfão: o foreign_key_check
+// do verify-stock --migrate pega a violação na tabela nova, e a saída
+// lista as tabelas de requisição entre as conferidas.
+func TestVerifyStockChecksRequestTables(t *testing.T) {
+	t.Setenv("DB_PATH", filepath.Join(t.TempDir(), "migrado.db"))
+	if err := database.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { database.DB.Close() })
+	if err := database.CreateTables(); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	if code := verifyStock([]string{"--migrate"}, &out); code != 0 {
+		t.Fatalf("banco limpo: código %d\n%s", code, out.String())
+	}
+	if !strings.Contains(out.String(), "requisicao_eventos, requisicao_itens, requisicoes") {
+		t.Errorf("a saída deveria listar as tabelas de requisição entre as conferidas:\n%s", out.String())
+	}
+
+	if _, err := database.DB.Exec(`
+		PRAGMA foreign_keys = OFF;
+		INSERT INTO requisicao_itens (requisicao_id, produto_id, quantidade_solicitada) VALUES (77, 88, 1);
+		PRAGMA foreign_keys = ON;
+	`); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if code := verifyStock([]string{"--migrate"}, &out); code != 1 {
+		t.Errorf("com item órfão: código %d, esperado 1\n%s", code, out.String())
+	}
+	if !strings.Contains(out.String(), "chave estrangeira quebrada: requisicao_itens") {
+		t.Errorf("a saída deveria apontar requisicao_itens:\n%s", out.String())
+	}
+}

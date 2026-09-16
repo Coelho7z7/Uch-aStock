@@ -486,3 +486,204 @@ func TestForeignKeyViolationsFindsOrphans(t *testing.T) {
 		t.Errorf("violações = %+v, esperado saldos -> produtos e saldos -> obras", violations)
 	}
 }
+
+// phase1Schema é o schema de um banco da fase 1 (obras, saldo por obra e
+// cargos novos, sem requisição), copiado de um banco real que rodou aquela
+// versão, com alguns dados: central, uma obra, um usuário, um material com
+// saldo e uma saída.
+const phase1Schema = `
+CREATE TABLE produtos (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	nome TEXT NOT NULL,
+	quantidade INTEGER NOT NULL,
+	ativo INTEGER NOT NULL DEFAULT 1
+, unidade TEXT NOT NULL DEFAULT 'un', limite_minimo INTEGER NOT NULL DEFAULT 10);
+CREATE TABLE usuarios (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	nome TEXT NOT NULL,
+	email TEXT UNIQUE NOT NULL,
+	senha TEXT NOT NULL,
+	role TEXT NOT NULL DEFAULT 'basico',
+	ativo INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE obras (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	nome TEXT NOT NULL,
+	tipo TEXT NOT NULL DEFAULT 'OBRA',
+	cidade TEXT NOT NULL DEFAULT '',
+	responsavel TEXT NOT NULL DEFAULT '',
+	situacao TEXT NOT NULL DEFAULT 'ANDAMENTO',
+	ativo INTEGER NOT NULL DEFAULT 1,
+	criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE movimentacoes (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	produto_id INTEGER NOT NULL,
+	usuario_id INTEGER NOT NULL,
+	tipo TEXT NOT NULL,
+	quantidade INTEGER NOT NULL,
+	data DATETIME DEFAULT CURRENT_TIMESTAMP, observacao TEXT NOT NULL DEFAULT '', obra_id INTEGER REFERENCES obras(id),
+	FOREIGN KEY (produto_id) REFERENCES produtos(id),
+	FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+);
+CREATE TABLE sessoes (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	usuario_id INTEGER NOT NULL,
+	token_hash TEXT NOT NULL UNIQUE,
+	expira_em DATETIME NOT NULL,
+	criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, obra_id INTEGER REFERENCES obras(id),
+	FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+);
+CREATE TABLE saldos (
+	produto_id INTEGER NOT NULL REFERENCES produtos(id),
+	obra_id INTEGER NOT NULL REFERENCES obras(id),
+	quantidade REAL NOT NULL DEFAULT 0,
+	PRIMARY KEY (produto_id, obra_id)
+);
+CREATE TABLE usuario_obras (
+	usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+	obra_id INTEGER NOT NULL REFERENCES obras(id),
+	PRIMARY KEY (usuario_id, obra_id)
+);
+INSERT INTO obras (nome, tipo) VALUES ('Almoxarifado central', 'CENTRAL'), ('Residencial Sol', 'OBRA');
+INSERT INTO usuarios (nome, email, senha, role) VALUES ('Gestor', 'gestor@empresa.com', 'x', 'gestor');
+INSERT INTO usuario_obras (usuario_id, obra_id) VALUES (1, 2);
+INSERT INTO produtos (nome, quantidade, unidade) VALUES ('Cimento', 0, 'saco');
+INSERT INTO saldos (produto_id, obra_id, quantidade) VALUES (1, 1, 30), (1, 2, 12.5);
+INSERT INTO movimentacoes (produto_id, usuario_id, tipo, quantidade, obra_id) VALUES (1, 1, 'SAIDA', 2, 2);
+`
+
+// TestCreateTablesMigratesPhase1 roda a migração num banco da fase 1: as
+// tabelas de requisição, os índices e a coluna movimentacoes.requisicao_id
+// aparecem, os dados continuam iguais, rodar de novo não muda nada e as
+// chaves estrangeiras novas funcionam.
+func TestCreateTablesMigratesPhase1(t *testing.T) {
+	openTestDB(t)
+	if _, err := DB.Exec(phase1Schema); err != nil {
+		t.Fatalf("montar banco da fase 1: %v", err)
+	}
+
+	for run := 1; run <= 3; run++ {
+		if err := CreateTables(); err != nil {
+			t.Fatalf("execução %d falhou: %v", run, err)
+		}
+		if run == 1 {
+			assertNoForeignKeyViolations(t)
+		}
+	}
+	afterSecondRuns := dumpDatabase(t)
+	if err := CreateTables(); err != nil {
+		t.Fatal(err)
+	}
+	if dumpDatabase(t) != afterSecondRuns {
+		t.Error("rodar a migração de novo mudou o banco")
+	}
+	assertNoForeignKeyViolations(t)
+
+	for _, c := range []struct{ table, column string }{
+		{"requisicoes", "obra_id"},
+		{"requisicoes", "motivo_rejeicao"},
+		{"requisicoes", "atualizado_em"},
+		{"requisicao_itens", "quantidade_atendida"},
+		{"requisicao_eventos", "acao"},
+		{"movimentacoes", "requisicao_id"},
+	} {
+		if !columnExists(t, c.table, c.column) {
+			t.Errorf("coluna %s.%s não foi criada", c.table, c.column)
+		}
+	}
+
+	var indexes int
+	if err := DB.QueryRow(`
+		SELECT COUNT(*) FROM sqlite_master
+		WHERE type = 'index' AND name IN ('idx_requisicoes_obra_status', 'idx_requisicoes_solicitante', 'idx_requisicao_itens_requisicao')
+	`).Scan(&indexes); err != nil {
+		t.Fatal(err)
+	}
+	if indexes != 3 {
+		t.Errorf("%d índice(s) de requisição, esperado 3", indexes)
+	}
+
+	// Os dados da fase 1 continuam lá.
+	var balances int
+	var total float64
+	if err := DB.QueryRow(`SELECT COUNT(*), SUM(quantidade) FROM saldos`).Scan(&balances, &total); err != nil {
+		t.Fatal(err)
+	}
+	if balances != 2 || total != 42.5 {
+		t.Errorf("saldos depois da migração: %d linhas somando %v, esperado 2 e 42,5", balances, total)
+	}
+
+	// Chaves novas valendo: requisição de verdade entra; item de material
+	// inexistente e unidade repetida são recusados.
+	if _, err := DB.Exec(`
+		INSERT INTO requisicoes (obra_id, solicitante_id) VALUES (2, 1);
+		INSERT INTO requisicao_itens (requisicao_id, produto_id, quantidade_solicitada) VALUES (1, 1, 5);
+		INSERT INTO requisicao_eventos (requisicao_id, usuario_id, acao) VALUES (1, 1, 'CRIADA');
+		UPDATE movimentacoes SET requisicao_id = 1 WHERE id = 1;
+	`); err != nil {
+		t.Fatalf("gravar requisição válida: %v", err)
+	}
+	if _, err := DB.Exec(`INSERT INTO requisicao_itens (requisicao_id, produto_id, quantidade_solicitada) VALUES (1, 999, 1)`); err == nil {
+		t.Error("item de material inexistente deveria ser recusado pela chave estrangeira")
+	}
+	if _, err := DB.Exec(`INSERT INTO requisicao_itens (requisicao_id, produto_id, quantidade_solicitada) VALUES (1, 1, 2)`); err == nil {
+		t.Error("o mesmo material duas vezes na requisição deveria ser recusado (UNIQUE)")
+	}
+	if _, err := DB.Exec(`UPDATE movimentacoes SET requisicao_id = 999 WHERE id = 1`); err == nil {
+		t.Error("movimentação ligada a requisição inexistente deveria ser recusada")
+	}
+	assertNoForeignKeyViolations(t)
+}
+
+// TestCreateTablesPhase1RollsBackOnFailure: numa falha depois de criar as
+// tabelas de requisição e a coluna requisicao_id, nada disso fica no banco.
+func TestCreateTablesPhase1RollsBackOnFailure(t *testing.T) {
+	openTestDB(t)
+	if _, err := DB.Exec(phase1Schema); err != nil {
+		t.Fatal(err)
+	}
+	// A correção do cargo superadmin faz UPDATE em todos os usuários, e
+	// roda depois do CREATE das tabelas novas e das colunas novas.
+	if _, err := DB.Exec(`CREATE TRIGGER falha BEFORE UPDATE ON usuarios BEGIN SELECT RAISE(ABORT, 'falha simulada'); END;`); err != nil {
+		t.Fatal(err)
+	}
+
+	before := dumpDatabase(t)
+	if err := CreateTables(); err == nil || !strings.Contains(err.Error(), "falha simulada") {
+		t.Fatalf("CreateTables deveria falhar com a falha simulada, veio %v", err)
+	}
+	if after := dumpDatabase(t); after != before {
+		t.Errorf("o banco mudou depois da falha.\nantes:\n%s\ndepois:\n%s", before, after)
+	}
+	if columnExists(t, "movimentacoes", "requisicao_id") {
+		t.Error("a coluna requisicao_id ficou no banco depois do rollback")
+	}
+
+	if _, err := DB.Exec(`DROP TRIGGER falha`); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateTables(); err != nil {
+		t.Fatalf("migração depois de tirar a falha: %v", err)
+	}
+	if !columnExists(t, "requisicoes", "status") {
+		t.Error("depois de migrar de novo, a tabela requisicoes deveria existir")
+	}
+	assertNoForeignKeyViolations(t)
+}
+
+func TestTablesWithForeignKeysIncludesRequests(t *testing.T) {
+	openTestDB(t)
+	if err := CreateTables(); err != nil {
+		t.Fatal(err)
+	}
+	tables, err := TablesWithForeignKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(tables, ",")
+	want := "movimentacoes,requisicao_eventos,requisicao_itens,requisicoes,saldos,sessoes,usuario_obras"
+	if got != want {
+		t.Errorf("tabelas com chave estrangeira = %s, esperado %s", got, want)
+	}
+}

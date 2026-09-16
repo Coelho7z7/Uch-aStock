@@ -137,6 +137,33 @@ func ForeignKeyViolations() ([]ForeignKeyViolation, error) {
 	return violations, rows.Err()
 }
 
+// TablesWithForeignKeys lista, em ordem alfabética, as tabelas que têm
+// chave estrangeira — as que PRAGMA foreign_key_check confere. Serve para
+// o verify-stock mostrar o que foi conferido. Só lê.
+func TablesWithForeignKeys() ([]string, error) {
+	rows, err := DB.Query(`
+		SELECT DISTINCT m.name
+		FROM sqlite_master m
+		JOIN pragma_foreign_key_list(m.name) f
+		WHERE m.type = 'table'
+		ORDER BY m.name
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		tables = append(tables, name)
+	}
+	return tables, rows.Err()
+}
+
 // createTablesTx é o corpo de CreateTables, dentro da transação.
 func createTablesTx(tx *sql.Tx) error {
 	query := `
@@ -212,6 +239,52 @@ func createTablesTx(tx *sql.Tx) error {
 		obra_id INTEGER NOT NULL REFERENCES obras(id),
 		PRIMARY KEY (usuario_id, obra_id)
 	);
+
+	-- Requisição de material: alguém da obra pede, o gestor aprova e o
+	-- almoxarife atende (o atendimento gera as saídas de estoque). status
+	-- é 'PENDENTE', 'APROVADA', 'REJEITADA', 'PARCIAL', 'ATENDIDA' ou
+	-- 'CANCELADA'; as regras de transição ficam em services. aprovado_por e
+	-- aprovado_em só são preenchidos na aprovação. Datas em UTC, como o
+	-- resto do banco: na tela, sempre com 'localtime'.
+	CREATE TABLE IF NOT EXISTS requisicoes (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		obra_id INTEGER NOT NULL REFERENCES obras(id),
+		solicitante_id INTEGER NOT NULL REFERENCES usuarios(id),
+		status TEXT NOT NULL DEFAULT 'PENDENTE',
+		observacao TEXT NOT NULL DEFAULT '',
+		aprovado_por INTEGER REFERENCES usuarios(id),
+		aprovado_em DATETIME,
+		motivo_rejeicao TEXT NOT NULL DEFAULT '',
+		criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+		atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	-- Itens da requisição. quantidade_atendida cresce a cada atendimento,
+	-- até chegar em quantidade_solicitada. REAL, como o saldo: há material
+	-- medido em fração (2,5 m³).
+	CREATE TABLE IF NOT EXISTS requisicao_itens (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		requisicao_id INTEGER NOT NULL REFERENCES requisicoes(id),
+		produto_id INTEGER NOT NULL REFERENCES produtos(id),
+		quantidade_solicitada REAL NOT NULL,
+		quantidade_atendida REAL NOT NULL DEFAULT 0,
+		UNIQUE (requisicao_id, produto_id)
+	);
+
+	-- Histórico da requisição: quem fez o quê e quando. acao é 'CRIADA',
+	-- 'APROVADA', 'REJEITADA', 'ATENDIMENTO' ou 'CANCELADA'.
+	CREATE TABLE IF NOT EXISTS requisicao_eventos (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		requisicao_id INTEGER NOT NULL REFERENCES requisicoes(id),
+		usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+		acao TEXT NOT NULL,
+		detalhe TEXT NOT NULL DEFAULT '',
+		criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_requisicoes_obra_status ON requisicoes (obra_id, status);
+	CREATE INDEX IF NOT EXISTS idx_requisicoes_solicitante ON requisicoes (solicitante_id);
+	CREATE INDEX IF NOT EXISTS idx_requisicao_itens_requisicao ON requisicao_itens (requisicao_id);
 	`
 
 	_, err := tx.Exec(query)
@@ -279,6 +352,9 @@ func createTablesTx(tx *sql.Tx) error {
 		{"movimentacoes", "observacao", "TEXT NOT NULL DEFAULT ''"},
 		// Obra escolhida no seletor do topo. NULL é "Todas as obras".
 		{"sessoes", "obra_id", "INTEGER REFERENCES obras(id)"},
+		// Requisição que originou a saída. NULL para entrada, saída avulsa
+		// e atualização de cadastro.
+		{"movimentacoes", "requisicao_id", "INTEGER REFERENCES requisicoes(id)"},
 	}
 	for _, c := range newColumns {
 		if err = addColumnIfMissing(tx, c.table, c.column, c.definition); err != nil {

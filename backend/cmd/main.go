@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	database "uchoastock/backend/database"
 	"uchoastock/backend/services"
@@ -255,6 +256,10 @@ func verifyStock(args []string, out io.Writer) int {
 			return 1
 		}
 		fmt.Fprintln(out, "Chaves estrangeiras: nenhuma violação (PRAGMA foreign_key_check).")
+		if err := reportForeignKeyTables(out); err != nil {
+			fmt.Fprintln(out, "Erro ao listar as tabelas conferidas:", err)
+			return 1
+		}
 		return code
 	}
 
@@ -297,7 +302,24 @@ func verifyStock(args []string, out io.Writer) int {
 		return 1
 	}
 	fmt.Fprintf(out, "Nenhum problema: %d material(is) com o saldo igual ao de antes, tudo no almoxarifado central, as movimentações ligadas certo e nenhuma chave estrangeira quebrada (PRAGMA foreign_key_check).\n", len(snapshot.Materials))
+	if err := reportForeignKeyTables(out); err != nil {
+		fmt.Fprintln(out, "Erro ao listar as tabelas conferidas:", err)
+		return 1
+	}
 	return 0
+}
+
+// reportForeignKeyTables mostra em quais tabelas o foreign_key_check
+// conferiu chave estrangeira. O PRAGMA confere o banco inteiro; a lista
+// deixa visível que as tabelas novas (as de requisição, por exemplo)
+// entraram na conta.
+func reportForeignKeyTables(out io.Writer) error {
+	tables, err := database.TablesWithForeignKeys()
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(out, "Chaves estrangeiras conferidas em:", strings.Join(tables, ", "))
+	return nil
 }
 
 // foreignKeyProblem descreve uma chave estrangeira quebrada para a saída
