@@ -129,12 +129,7 @@ const siteChangedMessage = "A obra selecionada mudou (talvez em outra aba). Conf
 
 // siteSwitchHandler troca a obra da sessão (POST /obra-atual) e volta
 // para a página de onde a pessoa veio.
-func siteSwitchHandler(w http.ResponseWriter, r *http.Request) {
-	user, authenticated := loggedUser(r)
-	if !authenticated {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
+func siteSwitchHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
 		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)

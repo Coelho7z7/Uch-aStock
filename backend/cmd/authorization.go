@@ -24,6 +24,24 @@ func loggedUser(r *http.Request) (*models.User, bool) {
 	return user, true
 }
 
+// authenticatedHandler é um handler que já recebe o usuário logado.
+type authenticatedHandler func(w http.ResponseWriter, r *http.Request, user *models.User)
+
+// withUser é o "middleware" das telas internas: uma função que envolve o
+// handler e roda antes dele. Carrega o usuário da sessão uma vez só por
+// requisição e o entrega pronto; sem sessão, volta para o login e o
+// handler nem é chamado.
+func withUser(next authenticatedHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, authenticated := loggedUser(r)
+		if !authenticated {
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+		next(w, r, user)
+	}
+}
+
 // isAdmin indica se o usuário logado tem poderes de administrador.
 // O SuperAdmin (reservado a superadmin@gmail.com) também conta como admin aqui — ele
 // fica acima do administrador na hierarquia, então tudo que um admin pode

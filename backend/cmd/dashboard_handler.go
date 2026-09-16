@@ -27,13 +27,7 @@ type DashboardData struct {
 const lowStockPanelSize = 5
 
 // dashboardHandler monta a visão geral do sistema.
-func dashboardHandler(w http.ResponseWriter, r *http.Request) {
-	user, authenticated := loggedUser(r)
-	if !authenticated {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
-
+func dashboardHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	scope, ok := requireSiteScope(w, r, user)
 	if !ok {
 		return

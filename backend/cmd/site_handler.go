@@ -39,13 +39,7 @@ var statusChangeSuccess = map[string]string{
 
 // siteHandler exibe a lista de obras e processa o cadastro e a edição
 // (POST). Com ?editar=ID a tela já abre com o modal daquela obra.
-func siteHandler(w http.ResponseWriter, r *http.Request) {
-	user, authenticated := loggedUser(r)
-	if !authenticated {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
-
+func siteHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	scope, ok := requireSiteScope(w, r, user)
 	if !ok {
 		return

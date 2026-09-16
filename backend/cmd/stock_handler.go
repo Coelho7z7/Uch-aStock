@@ -15,13 +15,7 @@ import (
 
 // stockHandler exibe a tela de entrada e saída de material e processa
 // cada movimentação (POST).
-func stockHandler(w http.ResponseWriter, r *http.Request) {
-	user, authenticated := loggedUser(r)
-	if !authenticated {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
-
+func stockHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	scope, ok := requireSiteScope(w, r, user)
 	if !ok {
 		return

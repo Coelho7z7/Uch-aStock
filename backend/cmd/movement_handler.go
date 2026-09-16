@@ -52,13 +52,7 @@ func readMovementFilter(r *http.Request) (services.MovementFilter, string) {
 }
 
 // movementHandler exibe o histórico de entradas/saídas/atualizações.
-func movementHandler(w http.ResponseWriter, r *http.Request) {
-	user, authenticated := loggedUser(r)
-	if !authenticated {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
-
+func movementHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	scope, ok := requireSiteScope(w, r, user)
 	if !ok {
 		return
@@ -147,13 +141,7 @@ func movementHandler(w http.ResponseWriter, r *http.Request) {
 // Excel do escritório. Usa ";" como separador e começa com o BOM do
 // UTF-8 (os bytes EF BB BF): é assim que o Excel em português separa as colunas e
 // mostra os acentos sem pedir importação manual.
-func movementExportHandler(w http.ResponseWriter, r *http.Request) {
-	user, authenticated := loggedUser(r)
-	if !authenticated {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
-
+func movementExportHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	scope, ok := requireSiteScope(w, r, user)
 	if !ok {
 		return

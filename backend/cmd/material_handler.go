@@ -18,13 +18,7 @@ const materialsPerPage = 10
 
 // materialHandler exibe a lista de materiais e processa o cadastro de
 // um novo material (POST).
-func materialHandler(w http.ResponseWriter, r *http.Request) {
-	user, authenticated := loggedUser(r)
-	if !authenticated {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
-
+func materialHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	scope, ok := requireSiteScope(w, r, user)
 	if !ok {
 		return
@@ -168,13 +162,7 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 // preenchido. É o destino do botão "Editar" da lista de materiais — antes
 // ele só levava para esta tela, e a pessoa tinha que achar o material de
 // novo, às vezes em outra página.
-func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
-	user, authenticated := loggedUser(r)
-	if !authenticated {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
-
+func editMaterialHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	messages := map[string]string{
 		"atualizado": "Material atualizado com sucesso.",
 		"removido":   "Material removido com sucesso.",

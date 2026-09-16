@@ -159,18 +159,18 @@ func registerRoutes() {
 	http.HandleFunc("/login", loginHandler)
 	http.HandleFunc("/logout", logoutHandler)
 
-	http.HandleFunc("/dashboard", dashboardHandler)
+	http.HandleFunc("/dashboard", withUser(dashboardHandler))
 
-	http.HandleFunc("/obras", siteHandler)
-	http.HandleFunc("/obra-atual", siteSwitchHandler)
+	http.HandleFunc("/obras", withUser(siteHandler))
+	http.HandleFunc("/obra-atual", withUser(siteSwitchHandler))
 
-	http.HandleFunc("/materiais", materialHandler)
-	http.HandleFunc("/alterar-material", editMaterialHandler)
+	http.HandleFunc("/materiais", withUser(materialHandler))
+	http.HandleFunc("/alterar-material", withUser(editMaterialHandler))
 
-	http.HandleFunc("/estoque", stockHandler)
+	http.HandleFunc("/estoque", withUser(stockHandler))
 
-	http.HandleFunc("/movimentacoes", movementHandler)
-	http.HandleFunc("/movimentacoes/exportar", movementExportHandler)
+	http.HandleFunc("/movimentacoes", withUser(movementHandler))
+	http.HandleFunc("/movimentacoes/exportar", withUser(movementExportHandler))
 
-	http.HandleFunc("/usuarios", userHandler)
+	http.HandleFunc("/usuarios", withUser(userHandler))
 }

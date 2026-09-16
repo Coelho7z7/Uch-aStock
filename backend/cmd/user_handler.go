@@ -16,12 +16,7 @@ import (
 // e a remoção.
 // A tela inteira é restrita a administradores: o gerente cuida da obra
 // dele, não das contas.
-func userHandler(w http.ResponseWriter, r *http.Request) {
-	user, authenticated := loggedUser(r)
-	if !authenticated {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
+func userHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	userID := user.ID
 	if !requireAdmin(w, r) {
 		return
