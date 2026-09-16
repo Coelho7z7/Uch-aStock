@@ -264,13 +264,15 @@ input.form-error:focus {
     padding-right: var(--space-8);
 }
 
+/* O alvo de toque segue o mínimo do sistema (44px): a tela é usada de
+   luva, em obra. O ícone continua com 20px — só a área clicável cresce. */
 .eye {
     position: absolute;
     right: var(--space-2);
     display: grid;
     place-items: center;
-    width: 36px;
-    height: 36px;
+    width: var(--touch-target);
+    height: var(--touch-target);
     color: var(--color-text-muted);
     background: none;
     border: none;
@@ -490,9 +492,23 @@ input.form-error:focus {
     color: var(--color-text-muted);
 }
 
+/* Mesmo motivo do .eye: no celular este link ("Repor estoque", "Ver
+   histórico") tinha só 20px de altura de toque. O min-height some no
+   desktop, onde o ponteiro é preciso e a altura extra desalinharia o
+   cabeçalho. */
 .section-header a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
     font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
+}
+
+@media (min-width: 768px) {
+
+    .section-header a {
+        min-height: 0;
+    }
 }
 
 /* ============================================================

@@ -465,6 +465,28 @@ body.mobile-menu-open {
         text-align: left;
     }
 
+    /* "Último a mexer" traz duas informações, uma embaixo da outra:
+       quem mexeu e quando. Como a célula virou flex, os dois <span>
+       passavam a ser itens lado a lado, e a linha ficava mais larga que
+       o cartão — o valor empurrava o rótulo para fora e ele aparecia
+       cortado ("IO A MEXER"). Em grade eles voltam a empilhar: rótulo na
+       primeira coluna, as duas linhas do valor na segunda. */
+    .content tbody td.last-handler {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        column-gap: var(--space-2);
+    }
+
+    .content tbody td.last-handler > * {
+        grid-column: 2;
+    }
+
+    .content tbody td.last-handler::before {
+        margin-right: 0;
+        padding-right: 0;
+    }
+
     /* Célula de "nenhum registro": ocupa a linha inteira, sem rótulo. */
     .content tbody td[colspan] {
         display: block;
