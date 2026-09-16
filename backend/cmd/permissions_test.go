@@ -12,7 +12,16 @@ import (
 // cada cargo contra cada uma.
 var allPermissions = []Permission{
 	PermEditMaterial, PermRemoveMaterial, PermMoveStock,
-	PermCreateRequest, PermApproveRequest,
+	PermCreateRequest, PermApproveRequest, PermServeRequest, PermViewAllRequests, PermApproveOwnRequest,
+	PermViewAllMovements, PermExportMovements,
+	PermManageUsers, PermManageSites, PermReopenSite, PermAllSites,
+}
+
+// adminPermissions é tudo menos aprovar a própria requisição, que fica só
+// com o superadmin.
+var adminPermissions = []Permission{
+	PermEditMaterial, PermRemoveMaterial, PermMoveStock,
+	PermCreateRequest, PermApproveRequest, PermServeRequest, PermViewAllRequests,
 	PermViewAllMovements, PermExportMovements,
 	PermManageUsers, PermManageSites, PermReopenSite, PermAllSites,
 }
@@ -25,19 +34,20 @@ func TestCanEveryRoleEveryPermission(t *testing.T) {
 		granted []Permission
 	}{
 		{services.RoleSuperadmin, allPermissions},
-		{services.RoleAdmin, allPermissions},
+		{services.RoleAdmin, adminPermissions},
 		{services.RoleManager, []Permission{
 			PermMoveStock,
-			PermCreateRequest, PermApproveRequest,
+			PermCreateRequest, PermApproveRequest, PermServeRequest, PermViewAllRequests,
 			PermViewAllMovements, PermExportMovements,
 			PermManageUsers, PermManageSites,
 		}},
 		{services.RoleStorekeeper, []Permission{
-			PermMoveStock, PermCreateRequest,
+			PermMoveStock,
+			PermCreateRequest, PermServeRequest, PermViewAllRequests,
 			PermViewAllMovements, PermExportMovements,
 		}},
 		{services.RoleRequester, []Permission{PermCreateRequest}},
-		{services.RoleAuditor, []Permission{PermViewAllMovements, PermExportMovements}},
+		{services.RoleAuditor, []Permission{PermViewAllRequests, PermViewAllMovements, PermExportMovements}},
 		// Cargos antigos e desconhecidos não podem nada: se a migração não
 		// rodasse, ninguém ganharia acesso por engano.
 		{"gerente", nil},
@@ -177,6 +187,30 @@ func TestManagerUserRules(t *testing.T) {
 	for _, c := range userCases {
 		if got := canManageUser(c.actor, c.target); got != c.want {
 			t.Errorf("%s: canManageUser = %v, esperado %v", c.name, got, c.want)
+		}
+	}
+}
+
+// TestRequestActorFlags confere a tradução de cada cargo para as flags do
+// service de requisições, inclusive superadmin e cargo desconhecido.
+func TestRequestActorFlags(t *testing.T) {
+	cases := []struct {
+		role string
+		want services.RequestActor
+	}{
+		{services.RoleSuperadmin, services.RequestActor{AllSites: true, ViewAll: true, CanCreate: true, CanApprove: true, CanServe: true, ApproveOwn: true}},
+		{services.RoleAdmin, services.RequestActor{AllSites: true, ViewAll: true, CanCreate: true, CanApprove: true, CanServe: true}},
+		{services.RoleManager, services.RequestActor{ViewAll: true, CanCreate: true, CanApprove: true, CanServe: true}},
+		{services.RoleStorekeeper, services.RequestActor{ViewAll: true, CanCreate: true, CanServe: true}},
+		{services.RoleRequester, services.RequestActor{CanCreate: true}},
+		{services.RoleAuditor, services.RequestActor{ViewAll: true}},
+		{"qualquer", services.RequestActor{}},
+	}
+	for _, c := range cases {
+		user := &models.User{ID: 42, SiteID: 7, Role: c.role}
+		c.want.UserID, c.want.SiteID = 42, 7
+		if got := requestActor(user); got != c.want {
+			t.Errorf("requestActor(%s) = %+v, esperado %+v", c.role, got, c.want)
 		}
 	}
 }

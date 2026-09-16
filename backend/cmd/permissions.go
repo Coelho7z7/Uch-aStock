@@ -15,11 +15,25 @@ const (
 	// PermEditMaterial é cadastrar material e editar nome, unidade e limite
 	// mínimo. O catálogo é um só para a empresa (o limite mínimo também é
 	// um campo único do material), por isso só o administrador tem.
-	PermEditMaterial     Permission = "material.editar"
-	PermRemoveMaterial   Permission = "material.remover"
-	PermMoveStock        Permission = "estoque.movimentar"
-	PermCreateRequest    Permission = "requisicao.criar"
-	PermApproveRequest   Permission = "requisicao.aprovar"
+	PermEditMaterial   Permission = "material.editar"
+	PermRemoveMaterial Permission = "material.remover"
+	PermMoveStock      Permission = "estoque.movimentar"
+	// PermCreateRequest é pedir material (criar requisição) na própria obra.
+	PermCreateRequest Permission = "requisicao.criar"
+	// PermApproveRequest é aprovar, rejeitar e cancelar requisição (e
+	// cancelar mesmo depois de aprovada).
+	PermApproveRequest Permission = "requisicao.aprovar"
+	// PermServeRequest é atender requisição aprovada: entregar o material,
+	// o que gera as saídas de estoque.
+	PermServeRequest Permission = "requisicao.atender"
+	// PermViewAllRequests é ver requisições de todos os solicitantes da
+	// obra. Sem ela, só as próprias.
+	PermViewAllRequests Permission = "requisicao.ver_todas"
+	// PermApproveOwnRequest é aprovar ou rejeitar a própria requisição.
+	// Nenhum cargo recebe: só o superadmin, porque can() libera tudo para
+	// ele. Assim a exceção existe sem checar nome de cargo.
+	PermApproveOwnRequest Permission = "requisicao.aprovar_propria"
+
 	PermViewAllMovements Permission = "movimentacoes.ver_todas"
 	PermExportMovements  Permission = "movimentacoes.exportar"
 	PermManageUsers      Permission = "usuarios.gerenciar"
@@ -43,7 +57,7 @@ const (
 var rolePermissions = map[string][]Permission{
 	services.RoleAdmin: {
 		PermEditMaterial, PermRemoveMaterial, PermMoveStock,
-		PermCreateRequest, PermApproveRequest,
+		PermCreateRequest, PermApproveRequest, PermServeRequest, PermViewAllRequests,
 		PermViewAllMovements, PermExportMovements,
 		PermManageUsers, PermManageSites, PermReopenSite, PermAllSites,
 	},
@@ -52,18 +66,19 @@ var rolePermissions = map[string][]Permission{
 	// um limite, em manageableRoles.
 	services.RoleManager: {
 		PermMoveStock,
-		PermCreateRequest, PermApproveRequest,
+		PermCreateRequest, PermApproveRequest, PermServeRequest, PermViewAllRequests,
 		PermViewAllMovements, PermExportMovements,
 		PermManageUsers, PermManageSites,
 	},
 	services.RoleStorekeeper: {
-		PermMoveStock, PermCreateRequest,
+		PermMoveStock,
+		PermCreateRequest, PermServeRequest, PermViewAllRequests,
 		PermViewAllMovements, PermExportMovements,
 	},
-	// Sem PermViewAllMovements, o solicitante vê só as movimentações
-	// que ele mesmo registrou.
+	// Sem PermViewAllMovements e PermViewAllRequests, o solicitante vê só
+	// as movimentações que registrou e as requisições que criou.
 	services.RoleRequester: {PermCreateRequest},
-	services.RoleAuditor:   {PermViewAllMovements, PermExportMovements},
+	services.RoleAuditor:   {PermViewAllRequests, PermViewAllMovements, PermExportMovements},
 }
 
 // manageableRoles limita quais cargos quem gerencia usuários pode dar e

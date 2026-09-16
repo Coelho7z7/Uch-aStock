@@ -76,6 +76,22 @@ func canEditSite(user *models.User, siteID int) bool {
 	return can(user, PermManageSites) && canActOnSite(user, siteID)
 }
 
+// requestActor traduz as permissões do usuário para o service de
+// requisições. O service confere as regras (obra, autor, própria
+// requisição) só com essas flags, sem saber nome de cargo.
+func requestActor(user *models.User) services.RequestActor {
+	return services.RequestActor{
+		UserID:     user.ID,
+		SiteID:     user.SiteID,
+		AllSites:   can(user, PermAllSites),
+		ViewAll:    can(user, PermViewAllRequests),
+		CanCreate:  can(user, PermCreateRequest),
+		CanApprove: can(user, PermApproveRequest),
+		CanServe:   can(user, PermServeRequest),
+		ApproveOwn: can(user, PermApproveOwnRequest),
+	}
+}
+
 // renderAccessDenied responde 403 com a tela de acesso negado.
 func renderAccessDenied(w http.ResponseWriter) {
 	tmpl, err := template.ParseFiles("frontend/html/access_denied.html")
