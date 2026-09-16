@@ -60,6 +60,7 @@ func movementHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 
 	filter, problem := readMovementFilter(r)
 	filter.SiteID = scope.SiteID()
+	filter.UserID = ownMovementsOnly(user)
 
 	movements, err := services.GetMovementsFilteredWeb(filter)
 	if err != nil {
@@ -104,7 +105,9 @@ func movementHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 		NextPage       int
 		CanManageUsers bool
 		// CanExport mostra o botão Exportar CSV.
-		CanExport      bool
+		CanExport bool
+		// OnlyOwn avisa que a lista traz só o que a pessoa registrou.
+		OnlyOwn        bool
 		Filter         string
 		MaterialSearch string
 		From           string
@@ -121,6 +124,7 @@ func movementHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 		NextPage:       page + 1,
 		CanManageUsers: can(user, PermManageUsers),
 		CanExport:      can(user, PermExportMovements),
+		OnlyOwn:        filter.UserID > 0,
 		Filter:         filter.Type,
 		MaterialSearch: filter.Material,
 		From:           filter.From,
@@ -157,6 +161,7 @@ func movementExportHandler(w http.ResponseWriter, r *http.Request, user *models.
 	// O arquivo traz o mesmo recorte da tela: a obra selecionada e os filtros.
 	filter, _ := readMovementFilter(r)
 	filter.SiteID = scope.SiteID()
+	filter.UserID = ownMovementsOnly(user)
 
 	movements, err := services.GetMovementsFilteredWeb(filter)
 	if err != nil {
@@ -207,4 +212,14 @@ func csvSafe(text string) string {
 		return "'" + text
 	}
 	return text
+}
+
+// ownMovementsOnly devolve o ID do usuário quando ele só pode ver as
+// movimentações que registrou (sem PermViewAllMovements), e 0 quando pode
+// ver as de todos. O resultado vai direto para MovementFilter.UserID.
+func ownMovementsOnly(user *models.User) int {
+	if can(user, PermViewAllMovements) {
+		return 0
+	}
+	return user.ID
 }

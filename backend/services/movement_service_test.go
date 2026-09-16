@@ -71,6 +71,34 @@ func TestGetMovementsFilteredWeb(t *testing.T) {
 	if got := count(MovementFilter{From: yesterday, To: today}); got != 3 {
 		t.Errorf("de ontem até hoje = %d, esperado 3", got)
 	}
+
+	// Filtro por usuário: só o que cada um registrou.
+	result, err := database.DB.Exec(`
+		INSERT INTO usuarios (nome, email, senha, role)
+		VALUES ('Solicitante', 'solicitante@gmail.com', 'x', 'solicitante')
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherID, err := result.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := RegisterStockExitWeb(cement, central, 1, int(otherID), "Retirada"); err != nil {
+		t.Fatal(err)
+	}
+	if got := count(MovementFilter{UserID: int(otherID)}); got != 1 {
+		t.Errorf("movimentações do solicitante = %d, esperado 1", got)
+	}
+	if got := count(MovementFilter{UserID: userID}); got != 3 {
+		t.Errorf("movimentações do usuário de teste = %d, esperado 3", got)
+	}
+	if got := count(MovementFilter{UserID: int(otherID), Type: "ENTRADA"}); got != 0 {
+		t.Errorf("entradas do solicitante = %d, esperado 0", got)
+	}
+	if got := count(MovementFilter{}); got != 4 {
+		t.Errorf("sem filtro de usuário = %d, esperado 4", got)
+	}
 }
 
 // Cada obra vê só o que aconteceu nela; atualização de cadastro (sem obra)

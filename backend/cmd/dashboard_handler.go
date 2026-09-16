@@ -41,7 +41,12 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request, user *models.User)
 		return
 	}
 
-	activities, err := services.GetMovementsFilteredWeb(services.MovementFilter{SiteID: scope.SiteID()})
+	// A atividade recente segue a mesma regra do histórico: quem não vê as
+	// movimentações de todos vê só as próprias.
+	activities, err := services.GetMovementsFilteredWeb(services.MovementFilter{
+		SiteID: scope.SiteID(),
+		UserID: ownMovementsOnly(user),
+	})
 	if err != nil {
 		http.Error(w, "Erro ao carregar atividades", http.StatusInternalServerError)
 		return

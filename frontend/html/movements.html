@@ -81,7 +81,7 @@
                     <div class="page-hero-text">
                         <span class="eyebrow">Histórico</span>
                         <h3>Histórico de movimentações</h3>
-                        <p>{{ if .Scope.Current }}Entradas e saídas de <strong>{{ .Scope.Current.Name }}</strong>, da mais recente para a mais antiga.{{ else }}Entradas, saídas e atualizações de todas as obras, da mais recente para a mais antiga.{{ end }}</p>
+                        <p>{{ if .Scope.Current }}Entradas e saídas de <strong>{{ .Scope.Current.Name }}</strong>, da mais recente para a mais antiga.{{ else }}Entradas, saídas e atualizações de todas as obras, da mais recente para a mais antiga.{{ end }}{{ if .OnlyOwn }} Aparecem só as movimentações registradas por você.{{ end }}</p>
                         <span class="page-hero-meta" data-live-region="contagem">{{ .Total }} registro(s)</span>
                     </div>
                 </header>

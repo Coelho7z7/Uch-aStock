@@ -25,12 +25,16 @@ func IsValidMovementType(movementType string) bool {
 // SiteID 0 traz o histórico de todas as obras, inclusive as atualizações
 // de cadastro (que não têm obra). Com uma obra escolhida, só aparece o
 // que aconteceu nela.
+//
+// UserID maior que zero traz só o que esse usuário registrou: é o recorte
+// de quem não tem permissão de ver as movimentações de todos.
 type MovementFilter struct {
 	Type     string
 	Material string
 	From     string
 	To       string
 	SiteID   int
+	UserID   int
 }
 
 // GetMovementsFilteredWeb devolve o histórico aplicando os filtros no
@@ -66,6 +70,10 @@ func GetMovementsFilteredWeb(filter MovementFilter) ([]models.Movement, error) {
 	if filter.SiteID > 0 {
 		query += ` AND m.obra_id = ?`
 		args = append(args, filter.SiteID)
+	}
+	if filter.UserID > 0 {
+		query += ` AND m.usuario_id = ?`
+		args = append(args, filter.UserID)
 	}
 	if validMovementTypes[filter.Type] {
 		query += ` AND m.tipo = ?`
