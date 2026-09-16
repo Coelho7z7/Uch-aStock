@@ -89,10 +89,10 @@ func TestUpdateSiteWebChangesFields(t *testing.T) {
 	id := siteIDByName(t, "Centro Empresarial")
 
 	// Manter o próprio nome (mudando só a caixa) não conta como repetido.
-	if err := UpdateSiteWeb(id, "Centro Empresarial NORTE", "Rio Largo", "Bruno Alves", SiteStatusFinished); err != nil {
+	if err := UpdateSiteWeb(id, "Centro Empresarial NORTE", "Rio Largo", "Bruno Alves", SiteStatusFinished, true); err != nil {
 		t.Fatalf("edição falhou: %v", err)
 	}
-	if err := UpdateSiteWeb(id, "centro empresarial norte", "Rio Largo", "Bruno Alves", SiteStatusFinished); err != nil {
+	if err := UpdateSiteWeb(id, "centro empresarial norte", "Rio Largo", "Bruno Alves", SiteStatusFinished, true); err != nil {
 		t.Fatalf("mudar só a caixa do próprio nome falhou: %v", err)
 	}
 
@@ -115,15 +115,15 @@ func TestUpdateSiteWebRejectsInvalidChanges(t *testing.T) {
 	idA := siteIDByName(t, "Obra A")
 	centralID := siteIDByName(t, "Almoxarifado central")
 
-	assertInputError(t, UpdateSiteWeb(idA, "obra b", "", "", SiteStatusInProgress), "já existe")
-	assertInputError(t, UpdateSiteWeb(idA, "Obra A", "", "", "DEMOLIDA"), "situação inválida")
-	assertInputError(t, UpdateSiteWeb(idA, "", "", "", SiteStatusInProgress), "informe o nome")
-	assertInputError(t, UpdateSiteWeb(99999, "Fantasma", "", "", SiteStatusInProgress), "não encontrada")
-	assertInputError(t, UpdateSiteWeb(centralID, "Almoxarifado central", "", "", SiteStatusFinished), "central")
-	assertInputError(t, UpdateSiteWeb(centralID, "Almoxarifado central", "", "", SiteStatusPaused), "central")
+	assertInputError(t, UpdateSiteWeb(idA, "obra b", "", "", SiteStatusInProgress, true), "já existe")
+	assertInputError(t, UpdateSiteWeb(idA, "Obra A", "", "", "DEMOLIDA", true), "situação inválida")
+	assertInputError(t, UpdateSiteWeb(idA, "", "", "", SiteStatusInProgress, true), "informe o nome")
+	assertInputError(t, UpdateSiteWeb(99999, "Fantasma", "", "", SiteStatusInProgress, true), "não encontrada")
+	assertInputError(t, UpdateSiteWeb(centralID, "Almoxarifado central", "", "", SiteStatusFinished, true), "central")
+	assertInputError(t, UpdateSiteWeb(centralID, "Almoxarifado central", "", "", SiteStatusPaused, true), "central")
 
 	// O central pode ser renomeado, desde que continue em andamento.
-	if err := UpdateSiteWeb(centralID, "Central Uchôa", "Maceió", "", SiteStatusInProgress); err != nil {
+	if err := UpdateSiteWeb(centralID, "Central Uchôa", "Maceió", "", SiteStatusInProgress, true); err != nil {
 		t.Errorf("renomear o central falhou: %v", err)
 	}
 
@@ -149,7 +149,7 @@ func TestGetSitesOrdersAndFilters(t *testing.T) {
 		if err := CreateSiteWeb(s.name, s.city, ""); err != nil {
 			t.Fatalf("cadastrar %s: %v", s.name, err)
 		}
-		if err := UpdateSiteWeb(siteIDByName(t, s.name), s.name, s.city, "", s.status); err != nil {
+		if err := UpdateSiteWeb(siteIDByName(t, s.name), s.name, s.city, "", s.status, true); err != nil {
 			t.Fatalf("definir situação de %s: %v", s.name, err)
 		}
 	}
@@ -193,7 +193,7 @@ func TestChangeSiteStatus(t *testing.T) {
 
 	// Paralisar, retomar e encerrar, nessa ordem. Os outros campos não mudam.
 	for _, status := range []string{SiteStatusPaused, SiteStatusInProgress, SiteStatusFinished} {
-		if err := ChangeSiteStatus(id, status); err != nil {
+		if err := ChangeSiteStatus(id, status, true); err != nil {
 			t.Fatalf("mudar para %s: %v", status, err)
 		}
 		site, err := GetSiteByID(id)
@@ -205,15 +205,145 @@ func TestChangeSiteStatus(t *testing.T) {
 		}
 	}
 
-	assertInputError(t, ChangeSiteStatus(id, "DEMOLIDA"), "situação inválida")
-	assertInputError(t, ChangeSiteStatus(id, ""), "situação inválida")
-	assertInputError(t, ChangeSiteStatus(99999, SiteStatusPaused), "não encontrada")
-	assertInputError(t, ChangeSiteStatus(0, SiteStatusPaused), "não encontrada")
-	assertInputError(t, ChangeSiteStatus(centralID, SiteStatusPaused), "central")
-	assertInputError(t, ChangeSiteStatus(centralID, SiteStatusFinished), "central")
+	assertInputError(t, ChangeSiteStatus(id, "DEMOLIDA", true), "situação inválida")
+	assertInputError(t, ChangeSiteStatus(id, "", true), "situação inválida")
+	assertInputError(t, ChangeSiteStatus(99999, SiteStatusPaused, true), "não encontrada")
+	assertInputError(t, ChangeSiteStatus(0, SiteStatusPaused, true), "não encontrada")
+	assertInputError(t, ChangeSiteStatus(centralID, SiteStatusPaused, true), "central")
+	assertInputError(t, ChangeSiteStatus(centralID, SiteStatusFinished, true), "central")
 
 	// A mudança recusada não gravou nada.
 	if site, err := GetSiteByID(centralID); err != nil || site.Status != SiteStatusInProgress {
 		t.Errorf("central = %+v, erro %v", site, err)
+	}
+}
+
+// setSiteStatus põe a obra numa situação direto no banco, sem passar pelas
+// regras, para montar o ponto de partida de cada caso.
+func setSiteStatus(t *testing.T, id int, status string) {
+	t.Helper()
+	if _, err := database.DB.Exec(`UPDATE obras SET situacao = ? WHERE id = ?`, status, id); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func siteStatus(t *testing.T, id int) string {
+	t.Helper()
+	site, err := GetSiteByID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return site.Status
+}
+
+// TestSiteStatusTransitions confere as 9 combinações de situação atual e
+// pedida, com permissão de reabrir.
+func TestSiteStatusTransitions(t *testing.T) {
+	setupTestDB(t)
+	id := createTestSite(t, "Obra T", SiteStatusInProgress)
+
+	allowed := map[[2]string]bool{
+		{SiteStatusInProgress, SiteStatusPaused}:   true,
+		{SiteStatusInProgress, SiteStatusFinished}: true,
+		{SiteStatusPaused, SiteStatusInProgress}:   true,
+		{SiteStatusPaused, SiteStatusFinished}:     true,
+		{SiteStatusFinished, SiteStatusInProgress}: true,
+	}
+	statuses := []string{SiteStatusInProgress, SiteStatusPaused, SiteStatusFinished}
+	for _, from := range statuses {
+		for _, to := range statuses {
+			setSiteStatus(t, id, from)
+			err := ChangeSiteStatus(id, to, true)
+
+			switch {
+			case from == to:
+				assertInputError(t, err, "já está")
+			case allowed[[2]string{from, to}]:
+				if err != nil {
+					t.Errorf("%s -> %s deveria passar: %v", from, to, err)
+				}
+			default:
+				assertInputError(t, err, "não pode passar")
+			}
+
+			want := from
+			if allowed[[2]string{from, to}] {
+				want = to
+			}
+			if got := siteStatus(t, id); got != want {
+				t.Errorf("%s -> %s: situação ficou %s, esperado %s", from, to, got, want)
+			}
+		}
+	}
+
+	// Na edição, manter a situação é permitido (é o caso de corrigir o
+	// nome), mas uma transição proibida continua proibida.
+	setSiteStatus(t, id, SiteStatusFinished)
+	if err := UpdateSiteWeb(id, "Obra T entregue", "", "", SiteStatusFinished, false); err != nil {
+		t.Errorf("editar obra concluída mantendo a situação: %v", err)
+	}
+	assertInputError(t, UpdateSiteWeb(id, "Obra T entregue", "", "", SiteStatusPaused, true), "não pode passar")
+}
+
+func TestReopenSiteRequiresPermission(t *testing.T) {
+	setupTestDB(t)
+	id := createTestSite(t, "Obra R", SiteStatusFinished)
+
+	if err := ChangeSiteStatus(id, SiteStatusInProgress, false); !errors.Is(err, ErrReopenNotAllowed) {
+		t.Errorf("reabrir sem permissão pelo botão: erro = %v, esperado ErrReopenNotAllowed", err)
+	}
+	if err := UpdateSiteWeb(id, "Obra R", "", "", SiteStatusInProgress, false); !errors.Is(err, ErrReopenNotAllowed) {
+		t.Errorf("reabrir sem permissão pela edição: erro = %v, esperado ErrReopenNotAllowed", err)
+	}
+	if got := siteStatus(t, id); got != SiteStatusFinished {
+		t.Fatalf("reabertura recusada mudou a situação para %s", got)
+	}
+
+	if err := ChangeSiteStatus(id, SiteStatusInProgress, true); err != nil {
+		t.Errorf("reabrir com permissão: %v", err)
+	}
+	if got := siteStatus(t, id); got != SiteStatusInProgress {
+		t.Errorf("situação depois de reabrir = %s", got)
+	}
+}
+
+func TestFinishSiteBlockedWhileStocked(t *testing.T) {
+	userID := setupTestDB(t)
+	id := createTestSite(t, "Obra E", SiteStatusInProgress)
+	cement := createTestMaterial(t, userID, "Cimento", 0, 1)
+	sand := createTestMaterial(t, userID, "Areia", 0, 1)
+	gravel := createTestMaterial(t, userID, "Brita", 0, 1)
+	for _, m := range []int{cement, sand, gravel} {
+		if err := AddStockWeb(m, id, 2, userID, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Material removido do catálogo não trava o encerramento.
+	if err := DeleteMaterialWeb(gravel); err != nil {
+		t.Fatal(err)
+	}
+
+	assertInputError(t, ChangeSiteStatus(id, SiteStatusFinished, true), "2 materiais ainda têm saldo")
+	assertInputError(t, UpdateSiteWeb(id, "Obra E", "", "", SiteStatusFinished, true), "2 materiais ainda têm saldo")
+
+	// Paralisada também não encerra com saldo.
+	if err := ChangeSiteStatus(id, SiteStatusPaused, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := RegisterStockExitWeb(cement, id, 2, userID, ""); err != nil {
+		t.Fatal(err)
+	}
+	assertInputError(t, ChangeSiteStatus(id, SiteStatusFinished, true), "1 material ainda tem saldo")
+	if got := siteStatus(t, id); got != SiteStatusPaused {
+		t.Fatalf("encerramento recusado mudou a situação para %s", got)
+	}
+
+	// Saldo zerado: agora encerra.
+	if err := RegisterStockExitWeb(sand, id, 2, userID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := ChangeSiteStatus(id, SiteStatusFinished, true); err != nil {
+		t.Errorf("encerrar com o saldo zerado: %v", err)
 	}
 }

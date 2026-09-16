@@ -58,7 +58,7 @@ func createTestSite(t *testing.T, name, status string) int {
 	}
 	id := siteIDByName(t, name)
 	if status != SiteStatusInProgress {
-		if err := UpdateSiteWeb(id, name, "", "", status); err != nil {
+		if err := UpdateSiteWeb(id, name, "", "", status, true); err != nil {
 			t.Fatalf("mudar situação de %s: %v", name, err)
 		}
 	}
@@ -308,5 +308,76 @@ func TestRemovedMaterialCannotBeMoved(t *testing.T) {
 	}
 	if err := RegisterStockExitWeb(id, central, 1, userID, ""); err == nil {
 		t.Error("saída de material removido deveria falhar")
+	}
+}
+
+// TestVerifyStockMigration monta um banco de antes das obras, migra e
+// confere que a verificação não acha divergência. Depois, uma saída e um
+// material novo (que só existem nos saldos) passam a divergir.
+func TestVerifyStockMigration(t *testing.T) {
+	t.Setenv("DB_PATH", filepath.Join(t.TempDir(), "teste.db"))
+	if err := database.Connect(); err != nil {
+		t.Fatalf("conectar ao banco de teste: %v", err)
+	}
+	t.Cleanup(func() { database.DB.Close() })
+
+	if _, err := database.DB.Exec(`
+		CREATE TABLE produtos (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			nome TEXT NOT NULL,
+			quantidade INTEGER NOT NULL,
+			ativo INTEGER NOT NULL DEFAULT 1
+		);
+		CREATE TABLE movimentacoes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			produto_id INTEGER NOT NULL,
+			usuario_id INTEGER NOT NULL,
+			tipo TEXT NOT NULL,
+			quantidade INTEGER NOT NULL,
+			data DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+		INSERT INTO produtos (nome, quantidade, ativo) VALUES
+			('Cimento', 40, 1), ('Areia', 2.5, 1), ('Brita', 0, 1), ('Cal antiga', 7, 0);
+	`); err != nil {
+		t.Fatalf("montar banco antigo: %v", err)
+	}
+	if err := database.CreateTables(); err != nil {
+		t.Fatalf("migrar: %v", err)
+	}
+
+	divergences, checked, err := VerifyStockMigration()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checked != 4 || len(divergences) != 0 {
+		t.Fatalf("logo depois da migração: %d conferidos e divergências %+v, esperado 4 e nenhuma", checked, divergences)
+	}
+
+	result, err := database.DB.Exec(`INSERT INTO usuarios (nome, email, senha, role) VALUES ('Teste', 'teste@empresa.com', 'x', 'admin')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	userID, _ := result.LastInsertId()
+	central := centralID(t)
+	if err := RegisterStockExitWeb(1, central, 0.5, int(userID), ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateMaterialWeb("Tijolo", 100, "milheiro", 1, central, int(userID)); err != nil {
+		t.Fatal(err)
+	}
+
+	divergences, checked, err = VerifyStockMigration()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checked != 5 || len(divergences) != 2 {
+		t.Fatalf("depois de usar: %d conferidos e %d divergências (%+v), esperado 5 e 2", checked, len(divergences), divergences)
+	}
+	cement, brick := divergences[0], divergences[1]
+	if cement.Name != "Cimento" || cement.OldQuantity != 40 || cement.SiteTotal != 39.5 || !cement.Active {
+		t.Errorf("divergência do cimento = %+v", cement)
+	}
+	if brick.Name != "Tijolo" || brick.OldQuantity != 0 || brick.SiteTotal != 100 {
+		t.Errorf("divergência do tijolo = %+v", brick)
 	}
 }

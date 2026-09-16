@@ -7,6 +7,7 @@ import (
 
 	database "uchoastock/backend/database"
 	"uchoastock/backend/services"
+	"uchoastock/backend/utils"
 )
 
 func main() {
@@ -43,6 +44,11 @@ func main() {
 
 	if len(os.Args) > 1 && os.Args[1] == "change-email" {
 		runChangeEmailCommand(os.Args[2:])
+		return
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "verify-stock" {
+		runVerifyStockCommand()
 		return
 	}
 
@@ -173,4 +179,40 @@ func registerRoutes() {
 	http.HandleFunc("/movimentacoes/exportar", withUser(movementExportHandler))
 
 	http.HandleFunc("/usuarios", withUser(userHandler))
+}
+
+// runVerifyStockCommand confere a migração para o saldo por obra, ex.:
+//
+//	DB_PATH=/caminho/copia.db go run ./backend/cmd verify-stock
+//
+// Compara, para cada material, produtos.quantidade com a soma dos saldos
+// de todas as obras e lista as divergências. Sai com código 1 se houver
+// alguma. Atenção: como todo comando, antes ele roda CreateTables, então
+// um banco ainda não migrado é migrado ali mesmo. Rode numa cópia.
+func runVerifyStockCommand() {
+	divergences, checked, err := services.VerifyStockMigration()
+	if err != nil {
+		fmt.Println("Erro ao conferir o estoque:", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Banco:", database.Path())
+	fmt.Println("Conferência: produtos.quantidade x soma dos saldos das obras")
+	for _, d := range divergences {
+		status := ""
+		if !d.Active {
+			status = " [removido]"
+		}
+		fmt.Printf("  #%d %s (%s)%s: produtos.quantidade = %s, soma dos saldos = %s, diferença = %s\n",
+			d.MaterialID, d.Name, d.Unit, status,
+			utils.FormatQuantity(d.OldQuantity),
+			utils.FormatQuantity(d.SiteTotal),
+			utils.FormatQuantity(d.SiteTotal-d.OldQuantity))
+	}
+	fmt.Printf("%d material(is) conferido(s), %d divergência(s).\n", checked, len(divergences))
+
+	if len(divergences) > 0 {
+		fmt.Println("Num banco recém-migrado, toda divergência é problema. Num banco já em uso é esperado: entradas e saídas depois da migração mudam só os saldos.")
+		os.Exit(1)
+	}
 }

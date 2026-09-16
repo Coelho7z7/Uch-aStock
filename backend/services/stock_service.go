@@ -201,3 +201,59 @@ func normalizeNote(note string) (string, error) {
 	}
 	return note, nil
 }
+
+// StockDivergence é um material cuja quantidade antiga (produtos.quantidade,
+// do tempo em que havia um estoque só) não bate com a soma dos saldos das
+// obras.
+type StockDivergence struct {
+	MaterialID  int
+	Name        string
+	Unit        string
+	Active      bool
+	OldQuantity float64
+	SiteTotal   float64
+}
+
+// VerifyStockMigration compara, para cada material (inclusive os
+// removidos), produtos.quantidade com a soma dos saldos de todas as obras,
+// e devolve as divergências e quantos materiais foram conferidos.
+//
+// Serve para conferir a migração para o saldo por obra: logo depois dela,
+// as duas contas têm de bater. Depois que o sistema passa a ser usado, elas
+// se afastam de propósito — produtos.quantidade não é mais atualizada —,
+// então o resultado só diz algo num banco recém-migrado.
+func VerifyStockMigration() ([]StockDivergence, int, error) {
+	rows, err := database.DB.Query(`
+		SELECT
+			p.id,
+			p.nome,
+			p.unidade,
+			p.ativo,
+			p.quantidade,
+			COALESCE((SELECT SUM(s.quantidade) FROM saldos s WHERE s.produto_id = p.id), 0)
+		FROM produtos p
+		ORDER BY p.id
+	`)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var divergences []StockDivergence
+	checked := 0
+	for rows.Next() {
+		var d StockDivergence
+		if err := rows.Scan(&d.MaterialID, &d.Name, &d.Unit, &d.Active, &d.OldQuantity, &d.SiteTotal); err != nil {
+			return nil, 0, err
+		}
+		checked++
+		// Arredonda as duas antes de comparar: 2,5 somado em partes pode
+		// virar 2,4999999999 em ponto flutuante.
+		d.OldQuantity = utils.RoundQuantity(d.OldQuantity)
+		d.SiteTotal = utils.RoundQuantity(d.SiteTotal)
+		if d.OldQuantity != d.SiteTotal {
+			divergences = append(divergences, d)
+		}
+	}
+	return divergences, checked, rows.Err()
+}

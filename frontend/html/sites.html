@@ -161,6 +161,7 @@
                                          central. O servidor confere de novo. -->
                                     {{ if ne .Type "CENTRAL" }}
                                     {{ if eq .Status "CONCLUIDA" }}
+                                    {{ if $.CanReopenSite }}
                                     <form class="site-status-form" method="POST" action="/obras">
                                         <input type="hidden" name="acao" value="situacao">
                                         <input type="hidden" name="obra_id" value="{{ .ID }}">
@@ -169,13 +170,16 @@
                                             data-confirm="Reabrir a obra &quot;{{ .Name }}&quot;? Ela volta a ficar em andamento e aceita entrada e saída de material de novo."
                                             data-confirm-title="Reabrir obra" data-confirm-ok="Reabrir" data-confirm-tone="warning">Reabrir</button>
                                     </form>
+                                    {{ end }}
                                     {{ else }}
                                     {{ if eq .Status "PARALISADA" }}
                                     <form class="site-status-form" method="POST" action="/obras">
                                         <input type="hidden" name="acao" value="situacao">
                                         <input type="hidden" name="obra_id" value="{{ .ID }}">
                                         <input type="hidden" name="situacao" value="ANDAMENTO">
-                                        <button class="edit-material-link" type="submit" aria-label="Retomar {{ .Name }}">Retomar</button>
+                                        <button class="edit-material-link" type="submit" aria-label="Retomar {{ .Name }}"
+                                            data-confirm="Retomar a obra &quot;{{ .Name }}&quot;? Ela volta a ficar em andamento e aceita entrada e saída de material."
+                                            data-confirm-title="Retomar obra" data-confirm-ok="Retomar" data-confirm-tone="warning">Retomar</button>
                                     </form>
                                     {{ else }}
                                     <form class="site-status-form" method="POST" action="/obras">
@@ -326,6 +330,7 @@
             // quando o botão tem data-confirm, então o atributo é colocado
             // só quando a situação escolhida muda para uma dessas duas.
             const confirmations = {
+                ANDAMENTO: { title: 'Retomar obra', ok: 'Retomar', text: 'Retomar a obra "{nome}"? Ela volta a ficar em andamento e aceita entrada e saída de material.' },
                 PARALISADA: { title: 'Paralisar obra', ok: 'Paralisar', text: 'Confirma a paralisação da obra "{nome}"?' },
                 CONCLUIDA: { title: 'Concluir obra', ok: 'Concluir obra', text: 'Confirma a conclusão da obra "{nome}"? Ela passa a ser só consulta: não aceita mais entrada nem saída de material.' }
             };

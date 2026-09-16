@@ -96,6 +96,9 @@ go run ./backend/cmd reset-password <email> <nova-senha>
 go run ./backend/cmd create-user "<nome>" <email> "<senha>" <admin|gestor|almoxarife|solicitante|auditor>
 go run ./backend/cmd rename-user <email> "<novo-nome>"
 go run ./backend/cmd change-email <email-atual> <novo-email>
+
+# Confere a migração de saldos (roda as migrações antes: use numa cópia do banco via DB_PATH)
+go run ./backend/cmd verify-stock
 ```
 
 `create-user` não aceita o cargo `superadmin` — ver seção 5.

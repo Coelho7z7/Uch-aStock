@@ -333,3 +333,92 @@ func TestOnlyAdminChangesMaterialCatalog(t *testing.T) {
 		}
 	}
 }
+
+// get abre a página com a sessão do token e devolve o HTML.
+func get(token string, handler authenticatedHandler, path string) string {
+	request := httptest.NewRequest(http.MethodGet, path, nil)
+	request.AddCookie(&http.Cookie{Name: "sessao", Value: token})
+	recorder := httptest.NewRecorder()
+	withUser(handler).ServeHTTP(recorder, request)
+	return recorder.Body.String()
+}
+
+func siteStatusOf(t *testing.T, siteID int) string {
+	t.Helper()
+	var status string
+	if err := database.DB.QueryRow(`SELECT situacao FROM obras WHERE id = ?`, siteID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	return status
+}
+
+// TestSiteStatusRulesOverHTTP confere, pelas rotas, as regras de situação:
+// só o admin reabre obra concluída (nem pelo botão nem pela edição o
+// gestor consegue), obra com saldo não encerra, pedir a mesma situação é
+// recusado, e a tela mostra Reabrir só para o admin e Retomar com
+// confirmação.
+func TestSiteStatusRulesOverHTTP(t *testing.T) {
+	f := setupIsolation(t)
+	id := func(n int) string { return fmt.Sprint(n) }
+	g := f.managerToken
+
+	// A obra A (do gestor) concluída, direto no banco.
+	if _, err := database.DB.Exec(`UPDATE obras SET situacao = 'CONCLUIDA' WHERE id = ?`, f.siteA); err != nil {
+		t.Fatal(err)
+	}
+
+	runAttacks(t, []attack{
+		{"gestor reabre a própria obra pelo botão", g, f.siteA, siteHandler, "/obras",
+			url.Values{"acao": {"situacao"}, "obra_id": {id(f.siteA)}, "situacao": {"ANDAMENTO"}}},
+		{"gestor reabre a própria obra pela edição", g, f.siteA, siteHandler, "/obras",
+			url.Values{"acao": {"atualizar"}, "obra_id": {id(f.siteA)}, "nome": {"Obra A"}, "situacao": {"ANDAMENTO"}}},
+		{"gestor paralisa a obra concluída", g, f.siteA, siteHandler, "/obras",
+			url.Values{"acao": {"situacao"}, "obra_id": {id(f.siteA)}, "situacao": {"PARALISADA"}}},
+	})
+	if response := post(g, siteHandler, "/obras", url.Values{"acao": {"situacao"}, "obra_id": {id(f.siteA)}, "situacao": {"ANDAMENTO"}}); response.Code != http.StatusForbidden {
+		t.Errorf("gestor reabrindo: status %d, esperado 403", response.Code)
+	}
+
+	if strings.Contains(get(g, siteHandler, "/obras"), `aria-label="Reabrir Obra A"`) {
+		t.Error("o gestor não deveria ver o botão Reabrir")
+	}
+	if !strings.Contains(get(f.adminToken, siteHandler, "/obras"), `aria-label="Reabrir Obra A"`) {
+		t.Error("o admin deveria ver o botão Reabrir")
+	}
+
+	// O admin reabre.
+	if response := post(f.adminToken, siteHandler, "/obras", url.Values{"acao": {"situacao"}, "obra_id": {id(f.siteA)}, "situacao": {"ANDAMENTO"}}); response.Code != http.StatusSeeOther {
+		t.Fatalf("admin reabrindo: status %d, esperado 303", response.Code)
+	}
+	if got := siteStatusOf(t, f.siteA); got != "ANDAMENTO" {
+		t.Fatalf("depois de reabrir, situação = %s", got)
+	}
+
+	// O gestor paralisa, e aí aparece Retomar com confirmação.
+	if response := post(g, siteHandler, "/obras", url.Values{"acao": {"situacao"}, "obra_id": {id(f.siteA)}, "situacao": {"PARALISADA"}}); response.Code != http.StatusSeeOther {
+		t.Fatalf("gestor paralisando: status %d, esperado 303", response.Code)
+	}
+	page := get(g, siteHandler, "/obras")
+	retomar := page[strings.Index(page, `aria-label="Retomar Obra A"`):]
+	retomar = retomar[:strings.Index(retomar, ">")]
+	if !strings.Contains(retomar, `data-confirm="Retomar a obra`) || !strings.Contains(retomar, `data-confirm-title="Retomar obra"`) {
+		t.Errorf("botão Retomar sem confirmação: %s", retomar)
+	}
+
+	// Mesma situação: recusado.
+	selectSite(t, g, f.siteA)
+	before := snapshot(t)
+	response := post(g, siteHandler, "/obras", url.Values{"acao": {"situacao"}, "obra_id": {id(f.siteA)}, "situacao": {"PARALISADA"}})
+	if response.Code == http.StatusSeeOther || !strings.Contains(response.Body.String(), "já está paralisada") {
+		t.Errorf("paralisar obra já paralisada: status %d, sem a mensagem esperada", response.Code)
+	}
+
+	// Encerrar com 3 m³ de areia na obra: recusado, com a contagem.
+	response = post(g, siteHandler, "/obras", url.Values{"acao": {"situacao"}, "obra_id": {id(f.siteA)}, "situacao": {"CONCLUIDA"}})
+	if response.Code == http.StatusSeeOther || !strings.Contains(response.Body.String(), "1 material ainda tem saldo") {
+		t.Errorf("encerrar obra com saldo: status %d, sem a mensagem esperada", response.Code)
+	}
+	if after := snapshot(t); after != before {
+		t.Error("as tentativas recusadas mudaram o banco")
+	}
+}

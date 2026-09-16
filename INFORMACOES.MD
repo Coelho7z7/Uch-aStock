@@ -127,6 +127,7 @@ Cargos (valor gravado no banco entre parênteses):
 | movimentacoes.exportar  |   x   |   x    |     x      |             |    x    |
 | usuarios.gerenciar      |   x   |   x    |            |             |         |
 | obras.gerenciar         |   x   |   x    |            |             |         |
+| obras.reabrir           |   x   |        |            |             |         |
 | obras.todas             |   x   |        |            |             |         |
 
 Administrador (admin), Gestor (gestor), Almoxarife (almoxarife),
@@ -176,6 +177,16 @@ OBRAS
 Cadastrar: admin. Editar, paralisar, retomar e encerrar: quem tem
 obras.gerenciar, na obra ao seu alcance (ver PERMISSÕES). Obra não é
 apagada: vira CONCLUIDA.
+
+Situação (regras em services/site_create.go, checkSiteStatusChange):
+- ANDAMENTO  -> PARALISADA | CONCLUIDA
+- PARALISADA -> ANDAMENTO | CONCLUIDA
+- CONCLUIDA  -> ANDAMENTO (reabrir: só com obras.reabrir, ou seja, admin)
+- Qualquer outra é recusada. Pelos botões, pedir a situação atual também
+  ("a obra já está paralisada"); na edição, manter a situação é normal.
+- Encerrar exige saldo zero em todos os materiais ativos da obra. A
+  mensagem diz quantos ainda têm saldo. Material removido não conta.
+- Paralisar, Retomar, Reabrir e Encerrar pedem confirmação na tela.
 O almoxarifado central é criado pela migração, é único e fica sempre em
 andamento. Nome não pode repetir (sem diferenciar maiúsculas).
 Obra concluída é só consulta: não aceita entrada nem saída.
@@ -230,6 +241,20 @@ FILTRO DE MOVIMENTAÇÕES
 Tipo vazio ou desconhecido devolve o histórico completo.
 MovementFilter.UserID > 0 limita ao que esse usuário registrou (usado para
 quem não tem movimentacoes.ver_todas).
+
+
+VERIFICAÇÃO DA MIGRAÇÃO DE SALDOS
+
+go run ./backend/cmd verify-stock
+
+Compara, material por material (inclusive os removidos), produtos.quantidade
+com a soma dos saldos de todas as obras e lista as divergências. Sai com
+código 1 se houver alguma.
+- Como todo comando, antes roda database.CreateTables: um banco ainda não
+  migrado é migrado ali. Use numa CÓPIA, apontada por DB_PATH.
+- Só faz sentido logo depois da migração. Num banco já em uso, divergência
+  é esperada: entradas e saídas mudam só os saldos, e produtos.quantidade
+  ficou parada.
 
 
 RODAR

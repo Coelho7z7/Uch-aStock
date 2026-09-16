@@ -126,7 +126,9 @@ func TestLowStockIsPerSite(t *testing.T) {
 	if err := AddStockWeb(cement, siteDone, 1, userID, ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := UpdateSiteWeb(siteDone, "Obra entregue", "", "", SiteStatusFinished); err != nil {
+	// Direto no banco: hoje obra com saldo não pode ser encerrada, mas uma
+	// obra encerrada antes dessa regra ainda pode ter sobra de material.
+	if _, err := database.DB.Exec(`UPDATE obras SET situacao = ? WHERE id = ?`, SiteStatusFinished, siteDone); err != nil {
 		t.Fatal(err)
 	}
 

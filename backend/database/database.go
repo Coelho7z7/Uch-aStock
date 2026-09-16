@@ -21,6 +21,12 @@ const DefaultMinimumStock = 10
 // variável DB_PATH aponta para dentro do volume persistente (ex: /data/uchoastock.db),
 // evitando que os dados sumam a cada deploy. Sem a variável, usa o caminho
 // local de sempre (dev).
+// Path é o caminho do banco em uso, para os comandos de linha mostrarem
+// em qual arquivo estão mexendo.
+func Path() string {
+	return dbPath()
+}
+
 func dbPath() string {
 	if p := os.Getenv("DB_PATH"); p != "" {
 		return p

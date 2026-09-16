@@ -14,7 +14,7 @@ var allPermissions = []Permission{
 	PermEditMaterial, PermRemoveMaterial, PermMoveStock,
 	PermCreateRequest, PermApproveRequest,
 	PermViewAllMovements, PermExportMovements,
-	PermManageUsers, PermManageSites, PermAllSites,
+	PermManageUsers, PermManageSites, PermReopenSite, PermAllSites,
 }
 
 func TestCanEveryRoleEveryPermission(t *testing.T) {

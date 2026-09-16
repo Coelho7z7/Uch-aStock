@@ -26,6 +26,8 @@ const (
 	// PermManageSites é cadastrar, editar, paralisar, retomar e encerrar
 	// obra. Quem não tem PermAllSites só mexe na própria obra.
 	PermManageSites Permission = "obras.gerenciar"
+	// PermReopenSite é tirar uma obra de concluída (reabrir).
+	PermReopenSite Permission = "obras.reabrir"
 	// PermAllSites é agir em qualquer obra e usar "Todas as obras" no
 	// seletor. Sem ela, as ações que dependem de obra (movimentar estoque,
 	// editar obra) valem só na obra vinculada ao usuário.
@@ -43,7 +45,7 @@ var rolePermissions = map[string][]Permission{
 		PermEditMaterial, PermRemoveMaterial, PermMoveStock,
 		PermCreateRequest, PermApproveRequest,
 		PermViewAllMovements, PermExportMovements,
-		PermManageUsers, PermManageSites, PermAllSites,
+		PermManageUsers, PermManageSites, PermReopenSite, PermAllSites,
 	},
 	// O gestor age na obra dele (sem PermAllSites) e não mexe no catálogo
 	// de materiais, que é da empresa toda. Na gestão de usuários há mais

@@ -58,6 +58,8 @@ func siteHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		// CanCreateSite: cadastrar obra é de quem gerencia obras em todas
 		// elas (administrador).
 		CanCreateSite bool
+		// CanReopenSite mostra o botão Reabrir nas obras concluídas.
+		CanReopenSite bool
 		// CanManageSites, AllSites e OwnSiteID decidem, linha a linha, em
 		// quais obras aparecem Editar, Paralisar, Retomar e Encerrar: em
 		// todas, ou só na obra vinculada ao usuário (ver canEditSite).
@@ -77,6 +79,7 @@ func siteHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		Teams:          teams,
 		CanCreateSite:  can(user, PermManageSites) && can(user, PermAllSites),
 		CanManageSites: can(user, PermManageSites),
+		CanReopenSite:  can(user, PermReopenSite),
 		AllSites:       can(user, PermAllSites),
 		OwnSiteID:      user.SiteID,
 		Statuses:       services.SiteStatusLabels,
@@ -130,10 +133,14 @@ func siteHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 				form.IsCentral = site.Type == services.SiteTypeCentral
 				form.OriginalStatus = site.Status
 			}
-			err = services.UpdateSiteWeb(form.ID, form.Name, form.City, form.Manager, form.Status)
+			err = services.UpdateSiteWeb(form.ID, form.Name, form.City, form.Manager, form.Status, can(user, PermReopenSite))
 			success = "atualizada"
 		case "situacao":
-			// Botões Paralisar, Retomar e Encerrar da lista.
+			// Botões Paralisar, Retomar, Reabrir e Encerrar da lista. Aqui
+			// se confere quem pode mexer nesta obra (canEditSite); quais
+			// mudanças de situação valem, e o bloqueio de encerrar com
+			// saldo, ficam no service. Reabrir obra concluída exige
+			// PermReopenSite: sem ela o service devolve ErrReopenNotAllowed.
 			id, convErr := strconv.Atoi(r.FormValue("obra_id"))
 			if convErr != nil || id <= 0 {
 				err = services.ErrSiteNotFound
@@ -143,13 +150,17 @@ func siteHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 				renderAccessDenied(w)
 				return
 			}
-			err = services.ChangeSiteStatus(id, form.Status)
+			err = services.ChangeSiteStatus(id, form.Status, can(user, PermReopenSite))
 			success = statusChangeSuccess[form.Status]
 		default:
 			http.Error(w, "Ação inválida", http.StatusBadRequest)
 			return
 		}
 
+		if errors.Is(err, services.ErrReopenNotAllowed) {
+			renderAccessDenied(w)
+			return
+		}
 		if err == nil {
 			http.Redirect(w, r, "/obras?sucesso="+success, http.StatusSeeOther)
 			return
