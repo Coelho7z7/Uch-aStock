@@ -49,16 +49,20 @@ func materialHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 		TotalPages   int
 		PreviousPage int
 		NextPage     int
-		IsAdmin      bool
+		// Flags de permissão: escondem na tela o que a pessoa não pode
+		// fazer. Quem barra de verdade é a checagem no POST.
+		CanManageUsers  bool
+		CanEditMaterial bool
 	}{
-		User:       user,
-		Scope:      scope,
-		TargetSite: targetSite,
-		Units:      utils.MaterialUnits,
-		Quantity:   "0",
-		Unit:       "un",
-		Minimum:    utils.FormatQuantity(services.LowStockThreshold),
-		IsAdmin:    canViewUsersTab(r),
+		User:            user,
+		Scope:           scope,
+		TargetSite:      targetSite,
+		Units:           utils.MaterialUnits,
+		Quantity:        "0",
+		Unit:            "un",
+		Minimum:         utils.FormatQuantity(services.LowStockThreshold),
+		CanManageUsers:  can(user, PermManageUsers),
+		CanEditMaterial: can(user, PermEditMaterial),
 	}
 
 	data.Message = map[string]string{
@@ -70,7 +74,7 @@ func materialHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 	}[r.URL.Query().Get("sucesso")]
 
 	if r.Method == http.MethodPost {
-		if !requireAdmin(w, r) {
+		if !requirePermission(w, user, PermEditMaterial) {
 			return
 		}
 		data.Name = strings.TrimSpace(r.FormValue("nome"))
@@ -92,6 +96,10 @@ func materialHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 			data.Error = "Informe uma quantidade inicial válida."
 		case minimumErr != nil || minimum < 0:
 			data.Error = "Informe um limite de aviso válido."
+		case quantity > 0 && !canMoveStockAt(user, targetSite.ID):
+			// Estoque inicial é uma entrada na obra: exige a mesma
+			// permissão da tela de estoque.
+			data.Error = "Você não pode dar entrada de estoque nesta obra. Cadastre o material com quantidade 0."
 		default:
 			if err := services.CreateMaterialWeb(data.Name, quantity, data.Unit, minimum, targetSite.ID, user.ID); err != nil {
 				data.Error = err.Error()
@@ -185,17 +193,29 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request, user *models.Us
 		TotalPages   int
 		PreviousPage int
 		NextPage     int
-		IsAdmin      bool
+		// Flags de permissão: escondem na tela o que a pessoa não pode
+		// fazer. Quem barra de verdade é a checagem no POST.
+		CanManageUsers    bool
+		CanEditMaterial   bool
+		CanRemoveMaterial bool
 	}{
-		User:    user,
-		Scope:   scope,
-		Units:   utils.MaterialUnits,
-		Message: messages[r.URL.Query().Get("sucesso")],
-		IsAdmin: canViewUsersTab(r),
+		User:              user,
+		Scope:             scope,
+		Units:             utils.MaterialUnits,
+		Message:           messages[r.URL.Query().Get("sucesso")],
+		CanManageUsers:    can(user, PermManageUsers),
+		CanEditMaterial:   can(user, PermEditMaterial),
+		CanRemoveMaterial: can(user, PermRemoveMaterial),
 	}
 
 	if r.Method == http.MethodPost {
-		if !requireAdmin(w, r) {
+		// Cada ação exige a sua permissão: editar e remover são separadas
+		// (o almoxarife edita, mas não remove).
+		action := r.FormValue("acao")
+		if action == "remover" && !requirePermission(w, user, PermRemoveMaterial) {
+			return
+		}
+		if action == "atualizar" && !requirePermission(w, user, PermEditMaterial) {
 			return
 		}
 		materialID, idErr := strconv.Atoi(r.FormValue("material_id"))
@@ -203,7 +223,7 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request, user *models.Us
 		if idErr != nil {
 			data.Error = "Material inválido."
 
-		} else if r.FormValue("acao") == "remover" {
+		} else if action == "remover" {
 			if opErr := services.DeleteMaterialWeb(materialID); opErr != nil {
 				data.Error = opErr.Error()
 			} else {
@@ -211,7 +231,7 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request, user *models.Us
 				return
 			}
 
-		} else if r.FormValue("acao") == "atualizar" {
+		} else if action == "atualizar" {
 			name := strings.TrimSpace(r.FormValue("nome"))
 			unit := r.FormValue("unidade")
 			minimumText := strings.TrimSpace(r.FormValue("limite_minimo"))

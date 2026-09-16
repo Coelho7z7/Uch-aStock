@@ -19,18 +19,19 @@ type siteScope struct {
 	Sites []models.Site
 	// Current é a obra escolhida. nil significa "Todas as obras".
 	Current *models.Site
-	// CanSeeAll indica se a pessoa pode usar "Todas as obras" (só admin
-	// e superadmin).
+	// CanSeeAll indica se a pessoa pode usar "Todas as obras"
+	// (PermAllSites).
 	CanSeeAll bool
 	// ReturnTo é a página atual, para o seletor voltar para ela depois
 	// de trocar de obra.
 	ReturnTo string
-	// CanManage indica se a pessoa pode movimentar e editar a obra
-	// escolhida (ver canManageSite).
+	// CanManage indica se a pessoa pode registrar entrada e saída na obra
+	// escolhida (ver canMoveStockAt).
 	CanManage bool
-	// IsManager indica se a pessoa é gerente, para a tela explicar por
-	// que uma obra que não é a dela está só em consulta.
-	IsManager bool
+	// CanMoveStock indica se o cargo movimenta estoque em alguma obra,
+	// para a tela explicar por que uma obra que não é a dela está só em
+	// consulta.
+	CanMoveStock bool
 	// OwnSiteName é o nome da obra em que a pessoa atua ("" se nenhuma).
 	OwnSiteName string
 }
@@ -66,10 +67,10 @@ func (s siteScope) Central() *models.Site {
 // em que ela atua ou, sem vínculo, no almoxarifado central.
 func resolveSiteScope(r *http.Request, user *models.User) (siteScope, error) {
 	scope := siteScope{
-		CanSeeAll:   hasAdminRole(user),
-		ReturnTo:    r.URL.Path,
-		IsManager:   strings.EqualFold(strings.TrimSpace(user.Role), "gerente"),
-		OwnSiteName: user.SiteName,
+		CanSeeAll:    can(user, PermAllSites),
+		ReturnTo:     r.URL.Path,
+		CanMoveStock: can(user, PermMoveStock),
+		OwnSiteName:  user.SiteName,
 	}
 
 	sites, err := services.GetSites("", "")
@@ -101,7 +102,7 @@ func resolveSiteScope(r *http.Request, user *models.User) (siteScope, error) {
 	if scope.Current == nil && !scope.CanSeeAll {
 		scope.Current = scope.Central()
 	}
-	scope.CanManage = canManageSite(user, scope.SiteID())
+	scope.CanManage = canMoveStockAt(user, scope.SiteID())
 	return scope, nil
 }
 
@@ -141,7 +142,7 @@ func siteSwitchHandler(w http.ResponseWriter, r *http.Request, user *models.User
 	case err != nil || siteID < 0:
 		http.Error(w, "Obra inválida", http.StatusBadRequest)
 		return
-	case siteID == 0 && !hasAdminRole(user):
+	case siteID == 0 && !can(user, PermAllSites):
 		http.Error(w, "Só administradores podem ver todas as obras juntas", http.StatusForbidden)
 		return
 	case siteID > 0:

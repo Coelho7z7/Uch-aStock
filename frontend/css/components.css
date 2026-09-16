@@ -840,6 +840,18 @@ input.form-error:focus {
     border-color: var(--color-border-strong);
 }
 
+.role-badge-storekeeper {
+    color: var(--color-success-text);
+    background: var(--color-success-tint);
+    border-color: var(--color-success);
+}
+
+.role-badge-auditor {
+    color: var(--color-brand-light);
+    background: var(--color-surface-alt);
+    border-color: var(--color-brand-soft);
+}
+
 .role-badge-you {
     color: var(--color-success-text);
     background: var(--color-success-tint);

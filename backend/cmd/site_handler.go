@@ -26,9 +26,6 @@ type siteForm struct {
 	OriginalStatus string
 }
 
-// statusChangeDenied é o erro quando um gerente tenta mudar a situação.
-var statusChangeDenied = services.SiteInputError{Message: "apenas administradores podem paralisar, concluir ou reabrir uma obra"}
-
 // statusChangeSuccess liga a situação escolhida no botão da lista à
 // mensagem de sucesso (?sucesso=...) mostrada depois do redirecionamento.
 var statusChangeSuccess = map[string]string{
@@ -58,24 +55,34 @@ func siteHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		Sites []models.Site
 		// Teams é quem atua em cada obra, pelo ID da obra.
 		Teams map[int][]string
-		// CanChangeStatus: só administrador paralisa, conclui ou reabre.
-		CanChangeStatus bool
-		Statuses        []struct{ Value, Label string }
-		Search          string
-		Status          string
-		Form            *siteForm
-		FormError       string
-		Message         string
-		IsAdmin         bool
+		// CanCreateSite: cadastrar obra é de quem gerencia obras em todas
+		// elas (administrador).
+		CanCreateSite bool
+		// CanManageSites, AllSites e OwnSiteID decidem, linha a linha, em
+		// quais obras aparecem Editar, Paralisar, Retomar e Encerrar: em
+		// todas, ou só na obra vinculada ao usuário (ver canEditSite).
+		CanManageSites bool
+		AllSites       bool
+		OwnSiteID      int
+		Statuses       []struct{ Value, Label string }
+		Search         string
+		Status         string
+		Form           *siteForm
+		FormError      string
+		Message        string
+		CanManageUsers bool
 	}{
-		User:            user,
-		Scope:           scope,
-		Teams:           teams,
-		CanChangeStatus: hasAdminRole(user),
-		Statuses:        services.SiteStatusLabels,
-		Search:          strings.TrimSpace(r.URL.Query().Get("busca")),
-		Status:          r.URL.Query().Get("situacao"),
-		IsAdmin:         canViewUsersTab(r),
+		User:           user,
+		Scope:          scope,
+		Teams:          teams,
+		CanCreateSite:  can(user, PermManageSites) && can(user, PermAllSites),
+		CanManageSites: can(user, PermManageSites),
+		AllSites:       can(user, PermAllSites),
+		OwnSiteID:      user.SiteID,
+		Statuses:       services.SiteStatusLabels,
+		Search:         strings.TrimSpace(r.URL.Query().Get("busca")),
+		Status:         r.URL.Query().Get("situacao"),
+		CanManageUsers: can(user, PermManageUsers),
 	}
 
 	data.Message = map[string]string{
@@ -88,12 +95,6 @@ func siteHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 
 	switch r.Method {
 	case http.MethodPost:
-		// Cadastrar obra é só para administrador. Editar, também para o
-		// gerente da obra — conferido abaixo, quando já se sabe qual é.
-		if r.FormValue("acao") != "atualizar" && !requireAdmin(w, r) {
-			return
-		}
-
 		form := &siteForm{
 			Name:    strings.TrimSpace(r.FormValue("nome")),
 			City:    strings.TrimSpace(r.FormValue("cidade")),
@@ -106,16 +107,21 @@ func siteHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 
 		switch r.FormValue("acao") {
 		case "cadastrar":
+			if !can(user, PermManageSites) || !can(user, PermAllSites) {
+				renderAccessDenied(w)
+				return
+			}
 			err = services.CreateSiteWeb(form.Name, form.City, form.Manager)
 			success = "cadastrada"
 		case "atualizar":
 			form.ID, err = strconv.Atoi(r.FormValue("obra_id"))
-			if !hasAdminRole(user) && !requireSiteManager(w, user, form.ID) {
-				return
-			}
 			if err != nil || form.ID <= 0 {
 				err = services.ErrSiteNotFound
 				break
+			}
+			if !canEditSite(user, form.ID) {
+				renderAccessDenied(w)
+				return
 			}
 			// O tipo e a situação atual não vêm do formulário: são lidos do
 			// banco, para o modal reaberto com erro saber se esconde o campo
@@ -124,19 +130,18 @@ func siteHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 				form.IsCentral = site.Type == services.SiteTypeCentral
 				form.OriginalStatus = site.Status
 			}
-			if !hasAdminRole(user) && form.Status != form.OriginalStatus {
-				err = statusChangeDenied
-				break
-			}
 			err = services.UpdateSiteWeb(form.ID, form.Name, form.City, form.Manager, form.Status)
 			success = "atualizada"
 		case "situacao":
-			// Botões Paralisar, Retomar e Encerrar da lista. Só chega aqui
-			// administrador: o requireAdmin lá em cima já barrou os outros.
+			// Botões Paralisar, Retomar e Encerrar da lista.
 			id, convErr := strconv.Atoi(r.FormValue("obra_id"))
 			if convErr != nil || id <= 0 {
 				err = services.ErrSiteNotFound
 				break
+			}
+			if !canEditSite(user, id) {
+				renderAccessDenied(w)
+				return
 			}
 			err = services.ChangeSiteStatus(id, form.Status)
 			success = statusChangeSuccess[form.Status]
@@ -160,7 +165,9 @@ func siteHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 
 	case http.MethodGet:
 		if editID, err := strconv.Atoi(r.URL.Query().Get("editar")); err == nil {
-			if site, err := services.GetSiteByID(editID); err == nil {
+			if !canEditSite(user, editID) {
+				data.FormError = "Você não pode editar esta obra."
+			} else if site, err := services.GetSiteByID(editID); err == nil {
 				data.Form = &siteForm{
 					ID:        site.ID,
 					Name:      site.Name,

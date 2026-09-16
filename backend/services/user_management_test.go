@@ -30,7 +30,7 @@ func TestCreateUserWebLinksSite(t *testing.T) {
 	setupTestDB(t)
 	siteA := createTestSite(t, "Obra A", SiteStatusInProgress)
 
-	if err := CreateUserWeb("Gerente A", "gerentea@gmail.com", "senha!1", "gerente", siteA); err != nil {
+	if err := CreateUserWeb("Gerente A", "gerentea@gmail.com", "senha!1", "gestor", siteA); err != nil {
 		t.Fatalf("cadastro do gerente: %v", err)
 	}
 	manager, err := GetUserByID(userIDByEmail(t, "gerentea@gmail.com"))
@@ -50,7 +50,7 @@ func TestCreateUserWebLinksSite(t *testing.T) {
 	}
 
 	// Sem obra também pode.
-	if err := CreateUserWeb("Sem obra", "semobra@gmail.com", "senha!1", "basico", 0); err != nil {
+	if err := CreateUserWeb("Sem obra", "semobra@gmail.com", "senha!1", "solicitante", 0); err != nil {
 		t.Fatalf("cadastro sem obra: %v", err)
 	}
 }
@@ -59,7 +59,7 @@ func TestCreateUserWebLinksSite(t *testing.T) {
 func TestCreateUserWebWithUnknownSiteCreatesNothing(t *testing.T) {
 	setupTestDB(t)
 
-	err := CreateUserWeb("Fantasma", "fantasma@gmail.com", "senha!1", "gerente", 9999)
+	err := CreateUserWeb("Fantasma", "fantasma@gmail.com", "senha!1", "gestor", 9999)
 	if err == nil || !strings.Contains(err.Error(), "Obra não encontrada") {
 		t.Fatalf("erro = %v, esperado obra não encontrada", err)
 	}
@@ -76,20 +76,20 @@ func TestUpdateUserAccessWebKeepsOneSite(t *testing.T) {
 	setupTestDB(t)
 	siteA := createTestSite(t, "Obra A", SiteStatusInProgress)
 	siteB := createTestSite(t, "Obra B", SiteStatusInProgress)
-	if err := CreateUserWeb("Ana", "ana@gmail.com", "senha!1", "basico", siteA); err != nil {
+	if err := CreateUserWeb("Ana", "ana@gmail.com", "senha!1", "solicitante", siteA); err != nil {
 		t.Fatal(err)
 	}
 	id := userIDByEmail(t, "ana@gmail.com")
 
 	// Trocar de obra substitui o vínculo: continua sendo um só.
-	if err := UpdateUserAccessWeb(id, "gerente", siteB); err != nil {
+	if err := UpdateUserAccessWeb(id, "gestor", siteB); err != nil {
 		t.Fatalf("trocar para obra B: %v", err)
 	}
 	user, err := GetUserByID(id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if user.Role != "gerente" || user.SiteID != siteB {
+	if user.Role != "gestor" || user.SiteID != siteB {
 		t.Errorf("usuário = %s na obra %d, esperado gerente na obra %d", user.Role, user.SiteID, siteB)
 	}
 	if got := siteLinkCount(t, id); got != 1 {
@@ -97,10 +97,10 @@ func TestUpdateUserAccessWebKeepsOneSite(t *testing.T) {
 	}
 
 	// Obra inválida: nada muda, nem a permissão.
-	if err := UpdateUserAccessWeb(id, "basico", 9999); err == nil {
+	if err := UpdateUserAccessWeb(id, "solicitante", 9999); err == nil {
 		t.Error("obra inexistente deveria falhar")
 	}
-	if user, _ := GetUserByID(id); user.Role != "gerente" || user.SiteID != siteB {
+	if user, _ := GetUserByID(id); user.Role != "gestor" || user.SiteID != siteB {
 		t.Errorf("alteração recusada mudou o usuário: %s na obra %d", user.Role, user.SiteID)
 	}
 
@@ -113,7 +113,7 @@ func TestUpdateUserAccessWebKeepsOneSite(t *testing.T) {
 	}
 
 	// 0 é "nenhuma obra".
-	if err := UpdateUserAccessWeb(id, "basico", 0); err != nil {
+	if err := UpdateUserAccessWeb(id, "solicitante", 0); err != nil {
 		t.Fatal(err)
 	}
 	if got := siteLinkCount(t, id); got != 0 {
@@ -125,9 +125,9 @@ func TestSiteTeamsAndUserList(t *testing.T) {
 	setupTestDB(t)
 	siteA := createTestSite(t, "Obra A", SiteStatusInProgress)
 	for _, u := range []struct{ name, email, role string }{
-		{"Bruno", "bruno@gmail.com", "gerente"},
-		{"Ana", "ana@gmail.com", "basico"},
-		{"Removido", "removido@gmail.com", "basico"},
+		{"Bruno", "bruno@gmail.com", "gestor"},
+		{"Ana", "ana@gmail.com", "solicitante"},
+		{"Removido", "removido@gmail.com", "solicitante"},
 	} {
 		if err := CreateUserWeb(u.name, u.email, "senha!1", u.role, siteA); err != nil {
 			t.Fatal(err)

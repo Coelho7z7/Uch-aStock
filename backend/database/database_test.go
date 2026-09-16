@@ -143,6 +143,49 @@ func TestCreateTablesMigratesOldSchema(t *testing.T) {
 	}
 }
 
+// TestCreateTablesMigratesOldRoles confere que gerente vira gestor e
+// basico vira solicitante, uma vez só, e que um superadmin falso (email
+// que não é o reservado) cai para solicitante, e não para o cargo antigo.
+func TestCreateTablesMigratesOldRoles(t *testing.T) {
+	openTestDB(t)
+	if err := CreateTables(); err != nil {
+		t.Fatalf("criar tabelas: %v", err)
+	}
+	if _, err := DB.Exec(`
+		INSERT INTO usuarios (nome, email, senha, role) VALUES
+			('Gerente', 'gerente@gmail.com', 'x', 'gerente'),
+			('Básico', 'basico@gmail.com', 'x', ' Basico '),
+			('Falso', 'falso@gmail.com', 'x', 'superadmin'),
+			('Chefe', 'chefe@gmail.com', 'x', 'admin'),
+			('Almoxarife', 'almox@gmail.com', 'x', 'almoxarife')
+	`); err != nil {
+		t.Fatalf("inserir usuários antigos: %v", err)
+	}
+
+	for run := 1; run <= 2; run++ {
+		if err := CreateTables(); err != nil {
+			t.Fatalf("execução %d falhou: %v", run, err)
+		}
+	}
+
+	want := map[string]string{
+		"gerente@gmail.com": "gestor",
+		"basico@gmail.com":  "solicitante",
+		"falso@gmail.com":   "solicitante",
+		"chefe@gmail.com":   "admin",
+		"almox@gmail.com":   "almoxarife",
+	}
+	for email, role := range want {
+		var got string
+		if err := DB.QueryRow(`SELECT role FROM usuarios WHERE email = ?`, email).Scan(&got); err != nil {
+			t.Fatalf("ler cargo de %s: %v", email, err)
+		}
+		if got != role {
+			t.Errorf("%s ficou com o cargo %q, esperado %q", email, got, role)
+		}
+	}
+}
+
 // TestMigrateStockToSites simula um banco de antes das obras, com estoque
 // e histórico, e confere que tudo vai para o almoxarifado central uma
 // vez só, mesmo com várias inicializações.

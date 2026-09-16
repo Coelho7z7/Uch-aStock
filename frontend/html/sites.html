@@ -8,8 +8,8 @@
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=13">
-    <link rel="stylesheet" href="/css/layout.css?v=13">
+    <link rel="stylesheet" href="/css/components.css?v=14">
+    <link rel="stylesheet" href="/css/layout.css?v=14">
     <link rel="stylesheet" href="/css/pages.css?v=15">
 </head>
 
@@ -33,7 +33,7 @@
                 <a href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
                 <a href="/estoque"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM7 7V4h10v3M8 11h8M8 15h5"></path></svg>Estoque</a>
                 <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
-                {{ if .IsAdmin }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
+                {{ if .CanManageUsers }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
             </nav>
 
             <div class="sidebar-footer">
@@ -61,10 +61,14 @@
                     <span class="user-role user-role-superadmin">SuperAdmin</span>
                     {{ else if eq .User.Role "admin" }}
                     <span class="user-role user-role-admin">Administrador</span>
-                    {{ else if eq .User.Role "gerente" }}
-                    <span class="user-role user-role-manager">Gerente</span>
+                    {{ else if eq .User.Role "gestor" }}
+                    <span class="user-role user-role-manager">Gestor</span>
+                    {{ else if eq .User.Role "almoxarife" }}
+                    <span class="user-role user-role-storekeeper">Almoxarife</span>
+                    {{ else if eq .User.Role "auditor" }}
+                    <span class="user-role user-role-auditor">Auditor</span>
                     {{ else }}
-                    <span class="user-role user-role-user">Usuário</span>
+                    <span class="user-role user-role-user">Solicitante</span>
                     {{ end }}
                 </div>
             </header>
@@ -77,9 +81,11 @@
                         <h3>Obras e locais</h3>
                         <p>O almoxarifado central e as obras da empresa. Obra encerrada não é apagada: muda para concluída e continua no histórico.</p>
                         <div class="page-hero-actions">
+                            {{ if .CanCreateSite }}
                             <button class="new-material-button" type="button" id="open-create-site">
                                 Nova obra
                             </button>
+                            {{ end }}
                         </div>
                     </div>
                 </header>
@@ -139,6 +145,7 @@
                                         <input type="hidden" name="voltar" value="/dashboard">
                                         <button class="edit-material-link" type="submit" aria-label="Abrir o dashboard de {{ .Name }}">Abrir</button>
                                     </form>
+                                    {{ if and $.CanManageSites (or $.AllSites (eq .ID $.OwnSiteID)) }}
                                     <a
                                         class="edit-material-link"
                                         href="/obras?editar={{ .ID }}"
@@ -149,9 +156,10 @@
                                         data-manager="{{ .Manager }}"
                                         data-status="{{ .Status }}"
                                         data-central="{{ if eq .Type "CENTRAL" }}sim{{ end }}">Editar</a>
-                                    <!-- Mudar a situação: só administrador, e nunca o
-                                         almoxarifado central. O servidor confere de novo. -->
-                                    {{ if and $.CanChangeStatus (ne .Type "CENTRAL") }}
+                                    <!-- Mudar a situação: quem gerencia obras, na obra
+                                         que está ao alcance dele, e nunca o almoxarifado
+                                         central. O servidor confere de novo. -->
+                                    {{ if ne .Type "CENTRAL" }}
                                     {{ if eq .Status "CONCLUIDA" }}
                                     <form class="site-status-form" method="POST" action="/obras">
                                         <input type="hidden" name="acao" value="situacao">
@@ -189,6 +197,7 @@
                                     </form>
                                     {{ end }}
                                     {{ end }}
+                                    {{ end }}
                                 </td>
                             </tr>
 
@@ -211,7 +220,7 @@
                 <!-- Um modal só para cadastrar e editar. O servidor o manda
                      aberto (sem hidden) com ?editar=ID ou quando o envio deu
                      erro; sem JS, o link "Editar" continua funcionando. -->
-                <div class="modal-edit" id="site-modal" data-can-change-status="{{ if .CanChangeStatus }}sim{{ end }}" {{ if not .Form }}hidden{{ end }}>
+                <div class="modal-edit" id="site-modal" data-can-change-status="{{ if .CanManageSites }}sim{{ end }}" {{ if not .Form }}hidden{{ end }}>
                     <div class="modal-edit-content" role="dialog" aria-modal="true" aria-labelledby="site-modal-title">
                         <div class="modal-create-header">
                             <div>
@@ -245,7 +254,7 @@
 
                             <!-- Situação só existe na edição, e nunca para o
                                  almoxarifado central. -->
-                            <div class="site-status-field" id="site-status-field" {{ if not .Form }}hidden{{ else if or (not .Form.ID) .Form.IsCentral (not .CanChangeStatus) }}hidden{{ end }}>
+                            <div class="site-status-field" id="site-status-field" {{ if not .Form }}hidden{{ else if or (not .Form.ID) .Form.IsCentral (not .CanManageSites) }}hidden{{ end }}>
                                 <label for="site-status">Situação</label>
                                 <select id="site-status" name="situacao" data-original="{{ with .Form }}{{ .OriginalStatus }}{{ end }}">
                                     {{ range .Statuses }}<option value="{{ .Value }}"{{ if $.Form }}{{ if eq .Value $.Form.Status }} selected{{ end }}{{ end }}>{{ .Label }}</option>{{ end }}
@@ -298,8 +307,8 @@
                 manager.value = editing ? site.manager : '';
                 status.value = editing ? site.status : 'ANDAMENTO';
                 status.dataset.original = editing ? site.status : '';
-                // Só administrador muda a situação; para o gerente o campo some
-                // (e o servidor recusa se a situação vier diferente).
+                // Só quem gerencia obras muda a situação; para os outros o
+                // campo some (e o servidor recusa a edição).
                 statusField.hidden = !editing || central || modal.dataset.canChangeStatus !== 'sim';
                 help.textContent = central
                     ? 'O almoxarifado central fica sempre em andamento: é dele que o material sai para as obras.'
@@ -338,9 +347,13 @@
             status.addEventListener('change', updateConfirmation);
             name.addEventListener('input', updateConfirmation);
 
-            document.getElementById('open-create-site').addEventListener('click', function () {
-                openModal(null);
-            });
+            // O botão só existe para quem pode cadastrar obra.
+            const openCreate = document.getElementById('open-create-site');
+            if (openCreate) {
+                openCreate.addEventListener('click', function () {
+                    openModal(null);
+                });
+            }
 
             // Com JS o "Editar" abre o modal na hora, sem recarregar a página.
             // O clique é ouvido no document ("delegação"): a busca em tempo

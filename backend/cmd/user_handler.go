@@ -14,11 +14,12 @@ import (
 // userHandler exibe a lista de usuários cadastrados e processa a
 // criação de novos usuários, a alteração de permissão, a troca de senha
 // e a remoção.
-// A tela inteira é restrita a administradores: o gerente cuida da obra
-// dele, não das contas.
+// A tela inteira exige PermManageUsers. Por enquanto só quem também age
+// em todas as obras (administrador) entra; o gestor ganha acesso, com
+// limites, quando as regras dele estiverem prontas.
 func userHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	userID := user.ID
-	if !requireAdmin(w, r) {
+	if !requirePermission(w, user, PermManageUsers) || !requirePermission(w, user, PermAllSites) {
 		return
 	}
 
@@ -30,11 +31,15 @@ func userHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	const usersPerPage = 8
 
 	data := struct {
-		User         *models.User
-		Scope        siteScope
-		Users        []models.User
-		UserID       int
-		IsAdmin      bool
+		User   *models.User
+		Scope  siteScope
+		Users  []models.User
+		UserID int
+		// CanManageUsers mostra a aba Usuários (aqui é sempre true: a tela
+		// inteira já exige a permissão).
+		CanManageUsers bool
+		// Roles são as opções do dropdown de cargo.
+		Roles        []struct{ Value, Label string }
 		Search       string
 		Name         string
 		Email        string
@@ -46,7 +51,16 @@ func userHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		TotalPages   int
 		PreviousPage int
 		NextPage     int
-	}{User: user, Scope: scope, UserID: userID, IsAdmin: true}
+	}{
+		User:           user,
+		Scope:          scope,
+		UserID:         userID,
+		CanManageUsers: true,
+		Roles:          services.RoleLabels,
+		// Cargo pré-selecionado no cadastro: o de menos poder, para
+		// ninguém virar administrador sem querer.
+		Role: services.RoleRequester,
+	}
 
 	data.Message = map[string]string{
 		"criado":     "Usuário criado com sucesso.",

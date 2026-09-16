@@ -102,7 +102,9 @@ func movementHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 		TotalPages     int
 		PreviousPage   int
 		NextPage       int
-		IsAdmin        bool
+		CanManageUsers bool
+		// CanExport mostra o botão Exportar CSV.
+		CanExport      bool
 		Filter         string
 		MaterialSearch string
 		From           string
@@ -117,7 +119,8 @@ func movementHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 		TotalPages:     totalPages,
 		PreviousPage:   page - 1,
 		NextPage:       page + 1,
-		IsAdmin:        canViewUsersTab(r),
+		CanManageUsers: can(user, PermManageUsers),
+		CanExport:      can(user, PermExportMovements),
 		Filter:         filter.Type,
 		MaterialSearch: filter.Material,
 		From:           filter.From,
@@ -142,6 +145,10 @@ func movementHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 // UTF-8 (os bytes EF BB BF): é assim que o Excel em português separa as colunas e
 // mostra os acentos sem pedir importação manual.
 func movementExportHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
+	if !requirePermission(w, user, PermExportMovements) {
+		return
+	}
+
 	scope, ok := requireSiteScope(w, r, user)
 	if !ok {
 		return

@@ -91,12 +91,12 @@ func runResetPasswordCommand(args []string) {
 //
 //	go run ./backend/cmd create-user "Nome" email@gmail.com "Senha!123" admin
 //
-// Permissões aceitas: admin, gerente, basico (nunca "superadmin" — reservado a
+// Cargos aceitos: admin, gestor, almoxarife, solicitante, auditor (nunca "superadmin" — reservado a
 // superadmin@gmail.com e criado apenas pelo seed). Encerra o processo sem subir
 // o servidor web.
 func runCreateUserCommand(args []string) {
 	if len(args) != 4 {
-		fmt.Println("Uso: create-user <nome> <email> <senha> <admin|gerente|basico>")
+		fmt.Println("Uso: create-user <nome> <email> <senha> <admin|gestor|almoxarife|solicitante|auditor>")
 		os.Exit(1)
 	}
 

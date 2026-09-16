@@ -19,6 +19,8 @@ type DashboardData struct {
 	// para a linha "e mais N".
 	LowStockExtra int
 	GeneratedAt   string
+	// CanManageUsers mostra a aba Usuários.
+	CanManageUsers bool
 }
 
 // lowStockPanelSize é quantos materiais o painel de alerta mostra. É o
@@ -67,6 +69,8 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request, user *models.User)
 		Summary:       summary,
 		LowStockExtra: extra,
 		GeneratedAt:   time.Now().Local().Format("02/01/2006 às 15:04"),
+
+		CanManageUsers: can(user, PermManageUsers),
 	}
 
 	tmpl, err := template.ParseFiles("frontend/html/dashboard.html", "frontend/html/site_switcher.html")

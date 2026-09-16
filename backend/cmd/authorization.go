@@ -3,7 +3,6 @@ package main
 import (
 	"html/template"
 	"net/http"
-	"strings"
 
 	"uchoastock/backend/models"
 	"uchoastock/backend/services"
@@ -42,69 +41,39 @@ func withUser(next authenticatedHandler) http.HandlerFunc {
 	}
 }
 
-// isAdmin indica se o usuário logado tem poderes de administrador.
-// O SuperAdmin (reservado a superadmin@gmail.com) também conta como admin aqui — ele
-// fica acima do administrador na hierarquia, então tudo que um admin pode
-// fazer o SuperAdmin também pode.
-func isAdmin(r *http.Request) bool {
-	userID, authenticated := userFromSession(r)
-	if !authenticated {
-		return false
-	}
-
-	user, err := services.GetUserByID(userID)
-	if err != nil {
-		return false
-	}
-	return hasAdminRole(user)
-}
-
-// hasAdminRole é a mesma regra de isAdmin, para quando o usuário já foi
-// carregado e não vale a pena consultar o banco de novo.
-func hasAdminRole(user *models.User) bool {
-	role := strings.ToLower(strings.TrimSpace(user.Role))
-	return role == "admin" || role == "superadmin"
-}
-
-// canViewUsersTab indica se o usuário logado pode acessar a aba de
-// administração de usuários. Só administradores: o gerente cuida da
-// obra dele, não das contas.
-func canViewUsersTab(r *http.Request) bool {
-	return isAdmin(r)
-}
-
-// canManageSite indica se o usuário pode registrar entrada e saída e
-// editar os dados da obra siteID. Administrador pode em todas; gerente,
-// só na obra em que atua; conta básica só consulta. siteID 0 ("Todas as
-// obras") nunca é uma obra que se possa gerenciar.
-func canManageSite(user *models.User, siteID int) bool {
-	if siteID <= 0 {
-		return false
-	}
-	if hasAdminRole(user) {
-		return true
-	}
-	role := strings.ToLower(strings.TrimSpace(user.Role))
-	return role == "gerente" && user.SiteID == siteID
-}
-
-func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
-	if isAdmin(r) {
+// requirePermission deixa passar quem tem a permissão p e responde
+// "Acesso negado" para o resto. Devolve false quando já respondeu.
+func requirePermission(w http.ResponseWriter, user *models.User, p Permission) bool {
+	if can(user, p) {
 		return true
 	}
 	renderAccessDenied(w)
 	return false
 }
 
-// requireSiteManager é o requireAdmin das telas de obra: deixa passar
-// quem pode gerenciar a obra (ver canManageSite) e mostra "Acesso negado"
-// para o resto.
-func requireSiteManager(w http.ResponseWriter, user *models.User, siteID int) bool {
-	if canManageSite(user, siteID) {
-		return true
+// canActOnSite indica se a obra siteID está ao alcance do usuário: todas,
+// para quem tem PermAllSites; senão, só a obra vinculada a ele. siteID 0
+// ("Todas as obras") nunca é uma obra em que se possa agir.
+//
+// Não diz O QUE a pessoa pode fazer ali: isso é can(). As funções abaixo
+// juntam as duas perguntas.
+func canActOnSite(user *models.User, siteID int) bool {
+	if siteID <= 0 || user == nil {
+		return false
 	}
-	renderAccessDenied(w)
-	return false
+	return can(user, PermAllSites) || user.SiteID == siteID
+}
+
+// canMoveStockAt indica se o usuário pode registrar entrada e saída na
+// obra siteID.
+func canMoveStockAt(user *models.User, siteID int) bool {
+	return can(user, PermMoveStock) && canActOnSite(user, siteID)
+}
+
+// canEditSite indica se o usuário pode editar os dados e mudar a situação
+// da obra siteID.
+func canEditSite(user *models.User, siteID int) bool {
+	return can(user, PermManageSites) && canActOnSite(user, siteID)
 }
 
 // renderAccessDenied responde 403 com a tela de acesso negado.

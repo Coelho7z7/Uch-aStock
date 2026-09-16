@@ -32,8 +32,9 @@ func stockHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		NextPage     int
 		TotalPages   int
 		Page         int
-		IsAdmin      bool
-	}{User: user, Scope: scope, IsAdmin: canViewUsersTab(r)}
+		// CanManageUsers mostra a aba Usuários.
+		CanManageUsers bool
+	}{User: user, Scope: scope, CanManageUsers: can(user, PermManageUsers)}
 
 	messages := map[string]string{
 		"entrada":    "Entrada registrada com sucesso.",
@@ -51,10 +52,12 @@ func stockHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	}
 
 	if r.Method == http.MethodPost {
-		// Administrador movimenta em qualquer obra; gerente, só na dele.
-		// Para o admin a checagem de obra fica para o switch abaixo, que
-		// explica o problema ("selecione uma obra") em vez de negar acesso.
-		if !hasAdminRole(user) && !requireSiteManager(w, user, scope.SiteID()) {
+		// Precisa da permissão e, com uma obra escolhida, de poder agir nela
+		// (a própria obra, ou qualquer uma para quem tem PermAllSites). Sem
+		// obra escolhida ("Todas as obras"), o switch abaixo explica o
+		// problema em vez de negar acesso.
+		if !can(user, PermMoveStock) || (scope.Current != nil && !canMoveStockAt(user, scope.Current.ID)) {
+			renderAccessDenied(w)
 			return
 		}
 		materialID, idErr := strconv.Atoi(r.FormValue("material_id"))

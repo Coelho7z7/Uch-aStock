@@ -36,9 +36,11 @@ var RoleLabels = []struct{ Value, Label string }{
 // validRoles concentra as permissões aceitas em toda a gestão de
 // usuários, para não espalhar a mesma lista pelo arquivo inteiro.
 var validRoles = map[string]bool{
-	"admin":   true,
-	"gerente": true,
-	"basico":  true,
+	RoleAdmin:       true,
+	RoleManager:     true,
+	RoleStorekeeper: true,
+	RoleRequester:   true,
+	RoleAuditor:     true,
 }
 
 // ListPaginatedUsers retorna os usuários ativos, filtrados por
@@ -160,7 +162,7 @@ func setUserSiteTx(tx *sql.Tx, userID int, role string, siteID int) error {
 	if _, err := tx.Exec(`DELETE FROM usuario_obras WHERE usuario_id = ?`, userID); err != nil {
 		return errors.New("Erro ao salvar a obra do usuário.")
 	}
-	if role == "admin" || siteID == 0 {
+	if role == RoleAdmin || siteID == 0 {
 		return nil
 	}
 

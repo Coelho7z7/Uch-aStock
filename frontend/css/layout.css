@@ -380,6 +380,16 @@ body.mobile-menu-open {
     background: var(--color-surface-alt);
 }
 
+.user-role-storekeeper {
+    color: var(--color-success-text);
+    background: var(--color-success-tint);
+}
+
+.user-role-auditor {
+    color: var(--color-brand-light);
+    background: var(--color-surface-alt);
+}
+
 /* ---------- Seletor de obra ----------
    No celular não cabe na mesma linha do título e do usuário: a topbar
    quebra e o seletor ocupa uma linha inteira embaixo. Do tablet em

@@ -58,6 +58,9 @@ func CreateTables() error {
 		nome TEXT NOT NULL,
 		email TEXT UNIQUE NOT NULL,
 		senha TEXT NOT NULL,
+		-- O DEFAULT 'basico' é de um cargo que não existe mais (virou
+		-- 'solicitante'). O SQLite não troca o DEFAULT de uma coluna sem
+		-- recriar a tabela, então todo INSERT em usuarios informa o role.
 		role TEXT NOT NULL DEFAULT 'basico',
 		ativo INTEGER NOT NULL DEFAULT 1
 		);
@@ -230,10 +233,20 @@ func CreateTables() error {
 		UPDATE usuarios
 		SET role = CASE
 			WHEN LOWER(TRIM(email)) = 'superadmin@gmail.com' THEN 'superadmin'
-			WHEN LOWER(TRIM(role)) = 'superadmin' THEN 'basico'
+			WHEN LOWER(TRIM(role)) = 'superadmin' THEN 'solicitante'
 			ELSE role
 		END
 	`); err != nil {
+		return err
+	}
+
+	// Com as permissões por ação, "gerente" virou "gestor" e "basico"
+	// virou "solicitante". Idempotente: depois da primeira vez não sobra
+	// ninguém com o nome antigo para converter.
+	if _, err = DB.Exec(`UPDATE usuarios SET role = 'gestor' WHERE LOWER(TRIM(role)) = 'gerente'`); err != nil {
+		return err
+	}
+	if _, err = DB.Exec(`UPDATE usuarios SET role = 'solicitante' WHERE LOWER(TRIM(role)) = 'basico'`); err != nil {
 		return err
 	}
 

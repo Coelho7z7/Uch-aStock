@@ -119,10 +119,10 @@ func SeedDefaultUsers() error {
 		envVar string
 		label  string
 	}{
-		{name: "Gerente", email: "gerente@gmail.com", role: "gerente", envVar: "SEED_GERENTE_PASSWORD", label: "Matheus (gerente)"},
-		{name: "SuperAdmin", email: "superadmin@gmail.com", role: "superadmin", envVar: "SEED_SUPERADMIN_PASSWORD", label: "SuperAdmin"},
-		{name: "Admin", email: "admin@gmail.com", role: "admin", envVar: "SEED_ADMIN_PASSWORD", label: "Admin"},
-		{name: "Usuario", email: "usuario@gmail.com", role: "basico", envVar: "SEED_USUARIO_PASSWORD", label: "Usuario (basico)"},
+		{name: "Gestor", email: "gerente@gmail.com", role: RoleManager, envVar: "SEED_GERENTE_PASSWORD", label: "Gestor"},
+		{name: "SuperAdmin", email: "superadmin@gmail.com", role: RoleSuperadmin, envVar: "SEED_SUPERADMIN_PASSWORD", label: "SuperAdmin"},
+		{name: "Admin", email: "admin@gmail.com", role: RoleAdmin, envVar: "SEED_ADMIN_PASSWORD", label: "Admin"},
+		{name: "Solicitante", email: "usuario@gmail.com", role: RoleRequester, envVar: "SEED_USUARIO_PASSWORD", label: "Solicitante"},
 	}
 
 	for _, user := range users {
