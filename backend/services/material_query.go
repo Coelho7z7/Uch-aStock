@@ -247,7 +247,7 @@ func UpdateMaterialWeb(materialID int, name string, unit string, minimum float64
 	}
 
 	// O cadastro é da empresa, não de uma obra: a atualização fica sem obra.
-	if err := registerMovementTx(tx, materialID, 0, userID, "ATUALIZACAO", 0, ""); err != nil {
+	if err := registerMovementTx(tx, materialID, 0, userID, "ATUALIZACAO", 0, "", 0); err != nil {
 		return err
 	}
 

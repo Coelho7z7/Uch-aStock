@@ -57,7 +57,7 @@ func CreateMaterialWeb(name string, quantity float64, unit string, minimum float
 	if err := addToBalanceTx(tx, int(materialID), siteID, quantity); err != nil {
 		return err
 	}
-	if err := registerMovementTx(tx, int(materialID), siteID, userID, "ENTRADA", quantity, "Estoque inicial"); err != nil {
+	if err := registerMovementTx(tx, int(materialID), siteID, userID, "ENTRADA", quantity, "Estoque inicial", 0); err != nil {
 		return err
 	}
 

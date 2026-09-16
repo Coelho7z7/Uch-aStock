@@ -106,6 +106,14 @@ func FormatQuantity(value float64) string {
 	return result
 }
 
+// FormatQuantityInput escreve a quantidade para o valor de um campo de
+// formulário: vírgula nos decimais e SEM separador de milhar ("1200",
+// "2,5"). FormatQuantity serve para leitura ("1.200"), mas nesse formato
+// o ParseQuantity leria "1.200" como 1,2.
+func FormatQuantityInput(value float64) string {
+	return strings.ReplaceAll(strconv.FormatFloat(RoundQuantity(value), 'f', -1, 64), ".", ",")
+}
+
 // ValidateDate confere se o texto é uma data no formato AAAA-MM-DD, que
 // é o que o <input type="date"> envia.
 func ValidateDate(text string) bool {

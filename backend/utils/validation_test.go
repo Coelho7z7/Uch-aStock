@@ -1,6 +1,9 @@
 package utils
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseQuantity(t *testing.T) {
 	cases := []struct {
@@ -106,6 +109,19 @@ func TestValidateEmail(t *testing.T) {
 	for email, want := range cases {
 		if got := ValidateEmail(email); got != want {
 			t.Errorf("ValidateEmail(%q) = %v, esperado %v", email, got, want)
+		}
+	}
+}
+
+func TestFormatQuantityInputRoundTrips(t *testing.T) {
+	for _, value := range []float64{0, 2.5, 1200, 1250.125, 0.001} {
+		text := FormatQuantityInput(value)
+		if strings.Contains(text, ".") {
+			t.Errorf("FormatQuantityInput(%v) = %q: não pode ter ponto", value, text)
+		}
+		parsed, err := ParseQuantity(text)
+		if err != nil || parsed != value {
+			t.Errorf("ParseQuantity(FormatQuantityInput(%v)) = %v, %v", value, parsed, err)
 		}
 	}
 }

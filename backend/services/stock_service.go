@@ -53,7 +53,7 @@ func AddStockWeb(materialID, siteID int, quantity float64, userID int, note stri
 	if err := addToBalanceTx(tx, materialID, siteID, quantity); err != nil {
 		return err
 	}
-	if err := registerMovementTx(tx, materialID, siteID, userID, "ENTRADA", quantity, note); err != nil {
+	if err := registerMovementTx(tx, materialID, siteID, userID, "ENTRADA", quantity, note, 0); err != nil {
 		return err
 	}
 
@@ -79,6 +79,19 @@ func RegisterStockExitWeb(materialID, siteID int, quantity float64, userID int, 
 	}
 	defer tx.Rollback()
 
+	if err := registerExitTx(tx, materialID, siteID, quantity, userID, note, 0); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// registerExitTx faz uma saída dentro da transação de quem chama: confere
+// que o material está ativo e que a obra aceita movimentação, debita o
+// saldo sem deixar negativo e grava a movimentação, ligada à requisição
+// quando requestID > 0. É a única regra de saída do sistema: a tela de
+// estoque e o atendimento de requisição passam por aqui. quantity e note
+// já chegam validados.
+func registerExitTx(tx *sql.Tx, materialID, siteID int, quantity float64, userID int, note string, requestID int) error {
 	unit, err := activeMaterialUnitTx(tx, materialID)
 	if err != nil {
 		return err
@@ -114,11 +127,7 @@ func RegisterStockExitWeb(materialID, siteID int, quantity float64, userID int, 
 		return fmt.Errorf("%w: há só %s %s nesta obra", ErrInsufficientStock, utils.FormatQuantity(available), unit)
 	}
 
-	if err := registerMovementTx(tx, materialID, siteID, userID, "SAIDA", quantity, note); err != nil {
-		return err
-	}
-
-	return tx.Commit()
+	return registerMovementTx(tx, materialID, siteID, userID, "SAIDA", quantity, note, requestID)
 }
 
 // activeMaterialUnitTx confere que o material existe e não foi removido,
@@ -177,17 +186,21 @@ func balanceTx(tx *sql.Tx, materialID, siteID int) (float64, error) {
 
 // registerMovementTx grava uma linha no histórico. siteID 0 grava a obra
 // como NULL: é o caso da atualização de cadastro, que não acontece em
-// nenhuma obra.
-func registerMovementTx(tx *sql.Tx, materialID, siteID, userID int, movementType string, quantity float64, note string) error {
-	var site any
+// nenhuma obra. requestID 0 grava a requisição como NULL (movimentação
+// avulsa).
+func registerMovementTx(tx *sql.Tx, materialID, siteID, userID int, movementType string, quantity float64, note string, requestID int) error {
+	var site, request any
 	if siteID > 0 {
 		site = siteID
 	}
+	if requestID > 0 {
+		request = requestID
+	}
 	_, err := tx.Exec(`
 		INSERT INTO movimentacoes
-		(produto_id, obra_id, usuario_id, tipo, quantidade, observacao)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, materialID, site, userID, movementType, quantity, note)
+		(produto_id, obra_id, usuario_id, tipo, quantidade, observacao, requisicao_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, materialID, site, userID, movementType, quantity, note, request)
 	return err
 }
 

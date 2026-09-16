@@ -191,7 +191,8 @@ func ChangeSiteStatus(id int, status string, allowReopen bool) error {
 //     material sai para as obras;
 //   - só vale uma transição de siteStatusTransitions;
 //   - reabrir obra concluída exige allowReopen;
-//   - encerrar exige que nenhum material ativo tenha saldo na obra.
+//   - encerrar exige que nenhum material ativo tenha saldo na obra e que
+//     nenhuma requisição esteja em aberto (pendente, aprovada ou parcial).
 func checkSiteStatusChange(tx *sql.Tx, id int, status string, allowReopen bool) (string, error) {
 	var siteType, current string
 	err := tx.QueryRow(`SELECT tipo, situacao FROM obras WHERE id = ? AND ativo = 1`, id).Scan(&siteType, &current)
@@ -230,11 +231,26 @@ func checkSiteStatusChange(tx *sql.Tx, id int, status string, allowReopen bool) 
 		`, id).Scan(&stocked); err != nil {
 			return current, err
 		}
+		openRequests, err := countOpenRequestsTx(tx, id)
+		if err != nil {
+			return current, err
+		}
+
+		var blockers []string
 		if stocked == 1 {
-			return current, SiteInputError{"não é possível encerrar: 1 material ainda tem saldo nesta obra. Registre a saída antes de encerrar."}
+			blockers = append(blockers, "1 material ainda tem saldo nesta obra. Registre a saída antes de encerrar.")
 		}
 		if stocked > 1 {
-			return current, SiteInputError{fmt.Sprintf("não é possível encerrar: %d materiais ainda têm saldo nesta obra. Registre a saída de todos antes de encerrar.", stocked)}
+			blockers = append(blockers, fmt.Sprintf("%d materiais ainda têm saldo nesta obra. Registre a saída de todos antes de encerrar.", stocked))
+		}
+		if openRequests == 1 {
+			blockers = append(blockers, "1 requisição ainda está em aberto (pendente, aprovada ou parcial). Atenda, rejeite ou cancele antes de encerrar.")
+		}
+		if openRequests > 1 {
+			blockers = append(blockers, fmt.Sprintf("%d requisições ainda estão em aberto (pendentes, aprovadas ou parciais). Atenda, rejeite ou cancele antes de encerrar.", openRequests))
+		}
+		if len(blockers) > 0 {
+			return current, SiteInputError{"não é possível encerrar: " + strings.Join(blockers, " ")}
 		}
 	}
 	return current, nil
