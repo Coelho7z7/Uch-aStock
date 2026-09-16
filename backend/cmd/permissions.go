@@ -1,0 +1,92 @@
+package main
+
+import (
+	"strings"
+
+	"uchoastock/backend/models"
+	"uchoastock/backend/services"
+)
+
+// Permission é uma ação do sistema que um cargo pode ou não fazer. O
+// valor segue o formato "area.acao", em português, como as rotas.
+type Permission string
+
+const (
+	PermEditMaterial     Permission = "material.editar"
+	PermRemoveMaterial   Permission = "material.remover"
+	PermMoveStock        Permission = "estoque.movimentar"
+	PermCreateRequest    Permission = "requisicao.criar"
+	PermApproveRequest   Permission = "requisicao.aprovar"
+	PermViewAllMovements Permission = "movimentacoes.ver_todas"
+	PermExportMovements  Permission = "movimentacoes.exportar"
+	PermManageUsers      Permission = "usuarios.gerenciar"
+	// PermManageSites é cadastrar, editar, paralisar, retomar e encerrar
+	// obra. Quem não tem PermAllSites só mexe na própria obra.
+	PermManageSites Permission = "obras.gerenciar"
+	// PermAllSites é agir em qualquer obra e usar "Todas as obras" no
+	// seletor. Sem ela, as ações que dependem de obra (movimentar estoque,
+	// editar obra) valem só na obra vinculada ao usuário.
+	PermAllSites Permission = "obras.todas"
+)
+
+// rolePermissions é a fonte única da verdade sobre o que cada cargo pode
+// fazer. Para criar um cargo, basta uma linha nova aqui (e o cargo em
+// services.validRoles). O SuperAdmin não aparece: can() libera tudo
+// para ele.
+//
+// Ver dashboard, materiais e estoque não é permissão: todo cargo vê.
+var rolePermissions = map[string][]Permission{
+	services.RoleAdmin: {
+		PermEditMaterial, PermRemoveMaterial, PermMoveStock,
+		PermCreateRequest, PermApproveRequest,
+		PermViewAllMovements, PermExportMovements,
+		PermManageUsers, PermManageSites, PermAllSites,
+	},
+	// O gestor tem tudo menos PermAllSites: ele age na obra dele. Na
+	// gestão de usuários há mais um limite, em manageableRoles.
+	services.RoleManager: {
+		PermEditMaterial, PermRemoveMaterial, PermMoveStock,
+		PermCreateRequest, PermApproveRequest,
+		PermViewAllMovements, PermExportMovements,
+		PermManageUsers, PermManageSites,
+	},
+	services.RoleStorekeeper: {
+		PermEditMaterial, PermMoveStock, PermCreateRequest,
+		PermViewAllMovements, PermExportMovements,
+	},
+	// Sem PermViewAllMovements, o solicitante vê só as movimentações
+	// que ele mesmo registrou.
+	services.RoleRequester: {PermCreateRequest},
+	services.RoleAuditor:   {PermViewAllMovements, PermExportMovements},
+}
+
+// manageableRoles limita quais cargos quem gerencia usuários pode dar e
+// em quais contas pode mexer. Cargo que não está aqui (o administrador)
+// não tem limite.
+var manageableRoles = map[string][]string{
+	services.RoleManager: {services.RoleStorekeeper, services.RoleRequester},
+}
+
+// normalizedRole devolve o cargo sem espaços e em minúsculas, como a
+// comparação espera.
+func normalizedRole(u *models.User) string {
+	return strings.ToLower(strings.TrimSpace(u.Role))
+}
+
+// can indica se o usuário pode fazer a ação p. Usuário nil (sem sessão)
+// não pode nada; o SuperAdmin pode tudo.
+func can(u *models.User, p Permission) bool {
+	if u == nil {
+		return false
+	}
+	role := normalizedRole(u)
+	if role == services.RoleSuperadmin {
+		return true
+	}
+	for _, granted := range rolePermissions[role] {
+		if granted == p {
+			return true
+		}
+	}
+	return false
+}

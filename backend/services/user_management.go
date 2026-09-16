@@ -12,6 +12,27 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Cargos, como ficam gravados em usuarios.role. O que cada um pode fazer
+// fica em backend/cmd/permissions.go.
+const (
+	RoleSuperadmin  = "superadmin"
+	RoleAdmin       = "admin"
+	RoleManager     = "gestor"
+	RoleStorekeeper = "almoxarife"
+	RoleRequester   = "solicitante"
+	RoleAuditor     = "auditor"
+)
+
+// RoleLabels liga cada cargo ao texto da tela, na ordem do dropdown. O
+// SuperAdmin fica de fora de propósito: ele não é oferecido na tela.
+var RoleLabels = []struct{ Value, Label string }{
+	{RoleAdmin, "Administrador"},
+	{RoleManager, "Gestor"},
+	{RoleStorekeeper, "Almoxarife"},
+	{RoleRequester, "Solicitante"},
+	{RoleAuditor, "Auditor"},
+}
+
 // validRoles concentra as permissões aceitas em toda a gestão de
 // usuários, para não espalhar a mesma lista pelo arquivo inteiro.
 var validRoles = map[string]bool{
