@@ -101,6 +101,16 @@ func resetSuperadminPassword() error {
 // criada. Antes ela era impressa a cada inicialização, mesmo com a conta
 // já existente — e quem lia o log tentava entrar com uma senha que nunca
 // tinha sido gravada.
+// A conta admin@gmail.com entrou nesta lista depois das outras. Ela já
+// existia em produção como sobra da migração de email: quando ceo@ e
+// admin@ conviviam, só uma podia virar superadmin@ (o email é UNIQUE), e
+// a admin@ ficou para trás como conta comum, sem ninguém cuidando dela.
+// Estando no seed, ela volta a existir se o banco for recriado e a senha
+// dela passa a sair de uma variável, como as demais.
+//
+// Ela tem o mesmo poder do SuperAdmin — a autorização aceita os dois
+// cargos igualmente. O que a identidade reservada tem a mais é não poder
+// ser rebaixada nem removida pela tela de usuários.
 func SeedDefaultUsers() error {
 	users := []struct {
 		name   string
@@ -111,6 +121,7 @@ func SeedDefaultUsers() error {
 	}{
 		{name: "Gerente", email: "gerente@gmail.com", role: "gerente", envVar: "SEED_GERENTE_PASSWORD", label: "Matheus (gerente)"},
 		{name: "SuperAdmin", email: "superadmin@gmail.com", role: "superadmin", envVar: "SEED_SUPERADMIN_PASSWORD", label: "SuperAdmin"},
+		{name: "Admin", email: "admin@gmail.com", role: "admin", envVar: "SEED_ADMIN_PASSWORD", label: "Admin"},
 		{name: "Usuario", email: "usuario@gmail.com", role: "basico", envVar: "SEED_USUARIO_PASSWORD", label: "Usuario (basico)"},
 	}
 
