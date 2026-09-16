@@ -140,6 +140,10 @@ Solicitante (solicitante), Auditor (auditor).
   feita.
 - material.editar também cadastra material. Cadastrar com estoque inicial
   maior que zero é uma entrada, e exige poder movimentar a obra.
+- O catálogo é da empresa toda. Sem obras.todas, editar ou remover só vale
+  para material cujo estoque (saldo > 0) está apenas na própria obra:
+  material com estoque em outra obra só o admin altera
+  (services.MaterialStockedOutsideSite).
 - Sem movimentacoes.ver_todas (o solicitante), o histórico, a exportação e
   a atividade recente do dashboard mostram só o que a pessoa registrou.
 - Sem movimentacoes.exportar, /movimentacoes/exportar responde 403.

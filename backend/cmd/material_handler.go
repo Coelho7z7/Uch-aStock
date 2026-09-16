@@ -223,6 +223,13 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request, user *models.Us
 		if idErr != nil {
 			data.Error = "Material inválido."
 
+		} else if inOtherSite, err := materialInOtherSite(user, materialID); err != nil {
+			log.Println("erro ao conferir o estoque do material nas obras:", err)
+			data.Error = "Não foi possível conferir o estoque do material. Tente novamente."
+
+		} else if inOtherSite && (action == "remover" || action == "atualizar") {
+			data.Error = "Este material tem estoque em outra obra. Só um administrador pode alterá-lo ou removê-lo."
+
 		} else if action == "remover" {
 			if opErr := services.DeleteMaterialWeb(materialID); opErr != nil {
 				data.Error = opErr.Error()
@@ -302,4 +309,17 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request, user *models.Us
 	if err := tmpl.Execute(w, data); err != nil {
 		http.Error(w, "Erro ao renderizar alteração de material", http.StatusInternalServerError)
 	}
+}
+
+// materialInOtherSite indica se o material tem estoque fora do alcance do
+// usuário. O catálogo é um só para a empresa: editar ou remover um material
+// muda o que todas as obras veem. Quem não tem PermAllSites só mexe em
+// material cujo estoque está apenas na própria obra; senão um gestor da
+// obra A poderia fazer sumir, ou trocar a unidade de, um material que a
+// obra B tem em estoque.
+func materialInOtherSite(user *models.User, materialID int) (bool, error) {
+	if can(user, PermAllSites) {
+		return false, nil
+	}
+	return services.MaterialStockedOutsideSite(materialID, user.SiteID)
 }
