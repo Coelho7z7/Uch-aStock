@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 
 	database "uchoastock/backend/database"
@@ -251,5 +252,55 @@ func TestPaginatedMaterialsQuantityFollowsSite(t *testing.T) {
 				t.Errorf("obra %d, ordem %s: quantidade = %v, esperado %v", siteID, order, got, want)
 			}
 		}
+	}
+}
+
+func TestDeleteMaterialWebBlockedWhileStocked(t *testing.T) {
+	userID := setupTestDB(t)
+	central := centralID(t)
+	siteA := createTestSite(t, "Obra A", SiteStatusInProgress)
+	cement := createTestMaterial(t, userID, "Cimento", 10, 5) // 10 no central
+	if err := AddStockWeb(cement, siteA, 4, userID, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	isActive := func() bool {
+		t.Helper()
+		var active bool
+		if err := database.DB.QueryRow(`SELECT ativo FROM produtos WHERE id = ?`, cement).Scan(&active); err != nil {
+			t.Fatal(err)
+		}
+		return active
+	}
+	expectBlocked := func(want string) {
+		t.Helper()
+		err := DeleteMaterialWeb(cement)
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("remover com saldo: erro = %v, esperado conter %q", err, want)
+		}
+		if !isActive() {
+			t.Fatal("a remoção recusada desativou o material")
+		}
+	}
+
+	expectBlocked("saldo em 2 obras")
+
+	if err := RegisterStockExitWeb(cement, central, 10, userID, ""); err != nil {
+		t.Fatal(err)
+	}
+	expectBlocked("saldo em 1 obra")
+
+	// Saldo zerado em todas as obras (a linha continua em saldos, com 0).
+	if err := RegisterStockExitWeb(cement, siteA, 4, userID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := DeleteMaterialWeb(cement); err != nil {
+		t.Fatalf("remover com saldo zerado: %v", err)
+	}
+	if isActive() {
+		t.Error("o material deveria ter sido removido")
+	}
+	if err := DeleteMaterialWeb(cement); err == nil || !strings.Contains(err.Error(), "não encontrado") {
+		t.Errorf("remover de novo: erro = %v, esperado material não encontrado", err)
 	}
 }

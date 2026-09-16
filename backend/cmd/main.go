@@ -1,9 +1,13 @@
 package main
 
 import (
+	"encoding/csv"
+	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"strconv"
 
 	database "uchoastock/backend/database"
 	"uchoastock/backend/services"
@@ -21,6 +25,14 @@ func main() {
 		os.Exit(1)
 	}
 	defer database.DB.Close()
+
+	// verify-stock roda antes de CreateTables: por padrão ele não pode
+	// migrar nada, só com --migrate.
+	if len(os.Args) > 1 && os.Args[1] == "verify-stock" {
+		code := verifyStock(os.Args[2:], os.Stdout)
+		database.DB.Close()
+		os.Exit(code)
+	}
 
 	if err := database.CreateTables(); err != nil {
 		fmt.Println("Erro ao preparar as tabelas do banco de dados:", err)
@@ -44,11 +56,6 @@ func main() {
 
 	if len(os.Args) > 1 && os.Args[1] == "change-email" {
 		runChangeEmailCommand(os.Args[2:])
-		return
-	}
-
-	if len(os.Args) > 1 && os.Args[1] == "verify-stock" {
-		runVerifyStockCommand()
 		return
 	}
 
@@ -181,38 +188,144 @@ func registerRoutes() {
 	http.HandleFunc("/usuarios", withUser(userHandler))
 }
 
-// runVerifyStockCommand confere a migração para o saldo por obra, ex.:
+// verifyStock é o comando verify-stock, que confere a migração para o
+// saldo por obra. Devolve o código de saída (0 = tudo certo), para o teste
+// conseguir chamar sem encerrar o processo.
 //
-//	DB_PATH=/caminho/copia.db go run ./backend/cmd verify-stock
+//	go run ./backend/cmd verify-stock            (só confere; não altera o banco)
+//	go run ./backend/cmd verify-stock --migrate  (migra e confere: só numa CÓPIA)
 //
-// Compara, para cada material, produtos.quantidade com a soma dos saldos
-// de todas as obras e lista as divergências. Sai com código 1 se houver
-// alguma. Atenção: como todo comando, antes ele roda CreateTables, então
-// um banco ainda não migrado é migrado ali mesmo. Rode numa cópia.
-func runVerifyStockCommand() {
-	divergences, checked, err := services.VerifyStockMigration()
-	if err != nil {
-		fmt.Println("Erro ao conferir o estoque:", err)
-		os.Exit(1)
+// Sem --migrate, o banco precisa já estar migrado. A conferência compara
+// produtos.quantidade com a soma dos saldos, o que só pega migração pela
+// metade: logo depois de migrar, as duas batem por construção.
+//
+// Com --migrate num banco ainda não migrado, o comando tira um retrato do
+// estoque antes (e salva em CSV ao lado do banco), roda as migrações e
+// confere o resultado contra o retrato.
+func verifyStock(args []string, out io.Writer) int {
+	flags := flag.NewFlagSet("verify-stock", flag.ContinueOnError)
+	flags.SetOutput(out)
+	migrate := flags.Bool("migrate", false, "roda as migrações antes de conferir (ALTERA o banco: só numa cópia)")
+	if err := flags.Parse(args); err != nil {
+		return 2
 	}
 
-	fmt.Println("Banco:", database.Path())
-	fmt.Println("Conferência: produtos.quantidade x soma dos saldos das obras")
+	fmt.Fprintln(out, "Banco:", database.Path())
+
+	migrated, err := database.StockMigrated()
+	if err != nil {
+		fmt.Fprintln(out, "Erro ao ler o banco:", err)
+		return 1
+	}
+
+	if !*migrate {
+		if !migrated {
+			fmt.Fprintln(out, "ERRO: este banco ainda não foi migrado para o saldo por obra (falta a tabela saldos ou a coluna movimentacoes.obra_id).")
+			fmt.Fprintln(out, "Nada foi alterado. Para migrar uma CÓPIA e conferir o resultado, rode de novo com --migrate.")
+			return 1
+		}
+		return reportStockComparison(out)
+	}
+
+	fmt.Fprintln(out, "")
+	fmt.Fprintln(out, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	fmt.Fprintln(out, "!!  ATENÇÃO: --migrate ALTERA O BANCO ACIMA.")
+	fmt.Fprintln(out, "!!  As migrações vão rodar nele agora. Use SOMENTE numa CÓPIA,")
+	fmt.Fprintln(out, "!!  nunca no banco de produção.")
+	fmt.Fprintln(out, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	fmt.Fprintln(out, "")
+
+	if migrated {
+		fmt.Fprintln(out, "O banco já estava migrado: não há como tirar o retrato de antes. Rodando só as migrações pendentes e a conferência simples.")
+		if err := database.CreateTables(); err != nil {
+			fmt.Fprintln(out, "Erro nas migrações (nada foi gravado):", err)
+			return 1
+		}
+		return reportStockComparison(out)
+	}
+
+	snapshot, err := services.TakeStockSnapshot()
+	if err != nil {
+		fmt.Fprintln(out, "Erro ao ler o estoque de antes da migração:", err)
+		return 1
+	}
+	csvPath := database.Path() + ".antes-da-migracao.csv"
+	if err := writeSnapshotCSV(csvPath, snapshot); err != nil {
+		fmt.Fprintln(out, "Erro ao salvar o retrato de antes da migração:", err)
+		return 1
+	}
+	fmt.Fprintf(out, "Retrato de antes da migração: %d material(is), salvo em %s\n", len(snapshot.Materials), csvPath)
+
+	if err := database.CreateTables(); err != nil {
+		fmt.Fprintln(out, "Erro na migração (a transação foi desfeita, nada foi gravado):", err)
+		return 1
+	}
+	fmt.Fprintln(out, "Migração concluída. Conferindo contra o retrato...")
+
+	problems, err := services.CheckMigrationAgainstSnapshot(snapshot)
+	if err != nil {
+		fmt.Fprintln(out, "Erro ao conferir:", err)
+		return 1
+	}
+	for _, problem := range problems {
+		fmt.Fprintln(out, "  PROBLEMA:", problem)
+	}
+	if len(problems) > 0 {
+		fmt.Fprintf(out, "%d problema(s) encontrado(s).\n", len(problems))
+		return 1
+	}
+	fmt.Fprintf(out, "Nenhum problema: %d material(is) com o saldo igual ao de antes, tudo no almoxarifado central, e as movimentações ligadas certo.\n", len(snapshot.Materials))
+	return 0
+}
+
+// reportStockComparison mostra a conferência simples (produtos.quantidade
+// x soma dos saldos) e devolve o código de saída.
+func reportStockComparison(out io.Writer) int {
+	divergences, checked, err := services.VerifyStockMigration()
+	if err != nil {
+		fmt.Fprintln(out, "Erro ao conferir o estoque:", err)
+		return 1
+	}
+
+	fmt.Fprintln(out, "Conferência simples: produtos.quantidade x soma dos saldos das obras")
+	fmt.Fprintln(out, "(Só pega banco migrado pela metade ou mexido depois: logo após a migração as duas batem por construção.)")
 	for _, d := range divergences {
 		status := ""
 		if !d.Active {
 			status = " [removido]"
 		}
-		fmt.Printf("  #%d %s (%s)%s: produtos.quantidade = %s, soma dos saldos = %s, diferença = %s\n",
+		fmt.Fprintf(out, "  #%d %s (%s)%s: produtos.quantidade = %s, soma dos saldos = %s, diferença = %s\n",
 			d.MaterialID, d.Name, d.Unit, status,
 			utils.FormatQuantity(d.OldQuantity),
 			utils.FormatQuantity(d.SiteTotal),
 			utils.FormatQuantity(d.SiteTotal-d.OldQuantity))
 	}
-	fmt.Printf("%d material(is) conferido(s), %d divergência(s).\n", checked, len(divergences))
+	fmt.Fprintf(out, "%d material(is) conferido(s), %d divergência(s).\n", checked, len(divergences))
 
 	if len(divergences) > 0 {
-		fmt.Println("Num banco recém-migrado, toda divergência é problema. Num banco já em uso é esperado: entradas e saídas depois da migração mudam só os saldos.")
-		os.Exit(1)
+		fmt.Fprintln(out, "Num banco já em uso, divergência é esperada: entradas e saídas depois da migração mudam só os saldos.")
+		return 1
 	}
+	return 0
+}
+
+// writeSnapshotCSV salva o retrato de antes da migração, para ficar como
+// registro junto da cópia do banco. Usa ";" como o CSV das movimentações.
+func writeSnapshotCSV(path string, snapshot services.StockSnapshot) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	writer := csv.NewWriter(file)
+	writer.Comma = ';'
+	_ = writer.Write([]string{"id", "nome", "quantidade"})
+	for _, m := range snapshot.Materials {
+		_ = writer.Write([]string{strconv.Itoa(m.ID), m.Name, strconv.FormatFloat(m.Quantity, 'f', -1, 64)})
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		file.Close()
+		return err
+	}
+	return file.Close()
 }

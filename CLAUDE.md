@@ -97,8 +97,9 @@ go run ./backend/cmd create-user "<nome>" <email> "<senha>" <admin|gestor|almoxa
 go run ./backend/cmd rename-user <email> "<novo-nome>"
 go run ./backend/cmd change-email <email-atual> <novo-email>
 
-# Confere a migração de saldos (roda as migrações antes: use numa cópia do banco via DB_PATH)
-go run ./backend/cmd verify-stock
+# Confere a migração de saldos. Sem flag não altera o banco (banco não migrado = erro).
+# --migrate tira um retrato, migra e confere contra ele: ALTERA o banco, use numa cópia via DB_PATH.
+go run ./backend/cmd verify-stock [--migrate]
 ```
 
 `create-user` não aceita o cargo `superadmin` — ver seção 5.

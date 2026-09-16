@@ -324,13 +324,29 @@ func TestOnlyAdminChangesMaterialCatalog(t *testing.T) {
 			url.Values{"acao": {"atualizar"}, "material_id": {id(f.materialB)}, "nome": {"Cimento CP-II"}, "unidade": {"saco"}, "limite_minimo": {"8"}}},
 		{"admin cadastra material com estoque na obra B", materialHandler, "/materiais",
 			url.Values{"nome": {"Brita"}, "quantidade": {"4"}, "unidade": {"m³"}, "limite_minimo": {"1"}, "obra_id": {id(f.siteB)}}},
-		{"admin remove material", editMaterialHandler, "/alterar-material",
-			url.Values{"acao": {"remover"}, "material_id": {id(f.materialA)}}},
+		{"admin cadastra material sem estoque", materialHandler, "/materiais",
+			url.Values{"nome": {"Prego"}, "quantidade": {"0"}, "unidade": {"kg"}, "limite_minimo": {"1"}, "obra_id": {id(f.siteB)}}},
 	}
 	for _, c := range adminControls {
 		if response := post(f.adminToken, c.handler, c.path, c.form); response.Code != http.StatusSeeOther {
 			t.Errorf("controle %s: status %d, esperado 303", c.name, response.Code)
 		}
+	}
+
+	// Nem o admin remove material com saldo; sem saldo, remove.
+	before := snapshot(t)
+	response := post(f.adminToken, editMaterialHandler, "/alterar-material",
+		url.Values{"acao": {"remover"}, "material_id": {id(f.materialB)}})
+	if response.Code == http.StatusSeeOther || !strings.Contains(response.Body.String(), "saldo em 1 obra") {
+		t.Errorf("admin removendo material com saldo: status %d, sem a mensagem esperada", response.Code)
+	}
+	if snapshot(t) != before {
+		t.Error("a remoção recusada mudou o banco")
+	}
+	nail := queryID(t, `SELECT id FROM produtos WHERE nome = 'Prego'`)
+	if response := post(f.adminToken, editMaterialHandler, "/alterar-material",
+		url.Values{"acao": {"remover"}, "material_id": {id(nail)}}); response.Code != http.StatusSeeOther {
+		t.Errorf("admin removendo material sem saldo: status %d, esperado 303", response.Code)
 	}
 }
 
@@ -377,6 +393,30 @@ func TestSiteStatusRulesOverHTTP(t *testing.T) {
 	})
 	if response := post(g, siteHandler, "/obras", url.Values{"acao": {"situacao"}, "obra_id": {id(f.siteA)}, "situacao": {"ANDAMENTO"}}); response.Code != http.StatusForbidden {
 		t.Errorf("gestor reabrindo: status %d, esperado 403", response.Code)
+	}
+
+	// No modal de edição da obra concluída, "Em andamento" fica escondida
+	// para o gestor e aparece para o admin.
+	reopenOption := func(token string) string {
+		page := get(token, siteHandler, "/obras?editar="+id(f.siteA))
+		// Procura dentro do seletor do modal: o filtro do topo da página
+		// também tem uma opção ANDAMENTO.
+		modal := strings.Index(page, `id="site-status"`)
+		if modal < 0 {
+			t.Fatal("seletor de situação do modal não encontrado")
+		}
+		page = page[modal:]
+		start := strings.Index(page, `<option value="ANDAMENTO"`)
+		if start < 0 {
+			t.Fatal("opção Em andamento não encontrada no modal")
+		}
+		return page[start : start+strings.Index(page[start:], ">")+1]
+	}
+	if option := reopenOption(g); !strings.Contains(option, "hidden disabled") {
+		t.Errorf("gestor: opção Em andamento deveria estar escondida: %s", option)
+	}
+	if option := reopenOption(f.adminToken); strings.Contains(option, "hidden") {
+		t.Errorf("admin: opção Em andamento deveria aparecer: %s", option)
 	}
 
 	if strings.Contains(get(g, siteHandler, "/obras"), `aria-label="Reabrir Obra A"`) {

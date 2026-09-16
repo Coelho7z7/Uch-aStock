@@ -298,7 +298,8 @@ func TestStockMovementLimitsNoteLength(t *testing.T) {
 func TestRemovedMaterialCannotBeMoved(t *testing.T) {
 	userID := setupTestDB(t)
 	central := centralID(t)
-	id := createTestMaterial(t, userID, "Cimento", 10, 5)
+	// Sem saldo: material com saldo não pode ser removido.
+	id := createTestMaterial(t, userID, "Cimento", 0, 5)
 
 	if err := DeleteMaterialWeb(id); err != nil {
 		t.Fatalf("remover: %v", err)
@@ -379,5 +380,82 @@ func TestVerifyStockMigration(t *testing.T) {
 	}
 	if brick.Name != "Tijolo" || brick.OldQuantity != 0 || brick.SiteTotal != 100 {
 		t.Errorf("divergência do tijolo = %+v", brick)
+	}
+}
+
+// TestCheckMigrationAgainstSnapshot tira o retrato de um banco antigo,
+// migra, confere que está tudo certo e depois estraga o resultado de
+// várias formas para ver cada problema ser apontado.
+func TestCheckMigrationAgainstSnapshot(t *testing.T) {
+	t.Setenv("DB_PATH", filepath.Join(t.TempDir(), "teste.db"))
+	if err := database.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { database.DB.Close() })
+	if _, err := database.DB.Exec(`
+		CREATE TABLE produtos (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			nome TEXT NOT NULL,
+			quantidade INTEGER NOT NULL,
+			ativo INTEGER NOT NULL DEFAULT 1
+		);
+		CREATE TABLE movimentacoes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			produto_id INTEGER NOT NULL,
+			usuario_id INTEGER NOT NULL,
+			tipo TEXT NOT NULL,
+			quantidade INTEGER NOT NULL,
+			data DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+		INSERT INTO produtos (nome, quantidade) VALUES ('Cimento', 40), ('Areia', 2.5);
+		INSERT INTO movimentacoes (produto_id, usuario_id, tipo, quantidade) VALUES
+			(1, 1, 'SAIDA', 10), (2, 1, 'ATUALIZACAO', 0);
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot, err := TakeStockSnapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Materials) != 2 || snapshot.Materials[1].Quantity != 2.5 || snapshot.Movements["SAIDA"] != 1 {
+		t.Fatalf("retrato = %+v", snapshot)
+	}
+	if err := database.CreateTables(); err != nil {
+		t.Fatal(err)
+	}
+
+	problems, err := CheckMigrationAgainstSnapshot(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(problems) != 0 {
+		t.Fatalf("migração certa com problemas: %v", problems)
+	}
+
+	// Estraga: saldo do cimento dobrado, areia mudada na coluna antiga,
+	// saída sem obra e um material a mais.
+	if _, err := database.DB.Exec(`
+		UPDATE saldos SET quantidade = quantidade * 2 WHERE produto_id = 1;
+		UPDATE produtos SET quantidade = 3 WHERE id = 2;
+		UPDATE movimentacoes SET obra_id = NULL WHERE tipo = 'SAIDA';
+		INSERT INTO produtos (nome, quantidade) VALUES ('Intruso', 0);
+	`); err != nil {
+		t.Fatal(err)
+	}
+	problems, err = CheckMigrationAgainstSnapshot(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := strings.Join(problems, "\n")
+	for _, want := range []string{
+		"#1 Cimento: antes da migração = 40, soma dos saldos = 80",
+		"#2 Areia: produtos.quantidade mudou de 2,5 para 3",
+		"o catálogo tinha 2 material(is) antes e tem 3 depois",
+		"1 entrada(s) ou saída(s) que não apontam para o almoxarifado central",
+	} {
+		if !strings.Contains(all, want) {
+			t.Errorf("faltou o problema %q em:\n%s", want, all)
+		}
 	}
 }

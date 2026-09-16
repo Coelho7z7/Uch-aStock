@@ -1,7 +1,9 @@
 package database
 
 import (
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -259,5 +261,129 @@ func TestMigrateStockToSites(t *testing.T) {
 	}
 	if withSite != 2 || withoutSite != 1 {
 		t.Errorf("movimentações no central = %d e sem obra = %d, esperado 2 e 1", withSite, withoutSite)
+	}
+}
+
+// dumpDatabase copia, como texto, a estrutura (sqlite_master) e todas as
+// linhas de todas as tabelas. Dois dumps iguais = banco igual.
+func dumpDatabase(t *testing.T) string {
+	t.Helper()
+	var out strings.Builder
+	var tables []string
+
+	rows, err := DB.Query(`SELECT type, name, COALESCE(sql, '') FROM sqlite_master ORDER BY type, name`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var kind, name, definition string
+		if err := rows.Scan(&kind, &name, &definition); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprintln(&out, kind, name, definition)
+		if kind == "table" {
+			tables = append(tables, name)
+		}
+	}
+	rows.Close()
+
+	for _, table := range tables {
+		data, err := DB.Query(`SELECT * FROM "` + table + `" ORDER BY rowid`)
+		if err != nil {
+			t.Fatalf("ler %s: %v", table, err)
+		}
+		columns, _ := data.Columns()
+		for data.Next() {
+			values := make([]any, len(columns))
+			pointers := make([]any, len(columns))
+			for i := range values {
+				pointers[i] = &values[i]
+			}
+			if err := data.Scan(pointers...); err != nil {
+				t.Fatal(err)
+			}
+			fmt.Fprintln(&out, table, values)
+		}
+		data.Close()
+	}
+	return out.String()
+}
+
+// TestCreateTablesRollsBackOnFailure simula uma falha em dois pontos da
+// migração de um banco antigo e confere que o banco fica exatamente como
+// antes — sem tabela nova, sem coluna nova, sem saldo copiado pela metade.
+// A falha vem de um trigger que aborta o passo, então o código da
+// migração roda sem nenhum desvio de teste. Depois, sem o trigger, a
+// migração roda do zero e dá certo.
+func TestCreateTablesRollsBackOnFailure(t *testing.T) {
+	cases := []struct {
+		name    string
+		trigger string
+	}{
+		{
+			// A migração de email mexe em usuarios depois de criar as
+			// tabelas de obras e as colunas novas.
+			"no meio, ao atualizar usuários",
+			`CREATE TRIGGER falha BEFORE UPDATE ON usuarios BEGIN SELECT RAISE(ABORT, 'falha simulada'); END;`,
+		},
+		{
+			// Ligar as movimentações antigas ao central é o último passo:
+			// saldos já foram copiados e a coluna obra_id já existe.
+			"no fim, ao ligar as movimentações ao central",
+			`CREATE TRIGGER falha BEFORE UPDATE ON movimentacoes BEGIN SELECT RAISE(ABORT, 'falha simulada'); END;`,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			openTestDB(t)
+			if _, err := DB.Exec(oldSchema); err != nil {
+				t.Fatalf("montar banco antigo: %v", err)
+			}
+			if _, err := DB.Exec(`
+				CREATE TABLE movimentacoes (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					produto_id INTEGER NOT NULL,
+					usuario_id INTEGER NOT NULL,
+					tipo TEXT NOT NULL,
+					quantidade INTEGER NOT NULL,
+					data DATETIME DEFAULT CURRENT_TIMESTAMP
+				);
+				INSERT INTO movimentacoes (produto_id, usuario_id, tipo, quantidade) VALUES (1, 1, 'SAIDA', 2);
+			`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := DB.Exec(c.trigger); err != nil {
+				t.Fatal(err)
+			}
+
+			before := dumpDatabase(t)
+			err := CreateTables()
+			if err == nil || !strings.Contains(err.Error(), "falha simulada") {
+				t.Fatalf("CreateTables deveria falhar com a falha simulada, veio %v", err)
+			}
+			if after := dumpDatabase(t); after != before {
+				t.Errorf("o banco mudou depois da falha.\nantes:\n%s\ndepois:\n%s", before, after)
+			}
+
+			// Sem o trigger, a próxima inicialização migra do zero.
+			if _, err := DB.Exec(`DROP TRIGGER falha`); err != nil {
+				t.Fatal(err)
+			}
+			if err := CreateTables(); err != nil {
+				t.Fatalf("migração depois de tirar a falha: %v", err)
+			}
+			var balance float64
+			var linked int
+			if err := DB.QueryRow(`SELECT quantidade FROM saldos WHERE produto_id = 1`).Scan(&balance); err != nil {
+				t.Fatalf("ler saldo migrado: %v", err)
+			}
+			if err := DB.QueryRow(`SELECT COUNT(*) FROM movimentacoes WHERE obra_id IS NOT NULL`).Scan(&linked); err != nil {
+				t.Fatal(err)
+			}
+			if balance != 40 || linked != 1 {
+				t.Errorf("depois de migrar de novo: saldo %v e %d movimentação ligada, esperado 40 e 1", balance, linked)
+			}
+		})
 	}
 }

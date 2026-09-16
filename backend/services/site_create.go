@@ -219,6 +219,8 @@ func checkSiteStatusChange(tx *sql.Tx, id int, status string, allowReopen bool) 
 	if status == SiteStatusFinished {
 		// Material removido do catálogo não conta: não há mais como
 		// registrar a saída dele, e ele travaria o encerramento para sempre.
+		// (Hoje DeleteMaterialWeb recusa material com saldo; isso cobre
+		// materiais removidos antes dessa regra.)
 		var stocked int
 		if err := tx.QueryRow(`
 			SELECT COUNT(*)

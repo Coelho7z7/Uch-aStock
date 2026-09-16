@@ -319,8 +319,10 @@ func TestFinishSiteBlockedWhileStocked(t *testing.T) {
 		}
 	}
 
-	// Material removido do catálogo não trava o encerramento.
-	if err := DeleteMaterialWeb(gravel); err != nil {
+	// Material removido do catálogo não trava o encerramento. Hoje não dá
+	// para remover material com saldo, então o caso é o de dados antigos:
+	// removido direto no banco.
+	if _, err := database.DB.Exec(`UPDATE produtos SET ativo = 0 WHERE id = ?`, gravel); err != nil {
 		t.Fatal(err)
 	}
 

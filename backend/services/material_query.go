@@ -254,8 +254,19 @@ func UpdateMaterialWeb(materialID int, name string, unit string, minimum float64
 	return tx.Commit()
 }
 
+// DeleteMaterialWeb remove o material do catálogo (ativo = 0). Material
+// com saldo em alguma obra não pode ser removido: ele sumiria das telas
+// com o estoque ainda lá, e ninguém conseguiria mais registrar a saída.
+// A checagem e a remoção ficam na mesma transação, para uma entrada que
+// chegue no meio não passar despercebida.
 func DeleteMaterialWeb(materialID int) error {
-	result, err := database.DB.Exec(`
+	tx, err := database.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(`
 		UPDATE produtos
 		SET ativo = 0
 		WHERE id = ? AND ativo = 1
@@ -272,7 +283,21 @@ func DeleteMaterialWeb(materialID int) error {
 		return fmt.Errorf("material não encontrado")
 	}
 
-	return nil
+	var sites int
+	if err := tx.QueryRow(`
+		SELECT COUNT(*) FROM saldos WHERE produto_id = ? AND quantidade > 0
+	`, materialID).Scan(&sites); err != nil {
+		return err
+	}
+	// O return antes do Commit desfaz o UPDATE acima (defer tx.Rollback).
+	if sites == 1 {
+		return fmt.Errorf("não é possível remover: o material ainda tem saldo em 1 obra. Registre a saída antes de remover")
+	}
+	if sites > 1 {
+		return fmt.Errorf("não é possível remover: o material ainda tem saldo em %d obras. Registre as saídas antes de remover", sites)
+	}
+
+	return tx.Commit()
 }
 
 // stockStatus classifica o estoque para a cor do selo na tela. Os

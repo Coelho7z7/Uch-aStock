@@ -224,7 +224,7 @@
                 <!-- Um modal só para cadastrar e editar. O servidor o manda
                      aberto (sem hidden) com ?editar=ID ou quando o envio deu
                      erro; sem JS, o link "Editar" continua funcionando. -->
-                <div class="modal-edit" id="site-modal" data-can-change-status="{{ if .CanManageSites }}sim{{ end }}" {{ if not .Form }}hidden{{ end }}>
+                <div class="modal-edit" id="site-modal" data-can-change-status="{{ if .CanManageSites }}sim{{ end }}" data-can-reopen="{{ if .CanReopenSite }}sim{{ end }}" {{ if not .Form }}hidden{{ end }}>
                     <div class="modal-edit-content" role="dialog" aria-modal="true" aria-labelledby="site-modal-title">
                         <div class="modal-create-header">
                             <div>
@@ -261,7 +261,10 @@
                             <div class="site-status-field" id="site-status-field" {{ if not .Form }}hidden{{ else if or (not .Form.ID) .Form.IsCentral (not .CanManageSites) }}hidden{{ end }}>
                                 <label for="site-status">Situação</label>
                                 <select id="site-status" name="situacao" data-original="{{ with .Form }}{{ .OriginalStatus }}{{ end }}">
-                                    {{ range .Statuses }}<option value="{{ .Value }}"{{ if $.Form }}{{ if eq .Value $.Form.Status }} selected{{ end }}{{ end }}>{{ .Label }}</option>{{ end }}
+                                    <!-- Obra concluída só volta para "Em andamento" (reabrir) com obras.reabrir:
+                                         sem ela, a opção fica escondida e desabilitada. O JS refaz isso a cada
+                                         obra aberta no modal, e o servidor recusa de qualquer jeito. -->
+                                    {{ range .Statuses }}<option value="{{ .Value }}"{{ if $.Form }}{{ if eq .Value $.Form.Status }} selected{{ end }}{{ if and (eq .Value "ANDAMENTO") (eq $.Form.OriginalStatus "CONCLUIDA") (not $.CanReopenSite) }} hidden disabled{{ end }}{{ end }}>{{ .Label }}</option>{{ end }}
                                 </select>
                             </div>
 
@@ -293,6 +296,17 @@
             const help = document.getElementById('site-help');
             const submit = document.getElementById('site-submit');
 
+            // Obra concluída só volta para "Em andamento" (reabrir) com a
+            // permissão de reabrir. Sem ela, a opção some do seletor. O
+            // disabled garante que ela também não seja escolhida nos
+            // navegadores que ignoram hidden em <option>.
+            const syncReopenOption = function (originalStatus) {
+                const reopen = status.querySelector('option[value="ANDAMENTO"]');
+                const blocked = originalStatus === 'CONCLUIDA' && modal.dataset.canReopen !== 'sim';
+                reopen.hidden = blocked;
+                reopen.disabled = blocked;
+            };
+
             // Preenche o modal e abre. site é null no cadastro.
             const openModal = function (site) {
                 const editing = site !== null;
@@ -311,6 +325,7 @@
                 manager.value = editing ? site.manager : '';
                 status.value = editing ? site.status : 'ANDAMENTO';
                 status.dataset.original = editing ? site.status : '';
+                syncReopenOption(status.dataset.original);
                 // Só quem gerencia obras muda a situação; para os outros o
                 // campo some (e o servidor recusa a edição).
                 statusField.hidden = !editing || central || modal.dataset.canChangeStatus !== 'sim';
@@ -372,6 +387,7 @@
 
             // Aberto pelo servidor (?editar=ID ou erro): foco no nome.
             if (!modal.hidden) {
+                syncReopenOption(status.dataset.original);
                 updateConfirmation();
                 name.focus();
             }

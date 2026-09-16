@@ -143,6 +143,8 @@ Solicitante (solicitante), Auditor (auditor).
   superadmin): material.editar cadastra e edita nome, unidade e limite
   mínimo; material.remover remove. Gestor e almoxarife só movimentam o
   estoque (entrada e saída) na própria obra.
+- Material com saldo > 0 em qualquer obra não pode ser removido, nem pelo
+  admin: a mensagem diz em quantas obras ainda há saldo.
 - O limite mínimo (produtos.limite_minimo) é um campo único do material,
   igual para todas as obras. Por isso também fica só com o admin. Se um
   dia precisar ser por obra, é mudança de schema (coluna em saldos).
@@ -245,16 +247,35 @@ quem não tem movimentacoes.ver_todas).
 
 VERIFICAÇÃO DA MIGRAÇÃO DE SALDOS
 
-go run ./backend/cmd verify-stock
+go run ./backend/cmd verify-stock            (não altera o banco)
+go run ./backend/cmd verify-stock --migrate  (ALTERA: só numa CÓPIA)
 
-Compara, material por material (inclusive os removidos), produtos.quantidade
-com a soma dos saldos de todas as obras e lista as divergências. Sai com
-código 1 se houver alguma.
-- Como todo comando, antes roda database.CreateTables: um banco ainda não
-  migrado é migrado ali. Use numa CÓPIA, apontada por DB_PATH.
-- Só faz sentido logo depois da migração. Num banco já em uso, divergência
-  é esperada: entradas e saídas mudam só os saldos, e produtos.quantidade
-  ficou parada.
+Sem flag: não roda migração nenhuma. Banco não migrado -> erro, código 1.
+Banco migrado -> conferência simples: produtos.quantidade x soma dos
+saldos. Ela vale pouco: a migração só LÊ produtos.quantidade para montar
+os saldos, então logo depois de migrar as duas batem por construção. Só
+pega banco migrado pela metade ou mexido depois (e num banco em uso a
+divergência é esperada).
+
+--migrate num banco não migrado (a verificação que vale):
+1. mostra um aviso grande de que o banco vai ser alterado;
+2. tira um retrato ANTES (quantidade de cada material e quantas
+   movimentações de cada tipo) e salva em <banco>.antes-da-migracao.csv;
+3. roda as migrações;
+4. confere contra o retrato: saldo de cada material igual ao de antes e
+   todo no central, produtos.quantidade intacta, nenhum material a mais ou
+   a menos, mesmo número de movimentações, entradas e saídas ligadas ao
+   central e atualizações sem obra. Código 1 se houver problema.
+
+Uso numa cópia da produção (PowerShell):
+$env:DB_PATH="C:\caminho\copia.db"; go run ./backend/cmd verify-stock --migrate
+
+MIGRAÇÕES
+
+database.CreateTables roda tudo (tabelas, colunas, cargos, obras, cópia do
+estoque) numa transação só. Se qualquer passo falhar, nada é gravado e a
+próxima inicialização tenta de novo do zero. Dentro dela, use sempre tx,
+nunca DB: a conexão é uma só (SetMaxOpenConns(1)).
 
 
 RODAR

@@ -17,16 +17,16 @@ var DB *sql.DB
 // database). services.LowStockThreshold aponta para cá.
 const DefaultMinimumStock = 10
 
-// dbPath retorna o caminho do arquivo SQLite. Em produção (Railway), a
-// variável DB_PATH aponta para dentro do volume persistente (ex: /data/uchoastock.db),
-// evitando que os dados sumam a cada deploy. Sem a variável, usa o caminho
-// local de sempre (dev).
 // Path é o caminho do banco em uso, para os comandos de linha mostrarem
 // em qual arquivo estão mexendo.
 func Path() string {
 	return dbPath()
 }
 
+// dbPath retorna o caminho do arquivo SQLite. Em produção (Railway), a
+// variável DB_PATH aponta para dentro do volume persistente (ex: /data/uchoastock.db),
+// evitando que os dados sumam a cada deploy. Sem a variável, usa o caminho
+// local de sempre (dev).
 func dbPath() string {
 	if p := os.Getenv("DB_PATH"); p != "" {
 		return p
@@ -51,7 +51,49 @@ func Connect() error {
 	return err
 }
 
+// CreateTables cria as tabelas e roda todas as migrações numa transação
+// só. Se qualquer passo falhar no meio (uma coluna nova, a cópia do
+// estoque para as obras, a troca de cargos), o ROLLBACK desfaz tudo o que
+// veio antes, inclusive CREATE, ALTER e DROP: no SQLite, comandos de
+// estrutura também respeitam a transação. O banco fica exatamente como
+// estava, e a próxima inicialização tenta de novo do zero.
+//
+// Todo comando aqui dentro usa tx, nunca DB: o banco tem uma conexão só
+// (SetMaxOpenConns(1)), e ela está presa na transação. Um DB.Exec no meio
+// ficaria esperando essa conexão para sempre.
 func CreateTables() error {
+	tx, err := DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := createTablesTx(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// StockMigrated indica se o banco já passou pela migração para o saldo
+// por obra: a tabela saldos existe e movimentacoes tem a coluna obra_id
+// (que nasce na mesma migração). Só lê, não altera nada.
+func StockMigrated() (bool, error) {
+	var tables, columns int
+	if err := DB.QueryRow(`
+		SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'saldos'
+	`).Scan(&tables); err != nil {
+		return false, err
+	}
+	if err := DB.QueryRow(`
+		SELECT COUNT(*) FROM pragma_table_info('movimentacoes') WHERE name = 'obra_id'
+	`).Scan(&columns); err != nil {
+		return false, err
+	}
+	return tables > 0 && columns > 0, nil
+}
+
+// createTablesTx é o corpo de CreateTables, dentro da transação.
+func createTablesTx(tx *sql.Tx) error {
 	query := `
 		CREATE TABLE IF NOT EXISTS produtos (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,13 +169,13 @@ func CreateTables() error {
 	);
 	`
 
-	_, err := DB.Exec(query)
+	_, err := tx.Exec(query)
 	if err != nil {
 		return err
 	}
 
 	var activeColumn int
-	err = DB.QueryRow(`
+	err = tx.QueryRow(`
 		SELECT COUNT(*)
 		FROM pragma_table_info('produtos')
 		WHERE name = 'ativo'
@@ -142,13 +184,13 @@ func CreateTables() error {
 		return err
 	}
 	if activeColumn == 0 {
-		if _, err = DB.Exec(`ALTER TABLE produtos ADD COLUMN ativo INTEGER NOT NULL DEFAULT 1`); err != nil {
+		if _, err = tx.Exec(`ALTER TABLE produtos ADD COLUMN ativo INTEGER NOT NULL DEFAULT 1`); err != nil {
 			return err
 		}
 	}
 
 	var roleColumn int
-	err = DB.QueryRow(`
+	err = tx.QueryRow(`
 		SELECT COUNT(*)
 		FROM pragma_table_info('usuarios')
 		WHERE name = 'role'
@@ -157,13 +199,13 @@ func CreateTables() error {
 		return err
 	}
 	if roleColumn == 0 {
-		if _, err = DB.Exec(`ALTER TABLE usuarios ADD COLUMN role TEXT NOT NULL DEFAULT 'basico'`); err != nil {
+		if _, err = tx.Exec(`ALTER TABLE usuarios ADD COLUMN role TEXT NOT NULL DEFAULT 'basico'`); err != nil {
 			return err
 		}
 	}
 
 	var userActiveColumn int
-	err = DB.QueryRow(`
+	err = tx.QueryRow(`
 		SELECT COUNT(*)
 		FROM pragma_table_info('usuarios')
 		WHERE name = 'ativo'
@@ -172,7 +214,7 @@ func CreateTables() error {
 		return err
 	}
 	if userActiveColumn == 0 {
-		if _, err = DB.Exec(`ALTER TABLE usuarios ADD COLUMN ativo INTEGER NOT NULL DEFAULT 1`); err != nil {
+		if _, err = tx.Exec(`ALTER TABLE usuarios ADD COLUMN ativo INTEGER NOT NULL DEFAULT 1`); err != nil {
 			return err
 		}
 	}
@@ -194,7 +236,7 @@ func CreateTables() error {
 		{"sessoes", "obra_id", "INTEGER REFERENCES obras(id)"},
 	}
 	for _, c := range newColumns {
-		if err = addColumnIfMissing(c.table, c.column, c.definition); err != nil {
+		if err = addColumnIfMissing(tx, c.table, c.column, c.definition); err != nil {
 			return err
 		}
 	}
@@ -210,7 +252,7 @@ func CreateTables() error {
 	// identidade reservada até agora. A admin@gmail.com continua como
 	// uma conta comum. Sem o "LIMIT 1" o UPDATE tentava dar o mesmo
 	// email às duas e o sistema não subia.
-	if _, err = DB.Exec(`
+	if _, err = tx.Exec(`
 		UPDATE usuarios SET email = 'superadmin@gmail.com'
 		WHERE id = (
 			SELECT id FROM usuarios
@@ -225,7 +267,7 @@ func CreateTables() error {
 
 	// O cargo "ceo" foi renomeado para "superadmin". Converte quem ainda
 	// estiver com o nome antigo antes da checagem de exclusividade.
-	if _, err = DB.Exec(`
+	if _, err = tx.Exec(`
 		UPDATE usuarios SET role = 'superadmin'
 		WHERE LOWER(TRIM(role)) = 'ceo'
 	`); err != nil {
@@ -235,7 +277,7 @@ func CreateTables() error {
 	// O SuperAdmin é uma identidade reservada: somente superadmin@gmail.com
 	// pode possuir esse cargo. Isso corrige o banco a cada inicialização,
 	// mesmo que alguém tenha mexido direto nele.
-	if _, err = DB.Exec(`
+	if _, err = tx.Exec(`
 		UPDATE usuarios
 		SET role = CASE
 			WHEN LOWER(TRIM(email)) = 'superadmin@gmail.com' THEN 'superadmin'
@@ -249,10 +291,10 @@ func CreateTables() error {
 	// Com as permissões por ação, "gerente" virou "gestor" e "basico"
 	// virou "solicitante". Idempotente: depois da primeira vez não sobra
 	// ninguém com o nome antigo para converter.
-	if _, err = DB.Exec(`UPDATE usuarios SET role = 'gestor' WHERE LOWER(TRIM(role)) = 'gerente'`); err != nil {
+	if _, err = tx.Exec(`UPDATE usuarios SET role = 'gestor' WHERE LOWER(TRIM(role)) = 'gerente'`); err != nil {
 		return err
 	}
-	if _, err = DB.Exec(`UPDATE usuarios SET role = 'solicitante' WHERE LOWER(TRIM(role)) = 'basico'`); err != nil {
+	if _, err = tx.Exec(`UPDATE usuarios SET role = 'solicitante' WHERE LOWER(TRIM(role)) = 'basico'`); err != nil {
 		return err
 	}
 
@@ -260,12 +302,12 @@ func CreateTables() error {
 	// não há mais venda nem preço, só entrada e saída de material.
 	// As duas migrações abaixo removem o que sobrou do modelo antigo e
 	// são idempotentes — rodam uma vez e depois não encontram mais nada.
-	if _, err = DB.Exec(`DROP TABLE IF EXISTS vendas`); err != nil {
+	if _, err = tx.Exec(`DROP TABLE IF EXISTS vendas`); err != nil {
 		return err
 	}
 
 	var priceColumn int
-	err = DB.QueryRow(`
+	err = tx.QueryRow(`
 		SELECT COUNT(*)
 		FROM pragma_table_info('produtos')
 		WHERE name = 'preco'
@@ -274,7 +316,7 @@ func CreateTables() error {
 		return err
 	}
 	if priceColumn > 0 {
-		if _, err = DB.Exec(`ALTER TABLE produtos DROP COLUMN preco`); err != nil {
+		if _, err = tx.Exec(`ALTER TABLE produtos DROP COLUMN preco`); err != nil {
 			return err
 		}
 	}
@@ -282,7 +324,7 @@ func CreateTables() error {
 	// Todo banco tem um almoxarifado central: é de onde o material sai
 	// para as obras. O NOT EXISTS faz o INSERT rodar uma vez só, e não
 	// recria o central se alguém tiver mudado o nome dele.
-	if _, err = DB.Exec(`
+	if _, err = tx.Exec(`
 		INSERT INTO obras (nome, tipo)
 		SELECT 'Almoxarifado central', 'CENTRAL'
 		WHERE NOT EXISTS (SELECT 1 FROM obras WHERE tipo = 'CENTRAL')
@@ -290,7 +332,7 @@ func CreateTables() error {
 		return err
 	}
 
-	return migrateStockToSites()
+	return migrateStockToSites(tx)
 }
 
 // migrateStockToSites passa o estoque para o modelo por obra: a
@@ -299,16 +341,15 @@ func CreateTables() error {
 // de cadastro ficam sem obra, porque o catálogo é da empresa toda.
 //
 // O sinal de que a migração já rodou é a coluna movimentacoes.obra_id:
-// ela nasce aqui, na mesma transação da cópia. Assim a cópia nunca roda
-// duas vezes (o que dobraria o estoque) e, se algo falhar no meio, o
-// ROLLBACK desfaz tudo, inclusive a coluna, e a próxima inicialização
-// tenta de novo do zero.
+// ela nasce aqui, junto com a cópia. Assim a cópia nunca roda duas vezes
+// (o que dobraria o estoque). Roda dentro da transação de CreateTables:
+// se algo falhar, o ROLLBACK desfaz a coluna e a cópia junto com o resto.
 //
 // produtos.quantidade continua existindo, mas o sistema não lê nem grava
 // mais nela; fica só como cópia do estoque de antes da migração.
-func migrateStockToSites() error {
+func migrateStockToSites(tx *sql.Tx) error {
 	var done int
-	if err := DB.QueryRow(`
+	if err := tx.QueryRow(`
 		SELECT COUNT(*)
 		FROM pragma_table_info('movimentacoes')
 		WHERE name = 'obra_id'
@@ -318,12 +359,6 @@ func migrateStockToSites() error {
 	if done > 0 {
 		return nil
 	}
-
-	tx, err := DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
 
 	steps := []string{
 		`ALTER TABLE movimentacoes ADD COLUMN obra_id INTEGER REFERENCES obras(id)`,
@@ -339,17 +374,16 @@ func migrateStockToSites() error {
 			return err
 		}
 	}
-
-	return tx.Commit()
+	return nil
 }
 
 // addColumnIfMissing adiciona uma coluna à tabela só se ela ainda não
 // existir. table, column e definition vêm sempre de constantes do
 // código, nunca do usuário: comando de estrutura (DDL) não aceita
 // placeholder "?", por isso ele é montado com Sprintf.
-func addColumnIfMissing(table, column, definition string) error {
+func addColumnIfMissing(tx *sql.Tx, table, column, definition string) error {
 	var count int
-	if err := DB.QueryRow(`
+	if err := tx.QueryRow(`
 		SELECT COUNT(*)
 		FROM pragma_table_info(?)
 		WHERE name = ?
@@ -360,6 +394,6 @@ func addColumnIfMissing(table, column, definition string) error {
 		return nil
 	}
 
-	_, err := DB.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, definition))
+	_, err := tx.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, definition))
 	return err
 }
