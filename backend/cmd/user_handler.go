@@ -12,7 +12,8 @@ import (
 )
 
 // userHandler exibe a lista de usuários cadastrados e processa a
-// criação de novos usuários, a alteração de permissão e a remoção.
+// criação de novos usuários, a alteração de permissão, a troca de senha
+// e a remoção.
 // A tela é acessível a administradores e gerentes; remover e alterar
 // permissão continuam restritos a administradores (checado abaixo).
 func userHandler(w http.ResponseWriter, r *http.Request) {
@@ -51,6 +52,7 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 		"criado":     "Usuário criado com sucesso.",
 		"atualizado": "Permissão atualizada com sucesso.",
 		"removido":   "Usuário removido com sucesso.",
+		"senha":      "Senha atualizada com sucesso.",
 	}[r.URL.Query().Get("sucesso")]
 
 	if r.Method == http.MethodPost {
@@ -92,6 +94,23 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 				data.Error = err.Error()
 			} else {
 				http.Redirect(w, r, "/usuarios?sucesso=atualizado", http.StatusSeeOther)
+				return
+			}
+
+		case "redefinir_senha":
+			if !admin {
+				data.Error = "Apenas administradores podem trocar a senha de um usuário."
+				break
+			}
+
+			targetID, idErr := strconv.Atoi(r.FormValue("usuario_id"))
+
+			if idErr != nil {
+				data.Error = "Usuário inválido."
+			} else if err := services.ResetUserPasswordWeb(targetID, userID, r.FormValue("senha")); err != nil {
+				data.Error = err.Error()
+			} else {
+				http.Redirect(w, r, "/usuarios?sucesso=senha", http.StatusSeeOther)
 				return
 			}
 

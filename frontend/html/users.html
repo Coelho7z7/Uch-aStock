@@ -146,12 +146,39 @@
 
                                     {{ if eq .Role "superadmin" }}
 
+                                    <!-- A identidade reservada segue protegida contra os
+                                         outros, mas pode trocar a própria senha: sem isso,
+                                         perder essa senha só se resolveria por variável de
+                                         ambiente e deploy. -->
+                                    {{ if eq .ID $.UserID }}
+                                    <button
+                                        class="edit-material-button"
+                                        type="button"
+                                        title="Trocar senha"
+                                        aria-label="Trocar a senha de {{ .Name }}"
+                                        data-password-id="{{ .ID }}"
+                                        data-password-name="{{ .Name }}">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.85 12.15 19 4"></path><path d="M18 5l2 2"></path><path d="M15 8l2 2"></path></svg>
+                                    </button>
+
+                                    {{ end }}
+
                                     <span class="role-protected" title="O SuperAdmin é reservado para superadmin@gmail.com e não pode ser alterado ou removido">
                                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 7v5c0 4.8-3.2 7.8-8 9-4.8-1.2-8-4.2-8-9V7l8-4Z"></path><path d="m9 12 2 2 4-4"></path></svg>
                                         Protegido
                                     </span>
 
                                     {{ else if $.IsAdmin }}
+
+                                    <button
+                                        class="edit-material-button"
+                                        type="button"
+                                        title="Trocar senha"
+                                        aria-label="Trocar a senha de {{ .Name }}"
+                                        data-password-id="{{ .ID }}"
+                                        data-password-name="{{ .Name }}">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.85 12.15 19 4"></path><path d="M18 5l2 2"></path><path d="M15 8l2 2"></path></svg>
+                                    </button>
 
                                     <button
                                         class="edit-material-button"
@@ -260,6 +287,28 @@
                     </div>
                 </div>
 
+                <div class="modal-edit" id="password-user-modal" hidden>
+                    <div class="modal-edit-content" role="dialog" aria-modal="true" aria-labelledby="password-user-title">
+                        <div class="modal-create-header">
+                            <div>
+                                <span class="edit-kicker">Usuários</span>
+                                <h3 id="password-user-title">Trocar senha</h3>
+                            </div>
+                            <button class="close-modal-button" type="button" id="close-password-user" aria-label="Fechar">&times;</button>
+                        </div>
+                        <form class="create-form" action="/usuarios" method="POST">
+                            <input type="hidden" name="acao" value="redefinir_senha">
+                            <input type="hidden" name="usuario_id" id="password-user-id">
+                            <label for="password-user-name-display">Usuário</label>
+                            <input type="text" id="password-user-name-display" disabled>
+                            <label for="password-user-value">Nova senha</label>
+                            <input type="password" name="senha" id="password-user-value" required
+                                placeholder="Mínimo 6 caracteres e 1 especial" autocomplete="new-password">
+                            <button class="save-button" type="submit">Salvar nova senha</button>
+                        </form>
+                    </div>
+                </div>
+
                 {{ if gt .TotalPages 1 }}
 
                 <div class="pagination">
@@ -292,10 +341,12 @@
             const closeCreate = document.getElementById('close-create-user');
             const editModal = document.getElementById('edit-user-modal');
             const closeEdit = document.getElementById('close-edit-user');
+            const passwordModal = document.getElementById('password-user-modal');
+            const closePassword = document.getElementById('close-password-user');
 
             const lockScroll = function () {
                 document.body.style.overflow =
-                    (!createModal.hidden || !editModal.hidden) ? 'hidden' : '';
+                    (!createModal.hidden || !editModal.hidden || !passwordModal.hidden) ? 'hidden' : '';
             };
 
             const openModal = function (modal, focusEl) {
@@ -342,6 +393,27 @@
             }
             editModal.addEventListener('click', function (event) {
                 if (event.target === editModal) closeModal(editModal);
+            });
+
+            // O botão de senha usa data-password-id, e não data-id, para não
+            // ser capturado pelo seletor do modal de permissão acima.
+            const passwordIdField = document.getElementById('password-user-id');
+            const passwordNameField = document.getElementById('password-user-name-display');
+            const passwordValueField = document.getElementById('password-user-value');
+
+            document.querySelectorAll('.edit-material-button[data-password-id]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    passwordIdField.value = button.dataset.passwordId;
+                    passwordNameField.value = button.dataset.passwordName;
+                    passwordValueField.value = '';
+                    openModal(passwordModal, passwordValueField);
+                });
+            });
+            if (closePassword) {
+                closePassword.addEventListener('click', function () { closeModal(passwordModal); });
+            }
+            passwordModal.addEventListener('click', function (event) {
+                if (event.target === passwordModal) closeModal(passwordModal);
             });
 
             document.addEventListener('keydown', function (event) {
