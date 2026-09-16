@@ -73,6 +73,7 @@ document.addEventListener("DOMContentLoaded", function () {
     initMobileNavigation();
     initResponsiveTableLabels();
     initCurrentYear();
+    initLoginLockCountdown();
     const password = document.getElementById("password");
     const togglePassword = document.getElementById("togglePassword");
     const eyeIcon = document.getElementById("eyeIcon");
@@ -347,6 +348,36 @@ function animateLoginError() {
     setTimeout(function () {
         card.classList.add("gs-shake");
     }, 900);
+}
+
+// Conta os segundos que faltam para o login liberar de novo, depois de
+// tentativas erradas demais. Quem realmente recusa a tentativa é o
+// servidor: isto só mostra a espera e evita que a pessoa insista num
+// formulário que seria recusado de qualquer jeito. Se o JavaScript não
+// rodar, o servidor continua recusando — só sem o contador.
+function initLoginLockCountdown() {
+    const alert = document.querySelector(".login-alert[data-login-lock]");
+    if (!alert) return;
+
+    const output = alert.querySelector("[data-login-countdown]");
+    const submit = document.querySelector(".login-card form button[type=\"submit\"]");
+    let remaining = parseInt(alert.dataset.loginLock, 10);
+    if (!output || !submit || !(remaining > 0)) return;
+
+    submit.disabled = true;
+
+    const tick = setInterval(function () {
+        remaining -= 1;
+
+        if (remaining > 0) {
+            output.textContent = remaining;
+            return;
+        }
+
+        clearInterval(tick);
+        submit.disabled = false;
+        alert.remove();
+    }, 1000);
 }
 
 // Troca os confirm() nativos do navegador (feios e sem estilo) por um

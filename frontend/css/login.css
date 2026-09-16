@@ -637,6 +637,15 @@
     font-weight: var(--weight-semibold);
 }
 
+/* O número da contagem regressiva muda a cada segundo. Com dígitos de
+   largura fixa (tabular-nums) ele não empurra o texto ao lado a cada
+   troca, e a frase para de tremer. */
+.login-lock-timer {
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text);
+}
+
 .login-alert small {
     display: block;
     margin-top: 2px;

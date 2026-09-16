@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
     <link rel="stylesheet" href="/css/components.css?v=11">
-    <link rel="stylesheet" href="/css/login.css?v=10">
+    <link rel="stylesheet" href="/css/login.css?v=11">
 </head>
 
 <body>
@@ -160,8 +160,13 @@
 
     </main>
 
-    {{ if .Error }}
-    <div class="login-alert" role="alert" aria-live="assertive">
+    <!-- O mesmo aviso serve para os dois casos: senha errada e espera por
+         tentativas demais. No segundo, data-login-lock leva os segundos
+         que o servidor ainda vai recusar, e o app.js usa esse número para
+         a contagem regressiva e para desabilitar o botão. -->
+    {{ if or .Error (gt .LockSeconds 0) }}
+    <div class="login-alert" role="alert" aria-live="assertive"
+        {{ if gt .LockSeconds 0 }}data-login-lock="{{ .LockSeconds }}"{{ end }}>
         <span class="login-alert-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                 stroke-linejoin="round">
@@ -171,13 +176,21 @@
             </svg>
         </span>
         <span>
+            {{ if gt .LockSeconds 0 }}
+            <strong>Muitas tentativas seguidas</strong>
+            <small>
+                Aguarde <span class="login-lock-timer" data-login-countdown>{{ .LockSeconds }}</span>s
+                para tentar de novo.
+            </small>
+            {{ else }}
             <strong>Não foi possível entrar</strong>
             <small>{{ .Error }}</small>
+            {{ end }}
         </span>
     </div>
     {{ end }}
 
-    <script src="/js/app.js?v=12"></script>
+    <script src="/js/app.js?v=13"></script>
 
 </body>
 

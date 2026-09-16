@@ -10,6 +10,31 @@ import (
 	"uchoastock/backend/services"
 )
 
+// loginPageData é o que a tela de login espera receber. LockSeconds
+// maior que zero avisa quanto tempo falta para liberar; quem de fato
+// recusa a tentativa antes disso é o servidor, não a tela.
+type loginPageData struct {
+	Email       string
+	Error       string
+	LockSeconds int
+}
+
+// renderLogin desenha a tela de login. Existe porque ela é devolvida em
+// três situações diferentes (tela inicial, senha errada e espera), e
+// repetir o ParseFiles em cada uma já tinha começado a divergir.
+func renderLogin(w http.ResponseWriter, status int, data loginPageData) {
+	tmpl, err := template.ParseFiles("frontend/html/index.html")
+	if err != nil {
+		http.Error(w, "Erro ao carregar tela de login", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(status)
+	if err := tmpl.Execute(w, data); err != nil {
+		http.Error(w, "Erro ao renderizar tela de login", http.StatusInternalServerError)
+	}
+}
+
 // indexHandler exibe a tela de login (rota "/").
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
@@ -17,18 +42,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmpl, err := template.ParseFiles("frontend/html/index.html")
-	if err != nil {
-		http.Error(w, "Erro ao carregar tela de login", http.StatusInternalServerError)
-		return
-	}
-
-	if err := tmpl.Execute(w, struct {
-		Email string
-		Error string
-	}{}); err != nil {
-		http.Error(w, "Erro ao renderizar tela de login", http.StatusInternalServerError)
-	}
+	renderLogin(w, http.StatusOK, loginPageData{})
 }
 
 // loginHandler processa o formulário de login.
@@ -42,23 +56,28 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	email := r.FormValue("email")
 	password := r.FormValue("senha")
 
+	// A espera é conferida antes da senha. Durante o bloqueio não há o
+	// que ganhar conferindo o hash, e não conferir também evita que o
+	// tempo de resposta denuncie se o email existe ou não.
+	if seconds := services.LoginLockSeconds(email); seconds > 0 {
+		renderLogin(w, http.StatusTooManyRequests, loginPageData{Email: email, LockSeconds: seconds})
+		return
+	}
+
 	user, success := services.AuthenticateUser(email, password)
 	if !success {
-		tmpl, err := template.ParseFiles("frontend/html/index.html")
-		if err != nil {
-			http.Error(w, "Erro ao carregar tela de login", http.StatusInternalServerError)
+		seconds := services.RegisterFailedLogin(email)
+		if seconds > 0 {
+			renderLogin(w, http.StatusTooManyRequests, loginPageData{Email: email, LockSeconds: seconds})
 			return
 		}
 
-		w.WriteHeader(http.StatusUnauthorized)
-		if err := tmpl.Execute(w, struct {
-			Email string
-			Error string
-		}{email, "Email ou senha incorretos."}); err != nil {
-			http.Error(w, "Erro ao renderizar tela de login", http.StatusInternalServerError)
-		}
+		renderLogin(w, http.StatusUnauthorized, loginPageData{Email: email, Error: "Email ou senha incorretos."})
 		return
 	}
+
+	// Entrou: os erros anteriores deixam de contar.
+	services.ClearLoginAttempts(email)
 
 	token, err := createSession(user.ID)
 	if err != nil {
