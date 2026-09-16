@@ -182,7 +182,7 @@
                                         Protegido
                                     </span>
 
-                                    {{ else if $.CanManageUsers }}
+                                    {{ else if index $.Manageable .ID }}
 
                                     <button
                                         class="edit-material-button"
@@ -218,6 +218,20 @@
                                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg>
                                         </button>
                                     </form>
+
+                                    {{ else if eq .ID $.UserID }}
+
+                                    <!-- Fora do alcance da própria gestão (o gestor, por
+                                         exemplo), mas a própria senha sempre dá para trocar. -->
+                                    <button
+                                        class="edit-material-button"
+                                        type="button"
+                                        title="Trocar senha"
+                                        aria-label="Trocar a senha de {{ .Name }}"
+                                        data-password-id="{{ .ID }}"
+                                        data-password-name="{{ .Name }}">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.85 12.15 19 4"></path><path d="M18 5l2 2"></path><path d="M15 8l2 2"></path></svg>
+                                    </button>
 
                                     {{ else }}
 
@@ -269,7 +283,7 @@
                                 <label for="new-user-site">Obra</label>
                                 <select name="obra_id" id="new-user-site" data-searchable data-search-placeholder="Buscar obra...">
                                     <option value="0">Nenhuma</option>
-                                    {{ range .Scope.Sites }}<option value="{{ .ID }}"{{ if eq .ID $.SiteID }} selected{{ end }}>{{ .Name }}{{ if eq .Status "CONCLUIDA" }} (concluída){{ end }}</option>{{ end }}
+                                    {{ range .Sites }}<option value="{{ .ID }}"{{ if eq .ID $.SiteID }} selected{{ end }}>{{ .Name }}{{ if eq .Status "CONCLUIDA" }} (concluída){{ end }}</option>{{ end }}
                                 </select>
                                 <small class="role-help">Gestor e almoxarife registram entrada e saída só desta obra; solicitante e auditor consultam. Todos entram no sistema por ela.</small>
                             </div>
@@ -300,7 +314,7 @@
                                 <label for="edit-user-site">Obra</label>
                                 <select name="obra_id" id="edit-user-site" data-searchable data-search-placeholder="Buscar obra...">
                                     <option value="0">Nenhuma</option>
-                                    {{ range .Scope.Sites }}<option value="{{ .ID }}">{{ .Name }}{{ if eq .Status "CONCLUIDA" }} (concluída){{ end }}</option>{{ end }}
+                                    {{ range .Sites }}<option value="{{ .ID }}">{{ .Name }}{{ if eq .Status "CONCLUIDA" }} (concluída){{ end }}</option>{{ end }}
                                 </select>
                                 <small class="role-help">Administrador não tem obra: ele vê e gerencia todas.</small>
                             </div>

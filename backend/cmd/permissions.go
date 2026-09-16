@@ -90,3 +90,62 @@ func can(u *models.User, p Permission) bool {
 	}
 	return false
 }
+
+// assignableRoles devolve os cargos que actor pode dar, na ordem do
+// dropdown. Sem PermManageUsers, nenhum.
+func assignableRoles(actor *models.User) []struct{ Value, Label string } {
+	var roles []struct{ Value, Label string }
+	for _, role := range services.RoleLabels {
+		if canAssignRole(actor, role.Value) {
+			roles = append(roles, role)
+		}
+	}
+	return roles
+}
+
+// canAssignRole indica se actor pode dar o cargo role a alguém, no
+// cadastro ou na edição. SuperAdmin nunca é dado pela tela.
+func canAssignRole(actor *models.User, role string) bool {
+	if !can(actor, PermManageUsers) {
+		return false
+	}
+	role = strings.ToLower(strings.TrimSpace(role))
+	if role == services.RoleSuperadmin {
+		return false
+	}
+	allowed, limited := manageableRoles[normalizedRole(actor)]
+	if !limited {
+		return true
+	}
+	for _, r := range allowed {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+// canAssignSite indica se actor pode vincular alguém à obra siteID. Quem
+// não tem PermAllSites só vincula à própria obra (ou a nenhuma): senão um
+// gestor criaria um almoxarife em outra obra e movimentaria o estoque dela
+// por tabela.
+func canAssignSite(actor *models.User, siteID int) bool {
+	return can(actor, PermAllSites) || siteID == 0 || siteID == actor.SiteID
+}
+
+// canManageUser indica se actor pode alterar o cargo e a obra, trocar a
+// senha e remover a conta target. O SuperAdmin é intocável; o gestor só
+// mexe em quem tem um cargo que ele poderia dar (almoxarife e
+// solicitante), e só na obra dele.
+func canManageUser(actor, target *models.User) bool {
+	if actor == nil || target == nil || !can(actor, PermManageUsers) {
+		return false
+	}
+	if normalizedRole(target) == services.RoleSuperadmin {
+		return false
+	}
+	if !canAssignRole(actor, target.Role) {
+		return false
+	}
+	return can(actor, PermAllSites) || target.SiteID == 0 || target.SiteID == actor.SiteID
+}
