@@ -254,11 +254,13 @@ func UpdateMaterialWeb(materialID int, name string, unit string, minimum float64
 	return tx.Commit()
 }
 
-// DeleteMaterialWeb remove o material do catálogo (ativo = 0). Material
-// com saldo em alguma obra não pode ser removido: ele sumiria das telas
-// com o estoque ainda lá, e ninguém conseguiria mais registrar a saída.
-// A checagem e a remoção ficam na mesma transação, para uma entrada que
-// chegue no meio não passar despercebida.
+// DeleteMaterialWeb remove o material do catálogo (ativo = 0). Não pode
+// ser removido material com saldo em alguma obra (ele sumiria das telas
+// com o estoque ainda lá, e ninguém conseguiria mais registrar a saída)
+// nem material que está numa requisição em aberto (pendente, aprovada ou
+// parcial): o item ficaria impossível de atender. A checagem e a remoção
+// ficam na mesma transação, para uma entrada ou requisição que chegue no
+// meio não passar despercebida.
 func DeleteMaterialWeb(materialID int) error {
 	tx, err := database.DB.Begin()
 	if err != nil {
@@ -283,18 +285,37 @@ func DeleteMaterialWeb(materialID int) error {
 		return fmt.Errorf("material não encontrado")
 	}
 
-	var sites int
+	var sites, openRequests int
 	if err := tx.QueryRow(`
 		SELECT COUNT(*) FROM saldos WHERE produto_id = ? AND quantidade > 0
 	`, materialID).Scan(&sites); err != nil {
 		return err
 	}
-	// O return antes do Commit desfaz o UPDATE acima (defer tx.Rollback).
+	if err := tx.QueryRow(`
+		SELECT COUNT(DISTINCT r.id)
+		FROM requisicao_itens i
+		JOIN requisicoes r ON r.id = i.requisicao_id
+		WHERE i.produto_id = ? AND r.status IN (?, ?, ?)
+	`, materialID, RequestPending, RequestApproved, RequestPartial).Scan(&openRequests); err != nil {
+		return err
+	}
+
+	var blockers []string
 	if sites == 1 {
-		return fmt.Errorf("não é possível remover: o material ainda tem saldo em 1 obra. Registre a saída antes de remover")
+		blockers = append(blockers, "o material ainda tem saldo em 1 obra. Registre a saída antes de remover.")
 	}
 	if sites > 1 {
-		return fmt.Errorf("não é possível remover: o material ainda tem saldo em %d obras. Registre as saídas antes de remover", sites)
+		blockers = append(blockers, fmt.Sprintf("o material ainda tem saldo em %d obras. Registre as saídas antes de remover.", sites))
+	}
+	if openRequests == 1 {
+		blockers = append(blockers, "o material está em 1 requisição em aberto (pendente, aprovada ou parcial). Atenda, rejeite ou cancele antes de remover.")
+	}
+	if openRequests > 1 {
+		blockers = append(blockers, fmt.Sprintf("o material está em %d requisições em aberto (pendentes, aprovadas ou parciais). Atenda, rejeite ou cancele antes de remover.", openRequests))
+	}
+	// O return antes do Commit desfaz o UPDATE acima (defer tx.Rollback).
+	if len(blockers) > 0 {
+		return fmt.Errorf("não é possível remover: %s", strings.Join(blockers, " "))
 	}
 
 	return tx.Commit()

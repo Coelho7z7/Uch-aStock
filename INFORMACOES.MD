@@ -156,8 +156,10 @@ Solicitante (solicitante), Auditor (auditor).
   superadmin): material.editar cadastra e edita nome, unidade e limite
   mínimo; material.remover remove. Gestor e almoxarife só movimentam o
   estoque (entrada e saída) na própria obra.
-- Material com saldo > 0 em qualquer obra não pode ser removido, nem pelo
-  admin: a mensagem diz em quantas obras ainda há saldo.
+- Material com saldo > 0 em qualquer obra, ou que esteja numa requisição
+  em aberto (pendente, aprovada ou parcial), não pode ser removido, nem
+  pelo admin: a mensagem diz em quantas obras há saldo e em quantas
+  requisições ele está.
 - O limite mínimo (produtos.limite_minimo) é um campo único do material,
   igual para todas as obras. Por isso também fica só com o admin. Se um
   dia precisar ser por obra, é mudança de schema (coluna em saldos).
@@ -260,8 +262,9 @@ Regras (conferidas no service, não só na tela):
   a nova situação (ATENDIDA se todos completaram, senão PARCIAL) e grava o
   evento ATENDIMENTO com o resumo. Qualquer falha (saldo insuficiente num
   item, por exemplo) desfaz tudo.
-- Material removido depois da criação: a requisição continua visível, mas
-  aquele item não pode ser atendido.
+- Material em requisição em aberto não pode ser removido do catálogo. Se
+  um item ficar com material removido (dado antigo, ou removido direto no
+  banco), a requisição continua visível, mas aquele item não é atendido.
 - Corrida: aprovar, rejeitar, cancelar e atender mudam a situação com
   UPDATE ... WHERE id = ? AND status IN (...) e conferem RowsAffected. Se
   outra pessoa mudou antes, a ação é recusada ("a requisição mudou

@@ -791,3 +791,65 @@ func TestGetRequestItemsAndHistory(t *testing.T) {
 		t.Errorf("histórico = %+v", request.Events)
 	}
 }
+
+// Material em requisição em aberto não pode ser removido do catálogo; em
+// requisição rejeitada, atendida ou cancelada, pode.
+func TestDeleteMaterialBlockedByOpenRequests(t *testing.T) {
+	f := setupRequests(t)
+	// Sem saldo em lugar nenhum, para testar só a regra das requisições.
+	nail := createTestMaterial(t, f.admin.UserID, "Prego", 0, 1)
+	item := RequestItemInput{MaterialID: nail, Quantity: 3}
+	isActive := func() bool {
+		t.Helper()
+		return countRows(t, `SELECT COUNT(*) FROM produtos WHERE id = ? AND ativo = 1`, nail) == 1
+	}
+
+	pending := newRequest(t, f.requester, f.siteA, item)
+	err := DeleteMaterialWeb(nail)
+	if err == nil || !strings.Contains(err.Error(), "está em 1 requisição em aberto") {
+		t.Errorf("com 1 requisição pendente: erro = %v", err)
+	}
+
+	approved := newRequest(t, f.manager, f.siteA, item)
+	if err := ApproveRequest(f.admin, approved); err != nil {
+		t.Fatal(err)
+	}
+	err = DeleteMaterialWeb(nail)
+	if err == nil || !strings.Contains(err.Error(), "está em 2 requisições em aberto") {
+		t.Errorf("com pendente e aprovada: erro = %v", err)
+	}
+	if !isActive() {
+		t.Fatal("a remoção recusada desativou o material")
+	}
+
+	// Saldo e requisição juntos: a mensagem fala dos dois.
+	if err := AddStockWeb(nail, f.siteA, 1, f.admin.UserID, ""); err != nil {
+		t.Fatal(err)
+	}
+	err = DeleteMaterialWeb(nail)
+	if err == nil || !strings.Contains(err.Error(), "saldo em 1 obra") || !strings.Contains(err.Error(), "2 requisições em aberto") {
+		t.Errorf("com saldo e requisições: erro = %v", err)
+	}
+	if _, err := ServeRequest(f.storekeeper, approved, []RequestDelivery{{itemIDOf(t, approved, nail), 1}}); err != nil {
+		t.Fatal(err)
+	}
+	// Parcial continua contando.
+	err = DeleteMaterialWeb(nail)
+	if err == nil || !strings.Contains(err.Error(), "2 requisições em aberto") || strings.Contains(err.Error(), "saldo") {
+		t.Errorf("com parcial e pendente, sem saldo: erro = %v", err)
+	}
+
+	// Rejeitada e cancelada não contam mais.
+	if err := RejectRequest(f.manager, pending, "não precisa"); err != nil {
+		t.Fatal(err)
+	}
+	if err := CancelRequest(f.manager, approved); err != nil {
+		t.Fatal(err)
+	}
+	if err := DeleteMaterialWeb(nail); err != nil {
+		t.Errorf("sem requisição em aberto e sem saldo, deveria remover: %v", err)
+	}
+	if isActive() {
+		t.Error("o material deveria ter sido removido")
+	}
+}
