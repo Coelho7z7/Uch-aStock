@@ -2,6 +2,7 @@ package main
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 
 	"uchoastock/backend/models"
@@ -90,6 +91,31 @@ func requestActor(user *models.User) services.RequestActor {
 		CanServe:   can(user, PermServeRequest),
 		ApproveOwn: can(user, PermApproveOwnRequest),
 	}
+}
+
+// renderNotFound responde 404 com a página "não encontrada" no visual do
+// sistema. É a mesma resposta para um endereço que não existe e para uma
+// requisição fora do alcance: quem pede não fica sabendo se ela existe.
+// Com user nil (sem sessão), a página mostra só o cartão, sem a barra
+// lateral.
+func renderNotFound(w http.ResponseWriter, r *http.Request, user *models.User) {
+	data := struct {
+		User           *models.User
+		Scope          siteScope
+		Nav            navData
+		CanManageUsers bool
+	}{User: user}
+
+	if user != nil {
+		scope, err := resolveSiteScope(r, user)
+		if err != nil {
+			log.Println("erro ao descobrir a obra da sessão na página 404:", err)
+		}
+		data.Scope = scope
+		data.Nav = buildNav(user, scope)
+		data.CanManageUsers = can(user, PermManageUsers)
+	}
+	renderPage(w, http.StatusNotFound, "frontend/html/not_found.html", data)
 }
 
 // renderAccessDenied responde 403 com a tela de acesso negado.

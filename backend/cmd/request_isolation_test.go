@@ -254,3 +254,52 @@ func TestApproveOwnRequestOverHTTP(t *testing.T) {
 		t.Errorf("gestor aprovando a requisição do admin: status %d", response.Code)
 	}
 }
+
+// TestNotFoundPage: requisição de outra obra, requisição que não existe e
+// ID inválido mostram a mesma página 404, no layout do sistema. A resposta
+// é idêntica nos dois primeiros casos, para não revelar que a requisição
+// existe. Sem sessão, um endereço desconhecido mostra só o cartão.
+func TestNotFoundPage(t *testing.T) {
+	f := setupRequestHTTP(t)
+
+	otherSite := requestCall(f.managerToken, http.MethodGet, f.pendingB, nil)
+	missing := requestCall(f.managerToken, http.MethodGet, 999999, nil)
+	for name, response := range map[string]*httptest.ResponseRecorder{"outra obra": otherSite, "inexistente": missing} {
+		body := response.Body.String()
+		if response.Code != http.StatusNotFound || !strings.Contains(body, "Página não encontrada") || !strings.Contains(body, `class="sidebar"`) {
+			t.Errorf("%s: status %d, sem a página 404 no layout do sistema", name, response.Code)
+		}
+	}
+	// O seletor de obra guarda o endereço atual (para voltar a ele), que é o
+	// próprio número digitado; fora isso, as duas respostas são iguais.
+	otherBody := strings.ReplaceAll(otherSite.Body.String(), fmt.Sprintf("/requisicoes/%d", f.pendingB), "/requisicoes/N")
+	missingBody := strings.ReplaceAll(missing.Body.String(), "/requisicoes/999999", "/requisicoes/N")
+	if otherBody != missingBody {
+		t.Error("a 404 de uma requisição de outra obra é diferente da 404 de uma inexistente: revela que ela existe")
+	}
+
+	invalid := httptest.NewRequest(http.MethodGet, "/requisicoes/abc", nil)
+	invalid.SetPathValue("id", "abc")
+	invalid.AddCookie(&http.Cookie{Name: "sessao", Value: f.managerToken})
+	recorder := httptest.NewRecorder()
+	withUser(requestDetailHandler).ServeHTTP(recorder, invalid)
+	if recorder.Code != http.StatusNotFound || !strings.Contains(recorder.Body.String(), "Página não encontrada") {
+		t.Errorf("ID inválido: status %d", recorder.Code)
+	}
+
+	// Endereço desconhecido: com sessão, layout; sem sessão, só o cartão.
+	loggedIn := httptest.NewRequest(http.MethodGet, "/nao-existe", nil)
+	loggedIn.AddCookie(&http.Cookie{Name: "sessao", Value: f.managerToken})
+	recorder = httptest.NewRecorder()
+	indexHandler(recorder, loggedIn)
+	if recorder.Code != http.StatusNotFound || !strings.Contains(recorder.Body.String(), `class="sidebar"`) {
+		t.Errorf("endereço desconhecido com sessão: status %d, sem o layout", recorder.Code)
+	}
+
+	recorder = httptest.NewRecorder()
+	indexHandler(recorder, httptest.NewRequest(http.MethodGet, "/nao-existe", nil))
+	body := recorder.Body.String()
+	if recorder.Code != http.StatusNotFound || !strings.Contains(body, "Página não encontrada") || strings.Contains(body, `class="sidebar"`) {
+		t.Errorf("endereço desconhecido sem sessão: status %d, esperado só o cartão", recorder.Code)
+	}
+}

@@ -56,11 +56,11 @@ func buildNav(user *models.User, scope siteScope) navData {
 // requisições. Devolve a mensagem para a tela e true quando a tela deve
 // ser mostrada de novo com ela; false quando a resposta já foi enviada
 // (404, 403 ou 500).
-func requestErrorResponse(w http.ResponseWriter, r *http.Request, err error) (string, bool) {
+func requestErrorResponse(w http.ResponseWriter, r *http.Request, user *models.User, err error) (string, bool) {
 	var inputErr services.RequestInputError
 	switch {
 	case errors.Is(err, services.ErrRequestNotFound):
-		http.NotFound(w, r)
+		renderNotFound(w, r, user)
 		return "", false
 	case errors.Is(err, services.ErrRequestForbidden):
 		renderAccessDenied(w)
@@ -263,7 +263,7 @@ func newRequestHandler(w http.ResponseWriter, r *http.Request, user *models.User
 				http.Redirect(w, r, fmt.Sprintf("/requisicoes/%d?sucesso=criada", id), http.StatusSeeOther)
 				return
 			}
-			message, show := requestErrorResponse(w, r, err)
+			message, show := requestErrorResponse(w, r, user, err)
 			if !show {
 				return
 			}
@@ -356,7 +356,7 @@ func materialSuffix(names map[int]string, materialID int) string {
 func requestDetailHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil || id <= 0 {
-		http.NotFound(w, r)
+		renderNotFound(w, r, user)
 		return
 	}
 	scope, ok := requireSiteScope(w, r, user)
@@ -368,7 +368,7 @@ func requestDetailHandler(w http.ResponseWriter, r *http.Request, user *models.U
 	request, err := services.GetRequest(actor, id)
 	if err != nil {
 		// GetRequest só devolve "não encontrada" (404) ou erro do banco (500).
-		requestErrorResponse(w, r, err)
+		requestErrorResponse(w, r, user, err)
 		return
 	}
 
@@ -456,7 +456,7 @@ func requestDetailHandler(w http.ResponseWriter, r *http.Request, user *models.U
 			http.Redirect(w, r, fmt.Sprintf("/requisicoes/%d?sucesso=%s", id, url.QueryEscape(success)), http.StatusSeeOther)
 			return
 		}
-		message, show := requestErrorResponse(w, r, actionErr)
+		message, show := requestErrorResponse(w, r, user, actionErr)
 		if !show {
 			return
 		}

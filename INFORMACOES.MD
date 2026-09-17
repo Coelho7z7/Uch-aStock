@@ -67,6 +67,7 @@ html/
 - request_detail.html — detalhe da requisição (aprovar, rejeitar, atender, cancelar)
 - users.html — usuários
 - access_denied.html — acesso negado
+- not_found.html — página 404 (com sessão, no layout do sistema; sem sessão, só o cartão). Também é a resposta para requisição fora do alcance
 
 css/  (design system — a ordem dos <link> importa, é cascata)
 - tokens.css — :root: cores, espaçamento, tipografia, raios, sombras

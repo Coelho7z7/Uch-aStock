@@ -39,7 +39,10 @@ func renderLogin(w http.ResponseWriter, status int, data loginPageData) {
 // indexHandler exibe a tela de login (rota "/").
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
-		http.NotFound(w, r)
+		// Endereço que não existe. Com sessão, a 404 aparece no layout do
+		// sistema; sem sessão, só o cartão.
+		user, _ := loggedUser(r)
+		renderNotFound(w, r, user)
 		return
 	}
 
