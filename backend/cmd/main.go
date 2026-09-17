@@ -218,6 +218,19 @@ func verifyStock(args []string, out io.Writer) int {
 	}
 
 	fmt.Fprintln(out, "Banco:", database.Path())
+	code := stockChecks(out, *migrate)
+
+	// A conferência de texto só lê e roda em qualquer caso, inclusive
+	// quando o estoque acusou problema: um não esconde o outro.
+	if textCode := reportInvalidTexts(out); textCode > code {
+		code = textCode
+	}
+	return code
+}
+
+// stockChecks faz as conferências de estoque e de chave estrangeira do
+// verify-stock (com ou sem --migrate) e devolve o código de saída.
+func stockChecks(out io.Writer, migrate bool) int {
 
 	migrated, err := database.StockMigrated()
 	if err != nil {
@@ -225,7 +238,7 @@ func verifyStock(args []string, out io.Writer) int {
 		return 1
 	}
 
-	if !*migrate {
+	if !migrate {
 		if !migrated {
 			fmt.Fprintln(out, "ERRO: este banco ainda não foi migrado para o saldo por obra (falta a tabela saldos ou a coluna movimentacoes.obra_id).")
 			fmt.Fprintln(out, "Nada foi alterado. Para migrar uma CÓPIA e conferir o resultado, rode de novo com --migrate.")
@@ -384,4 +397,26 @@ func writeSnapshotCSV(path string, snapshot services.StockSnapshot) error {
 		return err
 	}
 	return file.Close()
+}
+
+// reportInvalidTexts lista os textos de produtos, obras e usuarios que não
+// são UTF-8 válido, com o texto provável lido como Latin-1 (a codificação
+// do Windows em português). Só lê: a correção é manual, com o texto certo
+// (ver INFORMACOES.MD).
+func reportInvalidTexts(out io.Writer) int {
+	texts, err := database.InvalidUTF8Texts()
+	if err != nil {
+		fmt.Fprintln(out, "Erro ao conferir a codificação dos textos:", err)
+		return 1
+	}
+	if len(texts) == 0 {
+		fmt.Fprintln(out, "Textos: todos em UTF-8 válido (produtos, obras, usuarios).")
+		return 0
+	}
+	for _, t := range texts {
+		fmt.Fprintf(out, "  PROBLEMA: texto que não é UTF-8 em %s #%d, coluna %s: %q (lido como Latin-1: %q)\n",
+			t.Table, t.RowID, t.Column, string(t.Raw), t.Latin1())
+	}
+	fmt.Fprintf(out, "%d texto(s) fora de UTF-8. Nada foi alterado: corrija com o texto certo (ver INFORMACOES.MD).\n", len(texts))
+	return 1
 }

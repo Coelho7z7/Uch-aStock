@@ -226,3 +226,38 @@ func TestVerifyStockChecksRequestTables(t *testing.T) {
 		t.Errorf("a saída deveria apontar requisicao_itens:\n%s", out.String())
 	}
 }
+
+// O verify-stock (sem --migrate, só lendo) aponta o texto que não é UTF-8,
+// com o palpite em Latin-1, e sai com código 1. Com os textos certos, sai 0.
+func TestVerifyStockReportsInvalidTexts(t *testing.T) {
+	t.Setenv("DB_PATH", filepath.Join(t.TempDir(), "migrado.db"))
+	if err := database.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { database.DB.Close() })
+	if err := database.CreateTables(); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	if code := verifyStock(nil, &out); code != 0 || !strings.Contains(out.String(), "todos em UTF-8 válido") {
+		t.Fatalf("banco limpo: código %d\n%s", code, out.String())
+	}
+
+	if _, err := database.DB.Exec(`INSERT INTO produtos (nome, quantidade, unidade) VALUES (CAST(X'56657267616c68e36f' AS TEXT), 0, 'un')`); err != nil {
+		t.Fatal(err)
+	}
+	before := schemaAndData(t)
+	out.Reset()
+	code := verifyStock(nil, &out)
+	if code != 1 {
+		t.Errorf("com texto inválido: código %d, esperado 1\n%s", code, out.String())
+	}
+	want := `texto que não é UTF-8 em produtos #1, coluna nome: "Vergalh\xe3o" (lido como Latin-1: "Vergalhão")`
+	if !strings.Contains(out.String(), want) {
+		t.Errorf("saída sem o texto inválido:\n%s", out.String())
+	}
+	if schemaAndData(t) != before {
+		t.Error("a conferência de texto alterou o banco")
+	}
+}

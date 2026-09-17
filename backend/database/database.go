@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
+	"unicode/utf8"
 
 	_ "gosqlite.org"
 )
@@ -135,6 +137,90 @@ func ForeignKeyViolations() ([]ForeignKeyViolation, error) {
 		violations = append(violations, v)
 	}
 	return violations, rows.Err()
+}
+
+// InvalidText é um texto gravado com bytes que não são UTF-8 válido.
+type InvalidText struct {
+	Table  string
+	RowID  int64
+	Column string
+	Raw    []byte
+}
+
+// Latin1 lê o texto como Latin-1 (ISO-8859-1): cada byte que não forma
+// UTF-8 vira o caractere de mesmo número. É o palpite do texto certo
+// quando ele veio de um programa do Windows em português ("ã" = 0xE3).
+func (t InvalidText) Latin1() string {
+	var out []rune
+	for raw := t.Raw; len(raw) > 0; {
+		r, size := utf8.DecodeRune(raw)
+		if r == utf8.RuneError && size <= 1 {
+			r, size = rune(raw[0]), 1
+		}
+		out = append(out, r)
+		raw = raw[size:]
+	}
+	return string(out)
+}
+
+// invalidTextColumns são as colunas de texto conferidas por
+// InvalidUTF8Texts: as que alguém digita e aparecem na tela.
+var invalidTextColumns = []struct {
+	table   string
+	columns []string
+}{
+	{"produtos", []string{"nome", "unidade"}},
+	{"obras", []string{"nome", "cidade", "responsavel"}},
+	{"usuarios", []string{"nome", "email"}},
+}
+
+// InvalidUTF8Texts lista os textos de produtos, obras e usuarios que não
+// são UTF-8 válido. O SQLite guarda o que recebe, byte a byte: um programa
+// que mande "ã" em Latin-1 grava um texto que o navegador mostra como "�".
+// Tabela que ainda não existe (banco antigo) é pulada. Só lê.
+func InvalidUTF8Texts() ([]InvalidText, error) {
+	var found []InvalidText
+	for _, target := range invalidTextColumns {
+		var exists int
+		if err := DB.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, target.table).Scan(&exists); err != nil {
+			return nil, err
+		}
+		if exists == 0 {
+			continue
+		}
+
+		// Nomes de tabela e coluna vêm da lista fixa acima, nunca do
+		// usuário. CAST AS BLOB devolve os bytes como estão gravados.
+		selects := make([]string, len(target.columns))
+		for i, column := range target.columns {
+			selects[i] = "CAST(" + column + " AS BLOB)"
+		}
+		rows, err := DB.Query(fmt.Sprintf("SELECT id, %s FROM %s ORDER BY id", strings.Join(selects, ", "), target.table))
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var id int64
+			values := make([][]byte, len(target.columns))
+			pointers := []any{&id}
+			for i := range values {
+				pointers = append(pointers, &values[i])
+			}
+			if err := rows.Scan(pointers...); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			for i, value := range values {
+				if !utf8.Valid(value) {
+					found = append(found, InvalidText{Table: target.table, RowID: id, Column: target.columns[i], Raw: value})
+				}
+			}
+		}
+		if err := rows.Close(); err != nil {
+			return nil, err
+		}
+	}
+	return found, nil
 }
 
 // TablesWithForeignKeys lista, em ordem alfabética, as tabelas que têm

@@ -687,3 +687,52 @@ func TestTablesWithForeignKeysIncludesRequests(t *testing.T) {
 		t.Errorf("tabelas com chave estrangeira = %s, esperado %s", got, want)
 	}
 }
+
+// TestInvalidUTF8Texts grava, por baixo, textos em Latin-1 (como um
+// programa do Windows faria) e confere que só eles aparecem, com o palpite
+// do texto certo. Acentos em UTF-8 de verdade não são acusados.
+func TestInvalidUTF8Texts(t *testing.T) {
+	openTestDB(t)
+	if err := CreateTables(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DB.Exec(`
+		INSERT INTO produtos (nome, quantidade, unidade) VALUES
+			('Bloco cerâmico', 0, 'un'),
+			(CAST(X'56657267616c68e36f' AS TEXT), 0, 'un');
+		INSERT INTO obras (nome, cidade) VALUES ('Obra Uchôa', CAST(X'4d616365696f' AS TEXT));
+		INSERT INTO obras (nome, responsavel) VALUES ('Obra B', CAST(X'4d61636569f3' AS TEXT));
+		INSERT INTO usuarios (nome, email, senha, role) VALUES
+			(CAST(X'4a6fe36f' AS TEXT), 'joao@empresa.com', 'x', 'solicitante'),
+			('Conceição', 'conceicao@empresa.com', 'x', 'solicitante');
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	texts, err := InvalidUTF8Texts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, text := range texts {
+		got = append(got, fmt.Sprintf("%s.%s=%s", text.Table, text.Column, text.Latin1()))
+	}
+	want := "produtos.nome=Vergalhão,obras.responsavel=Maceió,usuarios.nome=João"
+	if strings.Join(got, ",") != want {
+		t.Errorf("textos inválidos = %q, esperado %q", strings.Join(got, ","), want)
+	}
+	if len(texts) > 0 && texts[0].RowID != 2 {
+		t.Errorf("ID do material = %d, esperado 2", texts[0].RowID)
+	}
+}
+
+// Banco antigo, sem a tabela obras: a conferência pula a tabela.
+func TestInvalidUTF8TextsSkipsMissingTables(t *testing.T) {
+	openTestDB(t)
+	if _, err := DB.Exec(`CREATE TABLE produtos (id INTEGER PRIMARY KEY, nome TEXT, unidade TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	if texts, err := InvalidUTF8Texts(); err != nil || len(texts) != 0 {
+		t.Errorf("banco antigo: %v, %v", texts, err)
+	}
+}

@@ -369,6 +369,24 @@ divergência é esperada).
 Código 1 se houver qualquer problema. --migrate num banco já migrado faz a
 conferência simples e também o foreign_key_check.
 
+Nos dois modos, no fim, confere a codificação dos textos (só lê): lista
+nome e unidade de produtos, nome, cidade e responsável de obras, e nome e
+email de usuarios que não são UTF-8 válido, com o texto provável lido como
+Latin-1 (ex.: "Vergalh\xe3o" -> "Vergalhão"). Texto fora de UTF-8 também
+dá código 1. Nada é corrigido automaticamente.
+
+Como corrigir um texto fora de UTF-8 (sempre digitando o texto certo):
+- material: Materiais > Alterar material > Editar, e salvar o nome
+  (só admin; grava uma ATUALIZACAO no histórico);
+- obra: Obras > Editar;
+- nome de usuário: go run ./backend/cmd rename-user <email> "Nome certo";
+- email: go run ./backend/cmd change-email <email-atual> <email-certo>.
+Os comandos de linha são seguros para acento: no Windows o Go recebe os
+argumentos já em UTF-8. O que não é seguro é mandar texto por um programa
+que use Latin-1/Windows-1252 (ex.: Invoke-WebRequest do PowerShell 5.1 com
+corpo em texto) ou digitar num programa que leia o console sem converter,
+como o menu de terminal antigo fazia.
+
 Uso numa cópia da produção (PowerShell):
 $env:DB_PATH="C:\caminho\copia.db"; go run ./backend/cmd verify-stock --migrate
 
