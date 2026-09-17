@@ -132,6 +132,33 @@ body.mobile-menu-open .sidebar {
     transform: translateX(-120%);
 }
 
+/* Contadores do item "Requisições": o primeiro vai para a direita, e o
+   segundo (quem aprova e atende vê os dois) fica ao lado dele. */
+.nav-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--space-5);
+    padding: 0 var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+    border-radius: var(--radius-full);
+}
+
+.nav-badge:first-of-type {
+    margin-left: auto;
+}
+
+.nav-badge-pending {
+    color: var(--color-warning-text);
+    background: var(--color-warning-tint);
+}
+
+.nav-badge-serve {
+    color: var(--color-info-text);
+    background: var(--color-info-tint);
+}
+
 .sidebar nav a:hover {
     color: var(--color-text-invert);
     background: var(--color-sidebar-hover);

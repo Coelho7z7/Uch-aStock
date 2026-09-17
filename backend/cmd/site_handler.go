@@ -73,6 +73,8 @@ func siteHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		FormError      string
 		Message        string
 		CanManageUsers bool
+		// Nav são os contadores da barra lateral.
+		Nav navData
 	}{
 		User:           user,
 		Scope:          scope,
@@ -86,6 +88,7 @@ func siteHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		Search:         strings.TrimSpace(r.URL.Query().Get("busca")),
 		Status:         r.URL.Query().Get("situacao"),
 		CanManageUsers: can(user, PermManageUsers),
+		Nav:            buildNav(user, scope),
 	}
 
 	data.Message = map[string]string{

@@ -2,6 +2,11 @@
      com a tela (template.ParseFiles) e a tela chama
      {{ template "site-switcher" .Scope }}. Fica num arquivo só para as
      sete telas internas não repetirem a mesma lógica. */}}
+{{/* Contadores do item "Requisições" da barra lateral (recebe o navData).
+     Fica neste arquivo porque ele já é carregado por todas as telas
+     internas. */}}
+{{ define "nav-request-badges" }}{{ if .Pending }}<span class="nav-badge nav-badge-pending" title="Requisições esperando aprovação" aria-label="{{ .Pending }} esperando aprovação">{{ .Pending }}</span>{{ end }}{{ if .ToServe }}<span class="nav-badge nav-badge-serve" title="Requisições aprovadas esperando atendimento" aria-label="{{ .ToServe }} para atender">{{ .ToServe }}</span>{{ end }}{{ end }}
+
 {{ define "site-switcher" }}
 <form class="site-switcher" method="POST" action="/obra-atual">
     <input type="hidden" name="voltar" value="{{ .ReturnTo }}">

@@ -549,3 +549,251 @@
 .access-denied-card button:hover {
     background: var(--color-brand-strong);
 }
+
+
+/* ============================================================
+   Requisições
+   ============================================================ */
+
+/* Selos de situação. O sufixo vem do banco (request-status-{{ .Status }}),
+   por isso fica em maiúsculas: não renomear. */
+.request-status-PENDENTE {
+    color: var(--color-warning-text);
+    background: var(--color-warning-tint);
+    border-color: var(--color-warning);
+}
+
+.request-status-APROVADA {
+    color: var(--color-info-text);
+    background: var(--color-info-tint);
+    border-color: var(--color-brand-soft);
+}
+
+.request-status-PARCIAL {
+    color: var(--color-gold);
+    background: var(--color-gold-tint);
+    border-color: var(--color-gold-border);
+}
+
+.request-status-ATENDIDA {
+    color: var(--color-success-text);
+    background: var(--color-success-tint);
+    border-color: var(--color-success);
+}
+
+.request-status-REJEITADA {
+    color: var(--color-danger-text);
+    background: var(--color-danger-tint);
+    border-color: var(--color-danger);
+}
+
+.request-status-CANCELADA {
+    color: var(--color-text-muted);
+    background: var(--color-surface-alt);
+    border-color: var(--color-border-strong);
+}
+
+.request-number {
+    font-weight: var(--weight-semibold);
+    color: var(--color-brand-light);
+    white-space: nowrap;
+}
+
+/* Formulário de nova requisição. Cada item é um bloco: no celular os
+   campos empilham; do tablet em diante ficam na mesma linha. */
+.request-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.request-items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.request-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.request-item-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.request-item-label {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--color-text-muted);
+}
+
+.request-item-quantity {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.request-item-remove {
+    justify-self: end;
+}
+
+.request-add-row,
+.request-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.request-hint {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+/* Detalhe: dados da requisição. */
+.request-info {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+    margin: 0 0 var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.request-info div {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.request-info dt {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--color-text-muted);
+}
+
+.request-info dd {
+    margin: 0;
+    color: var(--color-text);
+}
+
+.request-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.request-items-section,
+.request-history-section,
+.requests-open-section {
+    margin-top: var(--space-5);
+}
+
+.request-item-removed {
+    margin-left: var(--space-2);
+    color: var(--color-danger-text);
+    background: var(--color-danger-tint);
+    border-color: var(--color-danger);
+}
+
+.request-item-done {
+    font-weight: var(--weight-semibold);
+    color: var(--color-success-text);
+}
+
+/* Saldo da obra menor que o que falta: destaque na tela de aprovação e
+   de atendimento (a aprovação não reserva estoque). */
+.request-balance-low {
+    font-weight: var(--weight-semibold);
+    color: var(--color-danger-text);
+}
+
+.request-balance-note {
+    display: block;
+    font-size: var(--text-xs);
+    color: var(--color-danger-text);
+}
+
+.request-serve-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--space-4);
+}
+
+/* Histórico: uma linha por evento, com a cor da ação na borda. */
+.request-history {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.request-event {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: var(--space-1) solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+}
+
+.request-event-CRIADA {
+    border-left-color: var(--color-brand-soft);
+}
+
+.request-event-APROVADA,
+.request-event-ATENDIMENTO {
+    border-left-color: var(--color-success);
+}
+
+.request-event-REJEITADA {
+    border-left-color: var(--color-danger);
+}
+
+.request-event-when,
+.request-event-detail {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+.request-event-detail {
+    font-size: var(--text-sm);
+}
+
+/* "Req. #N" nas movimentações. */
+.movement-request-link {
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--color-brand-light);
+}
+
+@media (min-width: 768px) {
+    .request-item {
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+        align-items: end;
+    }
+
+    .request-info {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .request-info-wide {
+        grid-column: 1 / -1;
+    }
+}

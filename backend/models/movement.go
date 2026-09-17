@@ -23,4 +23,9 @@ type Movement struct {
 	FormattedDate     string
 	FormattedTime     string
 	FormattedType     string
+	// RequestID é a requisição que originou a saída (0 = avulsa).
+	// RequestRequesterID é quem pediu essa requisição, para decidir se o
+	// link aparece (a pessoa precisa poder ver a requisição).
+	RequestID          int
+	RequestRequesterID int
 }

@@ -19,8 +19,13 @@ type DashboardData struct {
 	// para a linha "e mais N".
 	LowStockExtra int
 	GeneratedAt   string
+	// OpenRequests são as requisições em aberto mais antigas ao alcance
+	// do usuário.
+	OpenRequests []models.Request
 	// CanManageUsers mostra a aba Usuários.
 	CanManageUsers bool
+	// Nav são os contadores da barra lateral.
+	Nav navData
 }
 
 // lowStockPanelSize é quantos materiais o painel de alerta mostra. É o
@@ -61,6 +66,12 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request, user *models.User)
 		return
 	}
 
+	openRequests, err := services.OldestOpenRequests(requestActor(user).VisibleFilter(scope.SiteID()), 5)
+	if err != nil {
+		http.Error(w, "Erro ao carregar requisições em aberto", http.StatusInternalServerError)
+		return
+	}
+
 	extra := summary.LowStock - len(lowStock)
 	if extra < 0 {
 		extra = 0
@@ -74,8 +85,10 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request, user *models.User)
 		Summary:       summary,
 		LowStockExtra: extra,
 		GeneratedAt:   time.Now().Local().Format("02/01/2006 às 15:04"),
+		OpenRequests:  openRequests,
 
 		CanManageUsers: can(user, PermManageUsers),
+		Nav:            buildNav(user, scope),
 	}
 
 	tmpl, err := template.ParseFiles("frontend/html/dashboard.html", "frontend/html/site_switcher.html")

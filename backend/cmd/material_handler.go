@@ -51,7 +51,9 @@ func materialHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 		NextPage     int
 		// Flags de permissão: escondem na tela o que a pessoa não pode
 		// fazer. Quem barra de verdade é a checagem no POST.
-		CanManageUsers  bool
+		CanManageUsers bool
+		// Nav são os contadores da barra lateral.
+		Nav             navData
 		CanEditMaterial bool
 	}{
 		User:            user,
@@ -62,6 +64,7 @@ func materialHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 		Unit:            "un",
 		Minimum:         utils.FormatQuantity(services.LowStockThreshold),
 		CanManageUsers:  can(user, PermManageUsers),
+		Nav:             buildNav(user, scope),
 		CanEditMaterial: can(user, PermEditMaterial),
 	}
 
@@ -195,7 +198,9 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request, user *models.Us
 		NextPage     int
 		// Flags de permissão: escondem na tela o que a pessoa não pode
 		// fazer. Quem barra de verdade é a checagem no POST.
-		CanManageUsers    bool
+		CanManageUsers bool
+		// Nav são os contadores da barra lateral.
+		Nav               navData
 		CanEditMaterial   bool
 		CanRemoveMaterial bool
 	}{
@@ -204,6 +209,7 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request, user *models.Us
 		Units:             utils.MaterialUnits,
 		Message:           messages[r.URL.Query().Get("sucesso")],
 		CanManageUsers:    can(user, PermManageUsers),
+		Nav:               buildNav(user, scope),
 		CanEditMaterial:   can(user, PermEditMaterial),
 		CanRemoveMaterial: can(user, PermRemoveMaterial),
 	}

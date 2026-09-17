@@ -11,8 +11,8 @@
     <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
     <link rel="stylesheet" href="/css/components.css?v=14">
-    <link rel="stylesheet" href="/css/layout.css?v=14">
-    <link rel="stylesheet" href="/css/pages.css?v=15">
+    <link rel="stylesheet" href="/css/layout.css?v=15">
+    <link rel="stylesheet" href="/css/pages.css?v=16">
 </head>
 
 <body>
@@ -35,6 +35,7 @@
                 <a href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
                 <a href="/estoque"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM7 7V4h10v3M8 11h8M8 15h5"></path></svg>Estoque</a>
                 <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
+                <a href="/requisicoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"></path><path d="M9 5H6v16h12V5h-3"></path><path d="M9 12h6M9 16h4"></path></svg>Requisições{{ template "nav-request-badges" .Nav }}</a>
                 {{ if .CanManageUsers }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
             </nav>
 
@@ -237,12 +238,58 @@
 
 </div>
 
+<div class="materials-section requests-open-section">
+
+    <div class="section-header">
+        <div>
+            <h3>Requisições em aberto</h3>
+            <small>As mais antigas primeiro: pendentes, aprovadas e parciais</small>
+        </div>
+        <a href="/requisicoes">Ver requisições</a>
+    </div>
+
+    <div class="table-container">
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Nº</th>
+                    <th>Obra</th>
+                    <th>Solicitante</th>
+                    <th>Situação</th>
+                    <th>Criada</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {{ range .OpenRequests }}
+                <tr>
+                    <td><a class="request-number" href="/requisicoes/{{ .ID }}">#{{ .ID }}</a></td>
+                    <td>{{ .SiteName }}</td>
+                    <td>{{ .RequesterName }}</td>
+                    <td><span class="badge request-status-{{ .Status }}">{{ .FormattedStatus }}</span></td>
+                    <td>{{ .CreatedDate }}</td>
+                </tr>
+                {{ else }}
+                <tr>
+                    <td colspan="5">Nenhuma requisição em aberto.</td>
+                </tr>
+                {{ end }}
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
 </section>
 
         </main>
 
     </div>
 
-    <script src="/js/app.js?v=16"></script>
+    <script src="/js/app.js?v=17"></script>
 </body>
 </html>

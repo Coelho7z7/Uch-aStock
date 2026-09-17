@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/csv"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -104,6 +105,11 @@ func movementHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 		PreviousPage   int
 		NextPage       int
 		CanManageUsers bool
+		// Nav são os contadores da barra lateral.
+		Nav navData
+		// RequestLinks diz, pelo ID da movimentação, se o "Req. #N" vira
+		// link: só quando a pessoa pode ver a requisição.
+		RequestLinks map[int]bool
 		// CanExport mostra o botão Exportar CSV.
 		CanExport bool
 		// OnlyOwn avisa que a lista traz só o que a pessoa registrou.
@@ -123,7 +129,9 @@ func movementHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 		PreviousPage:   page - 1,
 		NextPage:       page + 1,
 		CanManageUsers: can(user, PermManageUsers),
+		Nav:            buildNav(user, scope),
 		CanExport:      can(user, PermExportMovements),
+		RequestLinks:   requestLinks(user, movements),
 		OnlyOwn:        filter.UserID > 0,
 		Filter:         filter.Type,
 		MaterialSearch: filter.Material,
@@ -178,7 +186,7 @@ func movementExportHandler(w http.ResponseWriter, r *http.Request, user *models.
 	writer := csv.NewWriter(w)
 	writer.Comma = ';'
 
-	_ = writer.Write([]string{"Data", "Hora", "Obra", "Tipo", "Material", "Quantidade", "Unidade", "Usuário", "Observação"})
+	_ = writer.Write([]string{"Data", "Hora", "Obra", "Tipo", "Material", "Quantidade", "Unidade", "Usuário", "Observação", "Requisição"})
 	for _, movement := range movements {
 		quantity, unit := movement.FormattedQuantity, movement.Unit
 		if movement.Type == "ATUALIZACAO" {
@@ -194,6 +202,7 @@ func movementExportHandler(w http.ResponseWriter, r *http.Request, user *models.
 			unit,
 			csvSafe(movement.User),
 			csvSafe(movement.Note),
+			requestNumber(movement.RequestID),
 		})
 	}
 
@@ -222,4 +231,26 @@ func ownMovementsOnly(user *models.User) int {
 		return 0
 	}
 	return user.ID
+}
+
+// requestLinks marca as movimentações cuja requisição a pessoa pode abrir
+// (mesma regra da tela de requisição: obra e solicitante ao alcance).
+func requestLinks(user *models.User, movements []models.Movement) map[int]bool {
+	actor := requestActor(user)
+	links := map[int]bool{}
+	for _, movement := range movements {
+		if movement.RequestID > 0 && actor.CanSee(movement.SiteID, movement.RequestRequesterID) {
+			links[movement.ID] = true
+		}
+	}
+	return links
+}
+
+// requestNumber é a coluna Requisição do CSV: "#12", ou vazio para
+// movimentação avulsa.
+func requestNumber(requestID int) string {
+	if requestID == 0 {
+		return ""
+	}
+	return fmt.Sprintf("#%d", requestID)
 }

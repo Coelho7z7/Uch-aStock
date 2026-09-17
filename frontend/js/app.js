@@ -62,6 +62,65 @@ function initResponsiveTableLabels() {
 // sem JS (e para quem lê o código-fonte); esta função só corrige na
 // virada do ano, para ninguém precisar editar o template todo 1º de
 // janeiro.
+// Linhas de item do formulário de nova requisição (/requisicoes/nova):
+// acrescentar, remover e mostrar a unidade do material escolhido. Só
+// isso: toda validação (item repetido, quantidade, limite de itens) é
+// feita no servidor.
+function enableRequestItemRows() {
+    const container = document.querySelector("[data-request-items]");
+    const template = document.getElementById("request-item-template");
+    if (!container || !template) return;
+
+    const max = parseInt(container.dataset.maxItems, 10) || 30;
+    const addButton = document.querySelector("[data-add-item]");
+    const rows = function () {
+        return container.querySelectorAll("[data-request-item]");
+    };
+
+    const syncUnit = function (row) {
+        const select = row.querySelector("select");
+        const unit = row.querySelector("[data-item-unit]");
+        const option = select ? select.options[select.selectedIndex] : null;
+        if (unit) unit.textContent = option && option.dataset.unit ? option.dataset.unit : "";
+    };
+
+    // Não deixa passar do limite nem remover a última linha.
+    const syncButtons = function () {
+        const current = rows();
+        if (addButton) addButton.disabled = current.length >= max;
+        current.forEach(function (row) {
+            const remove = row.querySelector("[data-remove-item]");
+            if (remove) remove.disabled = current.length === 1;
+        });
+    };
+
+    if (addButton) {
+        addButton.addEventListener("click", function () {
+            if (rows().length >= max) return;
+            const row = template.content.firstElementChild.cloneNode(true);
+            container.appendChild(row);
+            syncUnit(row);
+            syncButtons();
+            row.querySelector("select").focus();
+        });
+    }
+
+    // Delegação no container: as linhas novas não têm ouvinte próprio.
+    container.addEventListener("click", function (event) {
+        const remove = event.target.closest("[data-remove-item]");
+        if (!remove || rows().length <= 1) return;
+        remove.closest("[data-request-item]").remove();
+        syncButtons();
+    });
+    container.addEventListener("change", function (event) {
+        const row = event.target.closest("[data-request-item]");
+        if (row) syncUnit(row);
+    });
+
+    rows().forEach(syncUnit);
+    syncButtons();
+}
+
 function initCurrentYear() {
     const ano = String(new Date().getFullYear());
     document.querySelectorAll("[data-current-year]").forEach(function (el) {
@@ -74,6 +133,7 @@ document.addEventListener("DOMContentLoaded", function () {
     initResponsiveTableLabels();
     initCurrentYear();
     initLoginLockCountdown();
+    enableRequestItemRows();
     const password = document.getElementById("password");
     const togglePassword = document.getElementById("togglePassword");
     const eyeIcon = document.getElementById("eyeIcon");

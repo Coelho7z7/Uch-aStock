@@ -39,6 +39,8 @@ func userHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		// CanManageUsers mostra a aba Usuários (aqui é sempre true: a tela
 		// inteira já exige a permissão).
 		CanManageUsers bool
+		// Nav são os contadores da barra lateral.
+		Nav navData
 		// Roles são os cargos que a pessoa pode dar (o dropdown).
 		Roles []struct{ Value, Label string }
 		// Sites são as obras a que a pessoa pode vincular alguém.
@@ -62,6 +64,7 @@ func userHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		Scope:          scope,
 		UserID:         userID,
 		CanManageUsers: true,
+		Nav:            buildNav(user, scope),
 		Roles:          assignableRoles(user),
 		Manageable:     map[int]bool{},
 		// Cargo pré-selecionado no cadastro: o de menos poder, para

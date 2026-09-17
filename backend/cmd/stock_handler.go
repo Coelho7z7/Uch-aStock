@@ -34,12 +34,15 @@ func stockHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		Page         int
 		// CanManageUsers mostra a aba Usuários.
 		CanManageUsers bool
+		// Nav são os contadores da barra lateral.
+		Nav navData
 		// CanEditMaterial mostra a aba Alterar material.
 		CanEditMaterial bool
 	}{
 		User:            user,
 		Scope:           scope,
 		CanManageUsers:  can(user, PermManageUsers),
+		Nav:             buildNav(user, scope),
 		CanEditMaterial: can(user, PermEditMaterial),
 	}
 

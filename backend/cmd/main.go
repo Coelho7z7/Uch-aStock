@@ -186,6 +186,12 @@ func registerRoutes() {
 	http.HandleFunc("/movimentacoes", withUser(movementHandler))
 	http.HandleFunc("/movimentacoes/exportar", withUser(movementExportHandler))
 
+	// "/requisicoes/nova" é mais específica que "/requisicoes/{id}": o
+	// roteador do Go escolhe a mais específica, então "nova" nunca vira ID.
+	http.HandleFunc("/requisicoes", withUser(requestListHandler))
+	http.HandleFunc("/requisicoes/nova", withUser(newRequestHandler))
+	http.HandleFunc("/requisicoes/{id}", withUser(requestDetailHandler))
+
 	http.HandleFunc("/usuarios", withUser(userHandler))
 }
 
