@@ -438,6 +438,15 @@ input.form-error:focus {
     border-color: var(--color-danger);
 }
 
+/* O app.js esconde o banner original (atributo hidden) ao criar o toast.
+   O display:flex acima vencia o [hidden] padrão do navegador, e a mesma
+   mensagem aparecia duas vezes: no banner e no toast. Classe + atributo
+   pesa mais que as regras acima, então [hidden] vence sem !important. */
+.form-success[hidden],
+.form-error[hidden] {
+    display: none;
+}
+
 /* ============================================================
    Cards
    ============================================================ */
