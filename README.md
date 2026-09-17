@@ -87,6 +87,12 @@ No Railway, a aplicação utiliza automaticamente a porta fornecida pela variáv
 
 * `/movimentacoes` — Histórico de movimentações
 
+* `/requisicoes` — Requisições de material: lista com filtro e busca
+
+* `/requisicoes/nova` — Nova requisição (materiais e quantidades)
+
+* `/requisicoes/{id}` — Detalhe da requisição: aprovar, rejeitar, atender e cancelar
+
 * `/usuarios` — Administração de usuários
 
 ## Autor

@@ -162,16 +162,16 @@ Comentários: os novos ficam em português. Os arquivos antigos em `services/` t
 
 ## 5. Permissões e cargos
 
-O acesso é **por ação**, não por nome de cargo. A fonte única da verdade é o map `rolePermissions` em `backend/cmd/permissions.go`, e toda checagem passa por `can(usuario, permissao)`. **Nunca** escreva `if user.Role == "admin"` num handler: use a permissão da ação. A matriz completa está em `INFORMACOES.MD`, seção PERMISSÕES.
+O acesso é **por ação**, não por nome de cargo. A fonte única da verdade é o map `rolePermissions` em `backend/cmd/permissions.go`, e toda checagem passa por `can(usuario, permissao)`. **Nunca** escreva `if user.Role == "admin"` num handler: use a permissão da ação. A matriz completa está em `INFORMACOES.MD`, seção PERMISSÕES; o fluxo e as regras da requisição de material, na seção REQUISIÇÕES. Ninguém aprova a própria requisição: a exceção do superadmin é a permissão `requisicao.aprovar_propria`, que nenhum cargo recebe — **não** troque por um `if role == "superadmin"`.
 
 | Cargo | Pode |
 |---|---|
 | `superadmin` | tudo (`can` sempre true); identidade **reservada** a `superadmin@gmail.com` |
 | `admin` | todas as permissões, inclusive `obras.todas` (age em qualquer obra e usa "Todas as obras") e o catálogo de materiais (criar, editar, remover, limite mínimo), que é exclusivo dele |
-| `gestor` | movimenta estoque e gerencia **só a obra vinculada a ele**; em usuários, só cria e edita almoxarife e solicitante da própria obra; **não** mexe no catálogo de materiais |
-| `almoxarife` | movimenta estoque da própria obra, vê e exporta todas as movimentações; **não** mexe no catálogo de materiais |
-| `solicitante` | consulta; no histórico vê **só as próprias** movimentações |
-| `auditor` | só leitura: vê e exporta todas as movimentações |
+| `gestor` | movimenta estoque e gerencia **só a obra vinculada a ele**; aprova, rejeita, cancela e atende requisições dessa obra; em usuários, só cria e edita almoxarife e solicitante da própria obra; **não** mexe no catálogo de materiais |
+| `almoxarife` | movimenta estoque da própria obra e atende as requisições dela (não aprova); vê e exporta todas as movimentações; **não** mexe no catálogo de materiais |
+| `solicitante` | pede material (requisição) na própria obra e vê **só as próprias** requisições e movimentações |
+| `auditor` | só leitura: vê as requisições da própria obra e vê e exporta todas as movimentações |
 
 A permissão diz **o que** a pessoa faz; a obra diz **onde**. Cada usuário que não é admin tem **uma** obra (tabela `usuario_obras`; a regra de uma só é garantida em `services.setUserSiteTx`) e entra no sistema por ela. As regras que juntam as duas coisas moram em `backend/cmd/authorization.go` (`canMoveStockAt`, `canEditSite`) e as da gestão de usuários em `permissions.go` (`canManageUser`, `canAssignRole`, `canAssignSite`).
 
@@ -224,8 +224,8 @@ Regras:
 
 O `app.js` e os templates dependem delas pelo nome. Renomear quebra em runtime, **sem erro de compilação**:
 
-- Montadas pelo template: `.activity-ENTRADA` / `.activity-SAIDA` / `.activity-ATUALIZACAO` (de `activity-{{ .Type }}`) `.stock-quantity.empty` / `.low` / `.normal` (de `{{ .StockStatus }}`) e `.site-status-ANDAMENTO` / `.site-status-PARALISADA` / `.site-status-CONCLUIDA` (de `site-status-{{ .Status }}`).
-- Consultadas pelo JS: `.sidebar` · `.content table` · `.cards .card` · `.mobile-menu-button` · `.mobile-sidebar-overlay` · `.login-card` · `.form-success` · `.form-error` · `[data-confirm]` · `[data-confirm-optional]` · `[data-autosubmit]` · `[data-live-search]` · `[data-live-region]` · `[data-searchable]` · `[data-site-field]` · `[data-open]`.
+- Montadas pelo template: `.activity-ENTRADA` / `.activity-SAIDA` / `.activity-ATUALIZACAO` (de `activity-{{ .Type }}`) `.stock-quantity.empty` / `.low` / `.normal` (de `{{ .StockStatus }}`) e `.site-status-ANDAMENTO` / `.site-status-PARALISADA` / `.site-status-CONCLUIDA` (de `site-status-{{ .Status }}`) e `.request-status-PENDENTE` / `APROVADA` / `PARCIAL` / `ATENDIDA` / `REJEITADA` / `CANCELADA` (de `request-status-{{ .Status }}`) e `.request-event-CRIADA` / `APROVADA` / `ATENDIMENTO` / `REJEITADA` (de `request-event-{{ .Action }}`).
+- Consultadas pelo JS: `.sidebar` · `.content table` · `.cards .card` · `.mobile-menu-button` · `.mobile-sidebar-overlay` · `.login-card` · `.form-success` · `.form-error` · `[data-confirm]` · `[data-confirm-optional]` · `[data-autosubmit]` · `[data-live-search]` · `[data-live-region]` · `[data-searchable]` · `[data-site-field]` · `[data-open]` · `[data-request-items]` · `[data-request-item]` · `[data-add-item]` · `[data-remove-item]` · `[data-item-unit]` · `#request-item-template` · `[data-open-reject]`.
 - **Busca em tempo real:** todo formulário de filtro com `data-live-search` busca enquanto se digita, trocando só os elementos `data-live-region` (tabela, paginação, contadores) pelos da resposta do servidor. Por isso, **botão dentro de uma região nunca recebe ouvinte direto** (`querySelectorAll(...).forEach(addEventListener)`): use delegação no `document`, senão o botão para de funcionar depois da primeira busca.
 - Aplicadas pelo JS: todas as `gs-*` · `.modal-closing` · `.mobile-menu-open`.
 - Os modais abrem pelo atributo **`hidden`**, não por classe. Por isso existe a regra `.modal-create[hidden] { display: none }` — sem ela os modais nascem abertos.
