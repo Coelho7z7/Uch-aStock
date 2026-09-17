@@ -18,21 +18,21 @@ const (
 	PermEditMaterial   Permission = "material.editar"
 	PermRemoveMaterial Permission = "material.remover"
 	PermMoveStock      Permission = "estoque.movimentar"
-	// PermCreateRequest é pedir material (criar requisição) na própria obra.
-	PermCreateRequest Permission = "requisicao.criar"
-	// PermApproveRequest é aprovar, rejeitar e cancelar requisição (e
+	// PermCreateRequest é pedir material (criar solicitação) na própria obra.
+	PermCreateRequest Permission = "solicitacao.criar"
+	// PermApproveRequest é aprovar, rejeitar e cancelar solicitação (e
 	// cancelar mesmo depois de aprovada).
-	PermApproveRequest Permission = "requisicao.aprovar"
-	// PermServeRequest é atender requisição aprovada: entregar o material,
+	PermApproveRequest Permission = "solicitacao.aprovar"
+	// PermServeRequest é atender solicitação aprovada: entregar o material,
 	// o que gera as saídas de estoque.
-	PermServeRequest Permission = "requisicao.atender"
-	// PermViewAllRequests é ver requisições de todos os solicitantes da
+	PermServeRequest Permission = "solicitacao.atender"
+	// PermViewAllRequests é ver solicitações de todos os solicitantes da
 	// obra. Sem ela, só as próprias.
-	PermViewAllRequests Permission = "requisicao.ver_todas"
-	// PermApproveOwnRequest é aprovar ou rejeitar a própria requisição.
+	PermViewAllRequests Permission = "solicitacao.ver_todas"
+	// PermApproveOwnRequest é aprovar ou rejeitar a própria solicitação.
 	// Nenhum cargo recebe: só o superadmin, porque can() libera tudo para
 	// ele. Assim a exceção existe sem checar nome de cargo.
-	PermApproveOwnRequest Permission = "requisicao.aprovar_propria"
+	PermApproveOwnRequest Permission = "solicitacao.aprovar_propria"
 
 	PermViewAllMovements Permission = "movimentacoes.ver_todas"
 	PermExportMovements  Permission = "movimentacoes.exportar"
@@ -76,7 +76,7 @@ var rolePermissions = map[string][]Permission{
 		PermViewAllMovements, PermExportMovements,
 	},
 	// Sem PermViewAllMovements e PermViewAllRequests, o solicitante vê só
-	// as movimentações que registrou e as requisições que criou.
+	// as movimentações que registrou e as solicitações que criou.
 	services.RoleRequester: {PermCreateRequest},
 	services.RoleAuditor:   {PermViewAllRequests, PermViewAllMovements, PermExportMovements},
 }

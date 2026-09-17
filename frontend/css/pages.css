@@ -552,7 +552,7 @@
 
 
 /* ============================================================
-   Requisições
+   Solicitações
    ============================================================ */
 
 /* Selos de situação. O sufixo vem do banco (request-status-{{ .Status }}),
@@ -599,7 +599,7 @@
     white-space: nowrap;
 }
 
-/* Formulário de nova requisição. Cada item é um bloco: no celular os
+/* Formulário de nova solicitação. Cada item é um bloco: no celular os
    campos empilham; do tablet em diante ficam na mesma linha. */
 .request-form {
     display: flex;
@@ -658,7 +658,7 @@
     color: var(--color-text-muted);
 }
 
-/* Detalhe: dados da requisição. */
+/* Detalhe: dados da solicitação. */
 .request-info {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

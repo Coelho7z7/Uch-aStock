@@ -18,7 +18,7 @@ cmd/
 - material_handler.go — materiais
 - stock_handler.go — estoque
 - movement_handler.go — movimentações
-- request_handler.go — requisições (lista, nova, detalhe e ações) e contadores da barra lateral
+- request_handler.go — solicitações (lista, nova, detalhe e ações) e contadores da barra lateral
 - user_handler.go — usuários
 
 services/
@@ -34,8 +34,8 @@ services/
 - site_create.go — cadastro e edição de obras
 - site_query.go — consultas de obras
 - session_site.go — obra guardada na sessão
-- request_service.go — requisições: criar, aprovar, rejeitar, cancelar, atender, transições
-- request_query.go — requisições: lista, contadores, detalhe com itens e histórico
+- request_service.go — solicitações: criar, aprovar, rejeitar, cancelar, atender, transições
+- request_query.go — solicitações: lista, contadores, detalhe com itens e histórico
 
 models/
 - material.go
@@ -57,17 +57,17 @@ html/
 - index.html — login
 - dashboard.html — dashboard
 - sites.html — obras
-- site_switcher.html — seletor de obra da topbar e contadores de requisição da barra lateral (incluído pelas telas internas)
+- site_switcher.html — seletor de obra da topbar e contadores de solicitação da barra lateral (incluído pelas telas internas)
 - materials.html — materiais
 - edit_material.html — editar material
 - stock.html — estoque
 - movements.html — movimentações
-- requests.html — lista de requisições
-- request_new.html — nova requisição
-- request_detail.html — detalhe da requisição (aprovar, rejeitar, atender, cancelar)
+- requests.html — lista de solicitações
+- request_new.html — nova solicitação
+- request_detail.html — detalhe da solicitação (aprovar, rejeitar, atender, cancelar)
 - users.html — usuários
 - access_denied.html — acesso negado
-- not_found.html — página 404 (com sessão, no layout do sistema; sem sessão, só o cartão). Também é a resposta para requisição fora do alcance
+- not_found.html — página 404 (com sessão, no layout do sistema; sem sessão, só o cartão). Também é a resposta para solicitação fora do alcance
 
 css/  (design system — a ordem dos <link> importa, é cascata)
 - tokens.css — :root: cores, espaçamento, tipografia, raios, sombras
@@ -129,11 +129,11 @@ Cargos (valor gravado no banco entre parênteses):
 | material.editar         |   x   |        |            |             |         |
 | material.remover        |   x   |        |            |             |         |
 | estoque.movimentar      |   x   |   x    |     x      |             |         |
-| requisicao.criar        |   x   |   x    |     x      |      x      |         |
-| requisicao.aprovar      |   x   |   x    |            |             |         |
-| requisicao.atender      |   x   |   x    |     x      |             |         |
-| requisicao.ver_todas    |   x   |   x    |     x      |             |    x    |
-| requisicao.aprovar_propria |    |        |            |             |         |
+| solicitacao.criar       |   x   |   x    |     x      |      x      |         |
+| solicitacao.aprovar     |   x   |   x    |            |             |         |
+| solicitacao.atender     |   x   |   x    |     x      |             |         |
+| solicitacao.ver_todas   |   x   |   x    |     x      |             |    x    |
+| solicitacao.aprovar_propria |       |        |            |             |         |
 | movimentacoes.ver_todas |   x   |   x    |     x      |             |    x    |
 | movimentacoes.exportar  |   x   |   x    |     x      |             |    x    |
 | usuarios.gerenciar      |   x   |   x    |            |             |         |
@@ -148,19 +148,19 @@ Solicitante (solicitante), Auditor (auditor).
   superadmin@gmail.com: não aparece no dropdown e não pode ser alterado,
   removido nem ter a senha trocada por outra pessoa.
 - Todo cargo vê dashboard, materiais e estoque.
-- requisicao.aprovar_propria não é de nenhum cargo: só o superadmin (can()
-  libera tudo para ele) aprova ou rejeita a própria requisição. Assim a
+- solicitacao.aprovar_propria não é de nenhum cargo: só o superadmin (can()
+  libera tudo para ele) aprova ou rejeita a própria solicitação. Assim a
   exceção existe sem checar nome de cargo.
-- Sem requisicao.ver_todas (o solicitante), a pessoa vê só as requisições
-  que criou. Ver REQUISIÇÕES.
+- Sem solicitacao.ver_todas (o solicitante), a pessoa vê só as solicitações
+  que criou. Ver SOLICITAÇÕES.
 - O catálogo de materiais é da empresa toda e é exclusivo do admin (e do
   superadmin): material.editar cadastra e edita nome, unidade e limite
   mínimo; material.remover remove. Gestor e almoxarife só movimentam o
   estoque (entrada e saída) na própria obra.
-- Material com saldo > 0 em qualquer obra, ou que esteja numa requisição
+- Material com saldo > 0 em qualquer obra, ou que esteja numa solicitação
   em aberto (pendente, aprovada ou parcial), não pode ser removido, nem
   pelo admin: a mensagem diz em quantas obras há saldo e em quantas
-  requisições ele está.
+  solicitações ele está.
 - O limite mínimo (produtos.limite_minimo) é um campo único do material,
   igual para todas as obras. Por isso também fica só com o admin. Se um
   dia precisar ser por obra, é mudança de schema (coluna em saldos).
@@ -203,8 +203,8 @@ Situação (regras em services/site_create.go, checkSiteStatusChange):
 - Qualquer outra é recusada. Pelos botões, pedir a situação atual também
   ("a obra já está paralisada"); na edição, manter a situação é normal.
 - Encerrar exige saldo zero em todos os materiais ativos da obra e nenhuma
-  requisição em aberto (pendente, aprovada ou parcial). A mensagem diz
-  quantos materiais têm saldo e quantas requisições estão em aberto.
+  solicitação em aberto (pendente, aprovada ou parcial). A mensagem diz
+  quantos materiais têm saldo e quantas solicitações estão em aberto.
   Material removido não conta.
 - Paralisar, Retomar, Reabrir e Encerrar pedem confirmação na tela.
 O almoxarifado central é criado pela migração, é único e fica sempre em
@@ -212,22 +212,22 @@ andamento. Nome não pode repetir (sem diferenciar maiúsculas).
 Obra concluída é só consulta: não aceita entrada nem saída.
 
 
-REQUISIÇÕES
+SOLICITAÇÕES
 
 Pedido de material de uma obra. Quem está na obra pede, o gestor aprova e o
 almoxarife atende; o atendimento gera as saídas de estoque.
 
 Rotas:
-- /requisicoes — lista (filtro por situação, busca por número com ou sem
+- /solicitacoes — lista (filtro por situação, busca por número com ou sem
   "#", solicitante ou observação; paginação)
-- /requisicoes/nova — formulário (material + quantidade por linha, até 30,
+- /solicitacoes/nova — formulário (material + quantidade por linha, até 30,
   e observação). O JS do app.js só acrescenta e remove linhas; toda
   validação é no servidor. Com erro, a tela volta preenchida.
-- /requisicoes/{id} — detalhe: itens (solicitado, atendido, falta, saldo
+- /solicitacoes/{id} — detalhe: itens (solicitado, atendido, falta, saldo
   atual na obra), histórico e os botões Aprovar, Rejeitar (modal com
   motivo), Atender (quantidade por item, já preenchida com o que falta
   limitado pelo saldo) e Cancelar. Todas as ações pedem confirmação.
-  Requisição fora do alcance responde 404, igual a uma que não existe.
+  Solicitação fora do alcance responde 404, igual a uma que não existe.
 
 Situações e transições (services.canTransition):
 - PENDENTE  -> APROVADA | REJEITADA | CANCELADA
@@ -235,61 +235,61 @@ Situações e transições (services.canTransition):
 - PARCIAL   -> ATENDIDA | CANCELADA
 - REJEITADA, ATENDIDA e CANCELADA são finais.
 Qualquer outra é recusada, inclusive ir para a mesma situação. Um
-atendimento parcial de uma requisição que já estava PARCIAL não muda a
+atendimento parcial de uma solicitação que já estava PARCIAL não muda a
 situação, então não passa por canTransition.
 
 Regras (conferidas no service, não só na tela):
 - A obra é a do usuário (admin: a do seletor), nunca o almoxarifado
-  central. Obra paralisada ou concluída não aceita requisição nova,
+  central. Obra paralisada ou concluída não aceita solicitação nova,
   aprovação nem atendimento; rejeitar e cancelar continuam possíveis.
-- Escopo: quem não tem obras.todas só vê e age em requisições da própria
-  obra, mesmo escolhendo outra no seletor. Sem requisicao.ver_todas, só as
-  próprias. Obra, requisição e item vindos do formulário são sempre
+- Escopo: quem não tem obras.todas só vê e age em solicitações da própria
+  obra, mesmo escolhendo outra no seletor. Sem solicitacao.ver_todas, só as
+  próprias. Obra, solicitação e item vindos do formulário são sempre
   conferidos no banco.
 - Criação: 1 a 30 itens, quantidade > 0, sem material repetido (a
-  mensagem pede para juntar numa linha), material ativo. Requisição, itens
+  mensagem pede para juntar numa linha), material ativo. Solicitação, itens
   e evento CRIADA numa transação.
-- Ninguém aprova nem rejeita a própria requisição (exceto o superadmin).
+- Ninguém aprova nem rejeita a própria solicitação (exceto o superadmin).
   Rejeitar exige motivo.
 - A aprovação NÃO reserva estoque: a tela só mostra o saldo atual de cada
   item, com destaque quando ele não cobre o que falta.
 - Cancelar: PENDENTE, o autor ou quem aprova; APROVADA/PARCIAL, só quem
   aprova. Cancelar uma PARCIAL não desfaz as saídas já feitas.
-- Atendimento, numa transação só: relê a requisição (APROVADA ou PARCIAL,
+- Atendimento, numa transação só: relê a solicitação (APROVADA ou PARCIAL,
   obra em andamento); para cada item com quantidade > 0 confere que é da
-  requisição, que o material está ativo e que não passa do que falta; faz a
+  solicitação, que o material está ativo e que não passa do que falta; faz a
   saída pela mesma regra da tela de estoque (stock_service.registerExitTx),
-  com requisicao_id e observação "Requisição #N"; soma o atendido; calcula
+  com solicitacao_id e observação "Solicitação #N"; soma o atendido; calcula
   a nova situação (ATENDIDA se todos completaram, senão PARCIAL) e grava o
   evento ATENDIMENTO com o resumo. Qualquer falha (saldo insuficiente num
   item, por exemplo) desfaz tudo.
-- Material em requisição em aberto não pode ser removido do catálogo. Se
+- Material em solicitação em aberto não pode ser removido do catálogo. Se
   um item ficar com material removido (dado antigo, ou removido direto no
-  banco), a requisição continua visível, mas aquele item não é atendido.
+  banco), a solicitação continua visível, mas aquele item não é atendido.
 - Corrida: aprovar, rejeitar, cancelar e atender mudam a situação com
   UPDATE ... WHERE id = ? AND status IN (...) e conferem RowsAffected. Se
-  outra pessoa mudou antes, a ação é recusada ("a requisição mudou
+  outra pessoa mudou antes, a ação é recusada ("a solicitação mudou
   enquanto você agia"). Com uma conexão só, o SQLite já enfileira as
   transações; a condição no WHERE é a segunda barreira.
 
 Tabelas:
-- requisicoes: obra_id, solicitante_id, status, observacao, aprovado_por,
+- solicitacoes: obra_id, solicitante_id, status, observacao, aprovado_por,
   aprovado_em (só na aprovação), motivo_rejeicao, criado_em, atualizado_em
-- requisicao_itens: requisicao_id, produto_id, quantidade_solicitada,
-  quantidade_atendida (UNIQUE requisicao_id + produto_id; REAL)
-- requisicao_eventos: requisicao_id, usuario_id, acao (CRIADA, APROVADA,
+- solicitacao_itens: solicitacao_id, produto_id, quantidade_solicitada,
+  quantidade_atendida (UNIQUE solicitacao_id + produto_id; REAL)
+- solicitacao_eventos: solicitacao_id, usuario_id, acao (CRIADA, APROVADA,
   REJEITADA, ATENDIMENTO, CANCELADA), detalhe, criado_em
-- movimentacoes.requisicao_id: a requisição que originou a saída (NULL nas
+- movimentacoes.solicitacao_id: a solicitação que originou a saída (NULL nas
   avulsas)
-Índices: requisicoes(obra_id, status), requisicoes(solicitante_id),
-requisicao_itens(requisicao_id). Datas em UTC; na tela, com 'localtime'.
+Índices: solicitacoes(obra_id, status), solicitacoes(solicitante_id),
+solicitacao_itens(solicitacao_id). Datas em UTC; na tela, com 'localtime'.
 
-Barra lateral: o item Requisições mostra quantas estão PENDENTE (para quem
-tem requisicao.aprovar) e quantas APROVADA+PARCIAL (para quem tem
-requisicao.atender), só da obra do usuário (admin: a do seletor).
-Dashboard: cartão "Requisições em aberto" com as 5 mais antigas visíveis.
-Movimentações: saídas de requisição mostram "Req. #N", que vira link só
-para quem pode abrir a requisição; o CSV ganhou a coluna Requisição.
+Barra lateral: o item Solicitações mostra quantas estão PENDENTE (para quem
+tem solicitacao.aprovar) e quantas APROVADA+PARCIAL (para quem tem
+solicitacao.atender), só da obra do usuário (admin: a do seletor).
+Dashboard: cartão "Solicitações em aberto" com as 5 mais antigas visíveis.
+Movimentações: saídas de solicitação mostram "Req. #N", que vira link só
+para quem pode abrir a solicitação; o CSV ganhou a coluna Solicitação.
 
 
 OBRA SELECIONADA

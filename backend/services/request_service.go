@@ -11,7 +11,7 @@ import (
 	"uchoastock/backend/utils"
 )
 
-// Situações da requisição, como ficam gravadas em requisicoes.status.
+// Situações da solicitação, como ficam gravadas em solicitacoes.status.
 const (
 	RequestPending   = "PENDENTE"
 	RequestApproved  = "APROVADA"
@@ -32,11 +32,11 @@ var RequestStatusLabels = []struct{ Value, Label string }{
 	{RequestCanceled, "Cancelada"},
 }
 
-// OpenRequestStatuses são as situações de requisição ainda em aberto:
+// OpenRequestStatuses são as situações de solicitação ainda em aberto:
 // alguém ainda precisa agir nela.
 var OpenRequestStatuses = []string{RequestPending, RequestApproved, RequestPartial}
 
-// Ações do histórico, como ficam gravadas em requisicao_eventos.acao.
+// Ações do histórico, como ficam gravadas em solicitacao_eventos.acao.
 const (
 	RequestEventCreated  = "CRIADA"
 	RequestEventApproved = "APROVADA"
@@ -45,14 +45,14 @@ const (
 	RequestEventCanceled = "CANCELADA"
 )
 
-// Limites da requisição.
+// Limites da solicitação.
 const (
 	MaxRequestItems          = 30
 	maxRequestNoteLength     = 200
 	maxRejectionReasonLength = 300
 )
 
-// requestTransitions diz para quais situações uma requisição pode ir a
+// requestTransitions diz para quais situações uma solicitação pode ir a
 // partir de cada uma. REJEITADA, ATENDIDA e CANCELADA são finais: não
 // aparecem como origem.
 var requestTransitions = map[string][]string{
@@ -61,7 +61,7 @@ var requestTransitions = map[string][]string{
 	RequestPartial:  {RequestFulfilled, RequestCanceled},
 }
 
-// canTransition indica se a requisição pode passar de from para to. Ficar
+// canTransition indica se a solicitação pode passar de from para to. Ficar
 // na mesma situação não é transição e dá false.
 func canTransition(from, to string) bool {
 	for _, allowed := range requestTransitions[from] {
@@ -102,21 +102,21 @@ func (e RequestInputError) Error() string {
 }
 
 var (
-	// ErrRequestNotFound vale tanto para requisição que não existe quanto
+	// ErrRequestNotFound vale tanto para solicitação que não existe quanto
 	// para a que existe fora do alcance de quem pede: a resposta é a mesma,
 	// para não revelar que ela existe.
-	ErrRequestNotFound = errors.New("requisição não encontrada")
+	ErrRequestNotFound = errors.New("solicitação não encontrada")
 
-	// ErrRequestForbidden é a pessoa ver a requisição, mas não ter
+	// ErrRequestForbidden é a pessoa ver a solicitação, mas não ter
 	// permissão para a ação.
-	ErrRequestForbidden = errors.New("sem permissão para esta ação na requisição")
+	ErrRequestForbidden = errors.New("sem permissão para esta ação na solicitação")
 
 	// ErrRequestChanged é a situação ter mudado entre a leitura e a
 	// gravação (outra pessoa agiu antes).
-	ErrRequestChanged = RequestInputError{"a requisição mudou enquanto você agia: outra pessoa já aprovou, atendeu, rejeitou ou cancelou. Confira a situação atual."}
+	ErrRequestChanged = RequestInputError{"a solicitação mudou enquanto você agia: outra pessoa já aprovou, atendeu, rejeitou ou cancelou. Confira a situação atual."}
 )
 
-// RequestActor é quem age numa requisição, com as permissões já
+// RequestActor é quem age numa solicitação, com as permissões já
 // resolvidas por quem chama (o handler, com can()). O service confere as
 // regras com esses dados e nunca olha nome de cargo.
 type RequestActor struct {
@@ -125,18 +125,18 @@ type RequestActor struct {
 	SiteID int
 	// AllSites: age em qualquer obra (obras.todas).
 	AllSites bool
-	// ViewAll: vê requisições de todos os solicitantes
-	// (requisicao.ver_todas). Sem ela, só as próprias.
+	// ViewAll: vê solicitações de todos os solicitantes
+	// (solicitacao.ver_todas). Sem ela, só as próprias.
 	ViewAll    bool
 	CanCreate  bool
 	CanApprove bool
 	CanServe   bool
-	// ApproveOwn: pode aprovar ou rejeitar a própria requisição
-	// (requisicao.aprovar_propria, que só o superadmin tem).
+	// ApproveOwn: pode aprovar ou rejeitar a própria solicitação
+	// (solicitacao.aprovar_propria, que só o superadmin tem).
 	ApproveOwn bool
 }
 
-// CanSee indica se a requisição da obra siteID, criada por requesterID,
+// CanSee indica se a solicitação da obra siteID, criada por requesterID,
 // está ao alcance do actor: da obra dele (ou qualquer uma, com AllSites) e
 // dele mesmo (ou de qualquer solicitante, com ViewAll). Quem não passa
 // aqui não vê nem age: recebe "não encontrada".
@@ -147,7 +147,7 @@ func (a RequestActor) CanSee(siteID, requesterID int) bool {
 	return a.ViewAll || requesterID == a.UserID
 }
 
-// VisibleFilter devolve o recorte de requisições que o actor pode ver.
+// VisibleFilter devolve o recorte de solicitações que o actor pode ver.
 // selectedSiteID é a obra do seletor do topo e só vale para quem tem
 // AllSites (0 = todas); os outros ficam sempre na própria obra.
 func (a RequestActor) VisibleFilter(selectedSiteID int) RequestFilter {
@@ -176,7 +176,7 @@ type RequestDelivery struct {
 	Quantity float64
 }
 
-// CreateRequest cria a requisição na obra siteID, com os itens e o evento
+// CreateRequest cria a solicitação na obra siteID, com os itens e o evento
 // CRIADA, numa transação. Quem chama passa a obra do usuário (ou a do
 // seletor, para quem tem AllSites); aqui se confere de novo se ela está ao
 // alcance, se é uma obra (não o central) e se está em andamento.
@@ -186,7 +186,7 @@ func CreateRequest(actor RequestActor, siteID int, note string, items []RequestI
 	}
 	if siteID <= 0 {
 		if actor.AllSites {
-			return 0, RequestInputError{"selecione uma obra no topo para criar a requisição"}
+			return 0, RequestInputError{"selecione uma obra no topo para criar a solicitação"}
 		}
 		return 0, RequestInputError{"você não está vinculado a nenhuma obra: peça a um administrador para definir a sua obra"}
 	}
@@ -199,10 +199,10 @@ func CreateRequest(actor RequestActor, siteID int, note string, items []RequestI
 		return 0, RequestInputError{fmt.Sprintf("a observação pode ter no máximo %d caracteres", maxRequestNoteLength)}
 	}
 	if len(items) == 0 {
-		return 0, RequestInputError{"adicione pelo menos um material à requisição"}
+		return 0, RequestInputError{"adicione pelo menos um material à solicitação"}
 	}
 	if len(items) > MaxRequestItems {
-		return 0, RequestInputError{fmt.Sprintf("a requisição pode ter no máximo %d itens", MaxRequestItems)}
+		return 0, RequestInputError{fmt.Sprintf("a solicitação pode ter no máximo %d itens", MaxRequestItems)}
 	}
 
 	tx, err := database.DB.Begin()
@@ -211,7 +211,7 @@ func CreateRequest(actor RequestActor, siteID int, note string, items []RequestI
 	}
 	defer tx.Rollback()
 
-	if err := requireRequestSiteTx(tx, siteID, "receber requisição nova"); err != nil {
+	if err := requireRequestSiteTx(tx, siteID, "receber solicitação nova"); err != nil {
 		return 0, err
 	}
 
@@ -241,7 +241,7 @@ func CreateRequest(actor RequestActor, siteID int, note string, items []RequestI
 	}
 
 	result, err := tx.Exec(`
-		INSERT INTO requisicoes (obra_id, solicitante_id, status, observacao)
+		INSERT INTO solicitacoes (obra_id, solicitante_id, status, observacao)
 		VALUES (?, ?, ?, ?)
 	`, siteID, actor.UserID, RequestPending, note)
 	if err != nil {
@@ -255,7 +255,7 @@ func CreateRequest(actor RequestActor, siteID int, note string, items []RequestI
 
 	for _, item := range items {
 		if _, err := tx.Exec(`
-			INSERT INTO requisicao_itens (requisicao_id, produto_id, quantidade_solicitada)
+			INSERT INTO solicitacao_itens (solicitacao_id, produto_id, quantidade_solicitada)
 			VALUES (?, ?, ?)
 		`, requestID, item.MaterialID, item.Quantity); err != nil {
 			return 0, err
@@ -273,7 +273,7 @@ func CreateRequest(actor RequestActor, siteID int, note string, items []RequestI
 	return requestID, tx.Commit()
 }
 
-// ApproveRequest aprova uma requisição pendente. Não reserva estoque: o
+// ApproveRequest aprova uma solicitação pendente. Não reserva estoque: o
 // saldo só é conferido (e debitado) no atendimento.
 func ApproveRequest(actor RequestActor, requestID int) error {
 	tx, err := database.DB.Begin()
@@ -289,7 +289,7 @@ func ApproveRequest(actor RequestActor, requestID int) error {
 	if err := checkDecision(actor, state, RequestApproved); err != nil {
 		return err
 	}
-	if err := requireRequestSiteTx(tx, state.SiteID, "aprovar requisição"); err != nil {
+	if err := requireRequestSiteTx(tx, state.SiteID, "aprovar solicitação"); err != nil {
 		return err
 	}
 
@@ -297,7 +297,7 @@ func ApproveRequest(actor RequestActor, requestID int) error {
 		return err
 	}
 	if _, err := tx.Exec(`
-		UPDATE requisicoes SET aprovado_por = ?, aprovado_em = CURRENT_TIMESTAMP WHERE id = ?
+		UPDATE solicitacoes SET aprovado_por = ?, aprovado_em = CURRENT_TIMESTAMP WHERE id = ?
 	`, actor.UserID, requestID); err != nil {
 		return err
 	}
@@ -307,7 +307,7 @@ func ApproveRequest(actor RequestActor, requestID int) error {
 	return tx.Commit()
 }
 
-// RejectRequest rejeita uma requisição pendente. O motivo é obrigatório.
+// RejectRequest rejeita uma solicitação pendente. O motivo é obrigatório.
 // Obra paralisada ou concluída aceita rejeição: é assim que se limpa o que
 // ficou pendente antes de encerrar.
 func RejectRequest(actor RequestActor, requestID int, reason string) error {
@@ -336,7 +336,7 @@ func RejectRequest(actor RequestActor, requestID int, reason string) error {
 	if err := changeRequestStatusTx(tx, requestID, []string{RequestPending}, RequestRejected); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE requisicoes SET motivo_rejeicao = ? WHERE id = ?`, reason, requestID); err != nil {
+	if _, err := tx.Exec(`UPDATE solicitacoes SET motivo_rejeicao = ? WHERE id = ?`, reason, requestID); err != nil {
 		return err
 	}
 	if err := registerRequestEventTx(tx, requestID, actor.UserID, RequestEventRejected, reason); err != nil {
@@ -346,25 +346,25 @@ func RejectRequest(actor RequestActor, requestID int, reason string) error {
 }
 
 // checkDecision reúne as regras de aprovar e rejeitar: permissão, ninguém
-// decide a própria requisição (a não ser com ApproveOwn) e a transição.
+// decide a própria solicitação (a não ser com ApproveOwn) e a transição.
 func checkDecision(actor RequestActor, state requestState, to string) error {
 	if !actor.CanApprove {
 		return ErrRequestForbidden
 	}
 	if state.RequesterID == actor.UserID && !actor.ApproveOwn {
 		if to == RequestRejected {
-			return RequestInputError{"você não pode rejeitar a própria requisição: outra pessoa com permissão de aprovar precisa decidir"}
+			return RequestInputError{"você não pode rejeitar a própria solicitação: outra pessoa com permissão de aprovar precisa decidir"}
 		}
-		return RequestInputError{"você não pode aprovar a própria requisição: outra pessoa com permissão de aprovar precisa decidir"}
+		return RequestInputError{"você não pode aprovar a própria solicitação: outra pessoa com permissão de aprovar precisa decidir"}
 	}
 	if !canTransition(state.Status, to) {
-		return RequestInputError{fmt.Sprintf("uma requisição %s não pode ser %s",
+		return RequestInputError{fmt.Sprintf("uma solicitação %s não pode ser %s",
 			strings.ToLower(requestStatusLabel(state.Status)), strings.ToLower(requestStatusLabel(to)))}
 	}
 	return nil
 }
 
-// CancelRequest cancela a requisição. Pendente: o autor ou quem aprova.
+// CancelRequest cancela a solicitação. Pendente: o autor ou quem aprova.
 // Aprovada ou parcial: só quem aprova. Cancelar uma parcial não desfaz as
 // saídas já feitas: o que foi entregue continua entregue.
 func CancelRequest(actor RequestActor, requestID int) error {
@@ -379,7 +379,7 @@ func CancelRequest(actor RequestActor, requestID int) error {
 		return err
 	}
 	if !canTransition(state.Status, RequestCanceled) {
-		return RequestInputError{fmt.Sprintf("uma requisição %s não pode ser cancelada",
+		return RequestInputError{fmt.Sprintf("uma solicitação %s não pode ser cancelada",
 			strings.ToLower(requestStatusLabel(state.Status)))}
 	}
 	isAuthor := state.RequesterID == actor.UserID
@@ -400,10 +400,10 @@ func CancelRequest(actor RequestActor, requestID int) error {
 	return tx.Commit()
 }
 
-// ServeRequest registra a entrega de material de uma requisição aprovada
+// ServeRequest registra a entrega de material de uma solicitação aprovada
 // ou parcial, tudo numa transação: confere cada item (pertence à
-// requisição, material ativo, não passa do que falta), faz a saída de
-// estoque na obra da requisição pela mesma regra da tela de estoque
+// solicitação, material ativo, não passa do que falta), faz a saída de
+// estoque na obra da solicitação pela mesma regra da tela de estoque
 // (registerExitTx), atualiza o atendido, recalcula a situação (ATENDIDA
 // quando todos os itens completaram, senão PARCIAL) e grava o evento.
 // Qualquer falha desfaz tudo, inclusive as saídas dos itens anteriores.
@@ -423,10 +423,10 @@ func ServeRequest(actor RequestActor, requestID int, deliveries []RequestDeliver
 		return "", ErrRequestForbidden
 	}
 	if state.Status != RequestApproved && state.Status != RequestPartial {
-		return "", RequestInputError{fmt.Sprintf("só requisição aprovada ou parcial pode ser atendida (esta está %s)",
+		return "", RequestInputError{fmt.Sprintf("só solicitação aprovada ou parcial pode ser atendida (esta está %s)",
 			strings.ToLower(requestStatusLabel(state.Status)))}
 	}
-	if err := requireRequestSiteTx(tx, state.SiteID, "atender requisição"); err != nil {
+	if err := requireRequestSiteTx(tx, state.SiteID, "atender solicitação"); err != nil {
 		return "", err
 	}
 
@@ -444,7 +444,7 @@ func ServeRequest(actor RequestActor, requestID int, deliveries []RequestDeliver
 	for _, d := range deliveries {
 		item, ok := byID[d.ItemID]
 		if !ok {
-			return "", RequestInputError{"um dos itens informados não pertence a esta requisição"}
+			return "", RequestInputError{"um dos itens informados não pertence a esta solicitação"}
 		}
 		if _, repeated := delivered[d.ItemID]; repeated {
 			return "", RequestInputError{fmt.Sprintf("%s foi informado mais de uma vez", item.Name)}
@@ -472,7 +472,7 @@ func ServeRequest(actor RequestActor, requestID int, deliveries []RequestDeliver
 				item.Name, utils.FormatQuantity(quantity), item.Unit, utils.FormatQuantity(missing), item.Unit)}
 		}
 
-		note := fmt.Sprintf("Requisição #%d", requestID)
+		note := fmt.Sprintf("Solicitação #%d", requestID)
 		if err := registerExitTx(tx, item.MaterialID, state.SiteID, quantity, actor.UserID, note, requestID); err != nil {
 			if errors.Is(err, ErrInsufficientStock) {
 				return "", RequestInputError{fmt.Sprintf("%s: %v", item.Name, err)}
@@ -480,7 +480,7 @@ func ServeRequest(actor RequestActor, requestID int, deliveries []RequestDeliver
 			return "", err
 		}
 		if _, err := tx.Exec(`
-			UPDATE requisicao_itens SET quantidade_atendida = ROUND(quantidade_atendida + ?, 3) WHERE id = ?
+			UPDATE solicitacao_itens SET quantidade_atendida = ROUND(quantidade_atendida + ?, 3) WHERE id = ?
 		`, quantity, item.ID); err != nil {
 			return "", err
 		}
@@ -498,11 +498,11 @@ func ServeRequest(actor RequestActor, requestID int, deliveries []RequestDeliver
 			break
 		}
 	}
-	// Um atendimento parcial de uma requisição que já estava parcial não
+	// Um atendimento parcial de uma solicitação que já estava parcial não
 	// muda a situação, então não é transição. Qualquer mudança passa por
 	// canTransition.
 	if newStatus != state.Status && !canTransition(state.Status, newStatus) {
-		return "", RequestInputError{fmt.Sprintf("uma requisição %s não pode ficar %s",
+		return "", RequestInputError{fmt.Sprintf("uma solicitação %s não pode ficar %s",
 			strings.ToLower(requestStatusLabel(state.Status)), strings.ToLower(requestStatusLabel(newStatus)))}
 	}
 	if err := changeRequestStatusTx(tx, requestID, []string{RequestApproved, RequestPartial}, newStatus); err != nil {
@@ -514,7 +514,7 @@ func ServeRequest(actor RequestActor, requestID int, deliveries []RequestDeliver
 	return newStatus, tx.Commit()
 }
 
-// requestState é o que as ações precisam saber da requisição.
+// requestState é o que as ações precisam saber da solicitação.
 type requestState struct {
 	ID          int
 	SiteID      int
@@ -522,13 +522,13 @@ type requestState struct {
 	Status      string
 }
 
-// loadRequestTx relê a requisição dentro da transação e confere se ela
+// loadRequestTx relê a solicitação dentro da transação e confere se ela
 // está ao alcance do actor. Fora do alcance é ErrRequestNotFound, igual a
 // não existir.
 func loadRequestTx(tx *sql.Tx, actor RequestActor, requestID int) (requestState, error) {
 	state := requestState{ID: requestID}
 	err := tx.QueryRow(`
-		SELECT obra_id, solicitante_id, status FROM requisicoes WHERE id = ?
+		SELECT obra_id, solicitante_id, status FROM solicitacoes WHERE id = ?
 	`, requestID).Scan(&state.SiteID, &state.RequesterID, &state.Status)
 	if errors.Is(err, sql.ErrNoRows) {
 		return state, ErrRequestNotFound
@@ -544,7 +544,7 @@ func loadRequestTx(tx *sql.Tx, actor RequestActor, requestID int) (requestState,
 
 // requireRequestSiteTx confere que a obra existe, é uma obra (não o
 // almoxarifado central) e está em andamento. action entra na mensagem
-// ("obra paralisada não pode aprovar requisição").
+// ("obra paralisada não pode aprovar solicitação").
 func requireRequestSiteTx(tx *sql.Tx, siteID int, action string) error {
 	var siteType, status string
 	err := tx.QueryRow(`SELECT tipo, situacao FROM obras WHERE id = ? AND ativo = 1`, siteID).Scan(&siteType, &status)
@@ -555,7 +555,7 @@ func requireRequestSiteTx(tx *sql.Tx, siteID int, action string) error {
 		return err
 	}
 	if siteType == SiteTypeCentral {
-		return RequestInputError{"requisição é feita para uma obra, não para o almoxarifado central"}
+		return RequestInputError{"solicitação é feita para uma obra, não para o almoxarifado central"}
 	}
 	if status != SiteStatusInProgress {
 		return RequestInputError{fmt.Sprintf("obra %s não pode %s", strings.ToLower(siteStatusLabel(status)), action)}
@@ -563,7 +563,7 @@ func requireRequestSiteTx(tx *sql.Tx, siteID int, action string) error {
 	return nil
 }
 
-// requestItemState é um item da requisição lido dentro da transação.
+// requestItemState é um item da solicitação lido dentro da transação.
 type requestItemState struct {
 	ID         int
 	MaterialID int
@@ -577,9 +577,9 @@ type requestItemState struct {
 func loadRequestItemsTx(tx *sql.Tx, requestID int) ([]requestItemState, error) {
 	rows, err := tx.Query(`
 		SELECT i.id, i.produto_id, p.nome, p.unidade, p.ativo, i.quantidade_solicitada, i.quantidade_atendida
-		FROM requisicao_itens i
+		FROM solicitacao_itens i
 		JOIN produtos p ON p.id = i.produto_id
-		WHERE i.requisicao_id = ?
+		WHERE i.solicitacao_id = ?
 		ORDER BY i.id
 	`, requestID)
 	if err != nil {
@@ -602,7 +602,7 @@ func loadRequestItemsTx(tx *sql.Tx, requestID int) ([]requestItemState, error) {
 
 // changeRequestStatusTx muda a situação só se ela ainda for uma das
 // esperadas (from). A condição está no próprio UPDATE: se outra pessoa
-// mudou a requisição entre a leitura e a gravação, nenhuma linha muda e a
+// mudou a solicitação entre a leitura e a gravação, nenhuma linha muda e a
 // ação é recusada com ErrRequestChanged, em vez de sobrescrever.
 func changeRequestStatusTx(tx *sql.Tx, requestID int, from []string, to string) error {
 	placeholders := strings.TrimSuffix(strings.Repeat("?, ", len(from)), ", ")
@@ -611,7 +611,7 @@ func changeRequestStatusTx(tx *sql.Tx, requestID int, from []string, to string) 
 		args = append(args, status)
 	}
 	result, err := tx.Exec(`
-		UPDATE requisicoes
+		UPDATE solicitacoes
 		SET status = ?, atualizado_em = CURRENT_TIMESTAMP
 		WHERE id = ? AND status IN (`+placeholders+`)
 	`, args...)
@@ -630,18 +630,18 @@ func changeRequestStatusTx(tx *sql.Tx, requestID int, from []string, to string) 
 
 func registerRequestEventTx(tx *sql.Tx, requestID, userID int, action, detail string) error {
 	_, err := tx.Exec(`
-		INSERT INTO requisicao_eventos (requisicao_id, usuario_id, acao, detalhe)
+		INSERT INTO solicitacao_eventos (solicitacao_id, usuario_id, acao, detalhe)
 		VALUES (?, ?, ?, ?)
 	`, requestID, userID, action, detail)
 	return err
 }
 
-// countOpenRequestsTx conta as requisições em aberto da obra (para o
+// countOpenRequestsTx conta as solicitações em aberto da obra (para o
 // bloqueio de encerramento).
 func countOpenRequestsTx(tx *sql.Tx, siteID int) (int, error) {
 	var count int
 	err := tx.QueryRow(`
-		SELECT COUNT(*) FROM requisicoes WHERE obra_id = ? AND status IN (?, ?, ?)
+		SELECT COUNT(*) FROM solicitacoes WHERE obra_id = ? AND status IN (?, ?, ?)
 	`, siteID, RequestPending, RequestApproved, RequestPartial).Scan(&count)
 	return count, err
 }

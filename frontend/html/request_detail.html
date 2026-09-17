@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UchôaStock - Requisição</title>
+    <title>UchôaStock - Solicitação</title>
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
@@ -33,7 +33,7 @@
                 <a href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
                 <a href="/estoque"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM7 7V4h10v3M8 11h8M8 15h5"></path></svg>Estoque</a>
                 <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
-                <a class="tab-active" href="/requisicoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"></path><path d="M9 5H6v16h12V5h-3"></path><path d="M9 12h6M9 16h4"></path></svg>Requisições{{ template "nav-request-badges" .Nav }}</a>
+                <a class="tab-active" href="/solicitacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"></path><path d="M9 5H6v16h12V5h-3"></path><path d="M9 12h6M9 16h4"></path></svg>Solicitações{{ template "nav-request-badges" .Nav }}</a>
                 {{ if .CanManageUsers }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
             </nav>
 
@@ -52,7 +52,7 @@
                         <path d="M4 6h16M4 12h16M4 18h16"></path>
                     </svg>
                 </button>
-                <h2>Requisição</h2>
+                <h2>Solicitação</h2>
 
                 {{ template "site-switcher" .Scope }}
 
@@ -78,8 +78,8 @@
 
                 <header class="page-hero">
                     <div class="page-hero-text">
-                        <span class="eyebrow">Requisição · {{ .Request.SiteName }}</span>
-                        <h3>Requisição #{{ .Request.ID }}</h3>
+                        <span class="eyebrow">Solicitação · {{ .Request.SiteName }}</span>
+                        <h3>Solicitação #{{ .Request.ID }}</h3>
                         <p>{{ if .Request.Note }}{{ .Request.Note }}{{ else }}Sem observação.{{ end }}</p>
                         <span class="page-hero-meta"><span class="badge request-status-{{ .Request.Status }}">{{ .Request.FormattedStatus }}</span> Criada por {{ .Request.RequesterName }} em {{ .Request.CreatedAt }}</span>
                     </div>
@@ -110,22 +110,22 @@
                 {{ if or .Buttons.Approve .Buttons.Reject .Buttons.Cancel }}
                 <div class="request-actions">
                     {{ if .Buttons.Approve }}
-                    <form method="POST" action="/requisicoes/{{ .Request.ID }}">
+                    <form method="POST" action="/solicitacoes/{{ .Request.ID }}">
                         <input type="hidden" name="acao" value="aprovar">
                         <button class="save-button" type="submit"
-                            data-confirm="Aprovar a requisição #{{ .Request.ID }}? A aprovação não reserva estoque: o saldo é conferido na hora do atendimento."
-                            data-confirm-title="Aprovar requisição" data-confirm-ok="Aprovar" data-confirm-tone="warning">Aprovar</button>
+                            data-confirm="Aprovar a solicitação #{{ .Request.ID }}? A aprovação não reserva estoque: o saldo é conferido na hora do atendimento."
+                            data-confirm-title="Aprovar solicitação" data-confirm-ok="Aprovar" data-confirm-tone="warning">Aprovar</button>
                     </form>
                     {{ end }}
                     {{ if .Buttons.Reject }}
-                    <a class="button-secondary" href="/requisicoes/{{ .Request.ID }}?rejeitar=1" data-open-reject>Rejeitar</a>
+                    <a class="button-secondary" href="/solicitacoes/{{ .Request.ID }}?rejeitar=1" data-open-reject>Rejeitar</a>
                     {{ end }}
                     {{ if .Buttons.Cancel }}
-                    <form method="POST" action="/requisicoes/{{ .Request.ID }}">
+                    <form method="POST" action="/solicitacoes/{{ .Request.ID }}">
                         <input type="hidden" name="acao" value="cancelar">
                         <button class="button-danger" type="submit"
-                            data-confirm="Cancelar a requisição #{{ .Request.ID }}?{{ if eq .Request.Status "PARCIAL" }} O que já foi entregue continua entregue.{{ end }}"
-                            data-confirm-title="Cancelar requisição" data-confirm-ok="Cancelar requisição" data-confirm-tone="warning">Cancelar requisição</button>
+                            data-confirm="Cancelar a solicitação #{{ .Request.ID }}?{{ if eq .Request.Status "PARCIAL" }} O que já foi entregue continua entregue.{{ end }}"
+                            data-confirm-title="Cancelar solicitação" data-confirm-ok="Cancelar solicitação" data-confirm-tone="warning">Cancelar solicitação</button>
                     </form>
                     {{ end }}
                 </div>
@@ -136,7 +136,7 @@
                     <div class="section-header">
                         <div>
                             <h3>Itens</h3>
-                            <small>{{ if .Buttons.Serve }}Informe quanto está entregando agora. O campo já vem com o que falta, limitado pelo saldo da obra; 0 deixa o item para depois.{{ else }}Saldo atual de cada material na obra da requisição.{{ end }}</small>
+                            <small>{{ if .Buttons.Serve }}Informe quanto está entregando agora. O campo já vem com o que falta, limitado pelo saldo da obra; 0 deixa o item para depois.{{ else }}Saldo atual de cada material na obra da solicitação.{{ end }}</small>
                         </div>
                     </div>
 
@@ -175,11 +175,11 @@
                     </div>
 
                     {{ if .Buttons.Serve }}
-                    <form id="serve-form" class="request-serve-actions" method="POST" action="/requisicoes/{{ .Request.ID }}">
+                    <form id="serve-form" class="request-serve-actions" method="POST" action="/solicitacoes/{{ .Request.ID }}">
                         <input type="hidden" name="acao" value="atender">
                         <button class="save-button" type="submit"
                             data-confirm="Registrar a entrega informada? Cada item entregue vira uma saída de estoque da obra {{ .Request.SiteName }}."
-                            data-confirm-title="Atender requisição" data-confirm-ok="Registrar entrega" data-confirm-tone="warning">Registrar atendimento</button>
+                            data-confirm-title="Atender solicitação" data-confirm-ok="Registrar entrega" data-confirm-tone="warning">Registrar atendimento</button>
                     </form>
                     {{ end }}
 
@@ -208,23 +208,23 @@
                     <div class="modal-edit-content" role="dialog" aria-modal="true" aria-labelledby="reject-title">
                         <div class="modal-create-header">
                             <div>
-                                <span class="edit-kicker">Requisição #{{ .Request.ID }}</span>
-                                <h3 id="reject-title">Rejeitar requisição</h3>
+                                <span class="edit-kicker">Solicitação #{{ .Request.ID }}</span>
+                                <h3 id="reject-title">Rejeitar solicitação</h3>
                             </div>
-                            <a class="close-modal-button" href="/requisicoes/{{ .Request.ID }}" id="close-reject-modal" aria-label="Fechar">&times;</a>
+                            <a class="close-modal-button" href="/solicitacoes/{{ .Request.ID }}" id="close-reject-modal" aria-label="Fechar">&times;</a>
                         </div>
 
                         {{ if and .Error .RejectOpen }}
                         <p class="form-error" role="alert">{{ .Error }}</p>
                         {{ end }}
 
-                        <form class="create-form" method="POST" action="/requisicoes/{{ .Request.ID }}">
+                        <form class="create-form" method="POST" action="/solicitacoes/{{ .Request.ID }}">
                             <input type="hidden" name="acao" value="rejeitar">
                             <label for="reject-reason">Motivo</label>
-                            <textarea id="reject-reason" name="motivo" maxlength="300" rows="3" placeholder="Ex.: o material já foi enviado em outra requisição">{{ .RejectReason }}</textarea>
+                            <textarea id="reject-reason" name="motivo" maxlength="300" rows="3" placeholder="Ex.: o material já foi enviado em outra solicitação">{{ .RejectReason }}</textarea>
                             <button class="button-danger" type="submit"
-                                data-confirm="Rejeitar a requisição #{{ .Request.ID }}? Quem pediu vai ver o motivo."
-                                data-confirm-title="Rejeitar requisição" data-confirm-ok="Rejeitar" data-confirm-tone="warning">Rejeitar requisição</button>
+                                data-confirm="Rejeitar a solicitação #{{ .Request.ID }}? Quem pediu vai ver o motivo."
+                                data-confirm-title="Rejeitar solicitação" data-confirm-ok="Rejeitar" data-confirm-tone="warning">Rejeitar solicitação</button>
                         </form>
                     </div>
                 </div>

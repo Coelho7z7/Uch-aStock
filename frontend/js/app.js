@@ -62,7 +62,7 @@ function initResponsiveTableLabels() {
 // sem JS (e para quem lê o código-fonte); esta função só corrige na
 // virada do ano, para ninguém precisar editar o template todo 1º de
 // janeiro.
-// Linhas de item do formulário de nova requisição (/requisicoes/nova):
+// Linhas de item do formulário de nova solicitação (/solicitacoes/nova):
 // acrescentar, remover e mostrar a unidade do material escolhido. Só
 // isso: toda validação (item repetido, quantidade, limite de itens) é
 // feita no servidor.
@@ -431,7 +431,7 @@ function enableSearchableSelects() {
 //
 // Duas proteções:
 // - espera 300 ms sem digitar antes de pedir, para não fazer uma
-//   requisição por letra;
+//   solicitação por letra;
 // - AbortController cancela o pedido anterior ainda em andamento. Sem
 //   isso, uma resposta lenta de "ci" poderia chegar depois da de
 //   "cimento" e mostrar o resultado errado.

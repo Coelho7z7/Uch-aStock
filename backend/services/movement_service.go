@@ -59,13 +59,13 @@ func GetMovementsFilteredWeb(filter MovementFilter) ([]models.Movement, error) {
 			m.tipo,
 			m.quantidade,
 			m.observacao,
-			COALESCE(m.requisicao_id, 0),
+			COALESCE(m.solicitacao_id, 0),
 			COALESCE(rq.solicitante_id, 0)
 		FROM movimentacoes m
 		JOIN produtos p ON p.id = m.produto_id
 		JOIN usuarios u ON u.id = m.usuario_id
 		LEFT JOIN obras o ON o.id = m.obra_id
-		LEFT JOIN requisicoes rq ON rq.id = m.requisicao_id
+		LEFT JOIN solicitacoes rq ON rq.id = m.solicitacao_id
 		WHERE 1 = 1
 	`
 	var args []any

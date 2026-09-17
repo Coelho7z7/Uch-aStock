@@ -132,7 +132,7 @@ body.mobile-menu-open .sidebar {
     transform: translateX(-120%);
 }
 
-/* Contadores do item "Requisições": o primeiro vai para a direita, e o
+/* Contadores do item "Solicitações": o primeiro vai para a direita, e o
    segundo (quem aprova e atende vê os dois) fica ao lado dele. */
 .nav-badge {
     display: inline-flex;

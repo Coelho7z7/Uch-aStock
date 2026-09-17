@@ -257,9 +257,9 @@ func UpdateMaterialWeb(materialID int, name string, unit string, minimum float64
 // DeleteMaterialWeb remove o material do catálogo (ativo = 0). Não pode
 // ser removido material com saldo em alguma obra (ele sumiria das telas
 // com o estoque ainda lá, e ninguém conseguiria mais registrar a saída)
-// nem material que está numa requisição em aberto (pendente, aprovada ou
+// nem material que está numa solicitação em aberto (pendente, aprovada ou
 // parcial): o item ficaria impossível de atender. A checagem e a remoção
-// ficam na mesma transação, para uma entrada ou requisição que chegue no
+// ficam na mesma transação, para uma entrada ou solicitação que chegue no
 // meio não passar despercebida.
 func DeleteMaterialWeb(materialID int) error {
 	tx, err := database.DB.Begin()
@@ -293,8 +293,8 @@ func DeleteMaterialWeb(materialID int) error {
 	}
 	if err := tx.QueryRow(`
 		SELECT COUNT(DISTINCT r.id)
-		FROM requisicao_itens i
-		JOIN requisicoes r ON r.id = i.requisicao_id
+		FROM solicitacao_itens i
+		JOIN solicitacoes r ON r.id = i.solicitacao_id
 		WHERE i.produto_id = ? AND r.status IN (?, ?, ?)
 	`, materialID, RequestPending, RequestApproved, RequestPartial).Scan(&openRequests); err != nil {
 		return err
@@ -308,10 +308,10 @@ func DeleteMaterialWeb(materialID int) error {
 		blockers = append(blockers, fmt.Sprintf("o material ainda tem saldo em %d obras. Registre as saídas antes de remover.", sites))
 	}
 	if openRequests == 1 {
-		blockers = append(blockers, "o material está em 1 requisição em aberto (pendente, aprovada ou parcial). Atenda, rejeite ou cancele antes de remover.")
+		blockers = append(blockers, "o material está em 1 solicitação em aberto (pendente, aprovada ou parcial). Atenda, rejeite ou cancele antes de remover.")
 	}
 	if openRequests > 1 {
-		blockers = append(blockers, fmt.Sprintf("o material está em %d requisições em aberto (pendentes, aprovadas ou parciais). Atenda, rejeite ou cancele antes de remover.", openRequests))
+		blockers = append(blockers, fmt.Sprintf("o material está em %d solicitações em aberto (pendentes, aprovadas ou parciais). Atenda, rejeite ou cancele antes de remover.", openRequests))
 	}
 	// O return antes do Commit desfaz o UPDATE acima (defer tx.Rollback).
 	if len(blockers) > 0 {

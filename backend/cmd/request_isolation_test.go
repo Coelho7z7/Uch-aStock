@@ -13,15 +13,15 @@ import (
 )
 
 // requestHTTPFixture acrescenta ao banco de isolamento (obras A e B) as
-// pessoas e requisições que os testes de requisição usam.
+// pessoas e solicitações que os testes de solicitação usam.
 type requestHTTPFixture struct {
 	isolationFixture
 	requesterToken      string // solicitante da obra A
 	otherRequesterToken string // outro solicitante da obra A
-	pendingB            int    // requisição pendente da obra B
-	approvedB           int    // requisição aprovada da obra B
-	approvedBItem       int    // item da requisição aprovada da obra B
-	colleagueA          int    // requisição pendente do outro solicitante da obra A
+	pendingB            int    // solicitação pendente da obra B
+	approvedB           int    // solicitação aprovada da obra B
+	approvedBItem       int    // item da solicitação aprovada da obra B
+	colleagueA          int    // solicitação pendente do outro solicitante da obra A
 }
 
 func setupRequestHTTP(t *testing.T) requestHTTPFixture {
@@ -58,7 +58,7 @@ func setupRequestHTTP(t *testing.T) requestHTTPFixture {
 	create := func(userID, siteID, material int) int {
 		id, err := services.CreateRequest(actorFor(userID), siteID, "Bloco B - laje", []services.RequestItemInput{{MaterialID: material, Quantity: 2}})
 		if err != nil {
-			t.Fatalf("criar requisição: %v", err)
+			t.Fatalf("criar solicitação: %v", err)
 		}
 		return id
 	}
@@ -68,15 +68,15 @@ func setupRequestHTTP(t *testing.T) requestHTTPFixture {
 	if err := services.ApproveRequest(actorFor(managerBID), f.approvedB); err != nil {
 		t.Fatal(err)
 	}
-	f.approvedBItem = queryID(t, fmt.Sprintf(`SELECT id FROM requisicao_itens WHERE requisicao_id = %d`, f.approvedB))
+	f.approvedBItem = queryID(t, fmt.Sprintf(`SELECT id FROM solicitacao_itens WHERE solicitacao_id = %d`, f.approvedB))
 	f.colleagueA = create(otherRequesterID, f.siteA, f.materialA)
 	return f
 }
 
-// requestCall chama o handler de detalhe como a rota /requisicoes/{id}
+// requestCall chama o handler de detalhe como a rota /solicitacoes/{id}
 // chamaria, com a sessão do token.
 func requestCall(token, method string, requestID int, form url.Values) *httptest.ResponseRecorder {
-	path := fmt.Sprintf("/requisicoes/%d", requestID)
+	path := fmt.Sprintf("/solicitacoes/%d", requestID)
 	var body *strings.Reader
 	if form != nil {
 		body = strings.NewReader(form.Encode())
@@ -95,8 +95,8 @@ func requestCall(token, method string, requestID int, form url.Values) *httptest
 }
 
 // TestRequestIsolationBetweenSites: gestor, almoxarife e solicitante da
-// obra A tentam ver e agir em requisições da obra B pelo endereço direto.
-// Todos recebem 404 (sem saber se a requisição existe), nada aparece na
+// obra A tentam ver e agir em solicitações da obra B pelo endereço direto.
+// Todos recebem 404 (sem saber se a solicitação existe), nada aparece na
 // lista deles e o banco não muda.
 func TestRequestIsolationBetweenSites(t *testing.T) {
 	f := setupRequestHTTP(t)
@@ -109,16 +109,16 @@ func TestRequestIsolationBetweenSites(t *testing.T) {
 	for who, token := range attackers {
 		for _, id := range []int{f.pendingB, f.approvedB} {
 			if response := requestCall(token, http.MethodGet, id, nil); response.Code != http.StatusNotFound {
-				t.Errorf("%s abrindo a requisição #%d da obra B: status %d, esperado 404", who, id, response.Code)
+				t.Errorf("%s abrindo a solicitação #%d da obra B: status %d, esperado 404", who, id, response.Code)
 			}
 		}
 
 		// Mesmo escolhendo a obra B no seletor, a lista continua só da obra A.
 		selectSite(t, token, f.siteB)
-		list := get(token, requestListHandler, "/requisicoes")
+		list := get(token, requestListHandler, "/solicitacoes")
 		for _, id := range []int{f.pendingB, f.approvedB} {
-			if strings.Contains(list, fmt.Sprintf(`href="/requisicoes/%d"`, id)) {
-				t.Errorf("%s vê a requisição #%d da obra B na lista", who, id)
+			if strings.Contains(list, fmt.Sprintf(`href="/solicitacoes/%d"`, id)) {
+				t.Errorf("%s vê a solicitação #%d da obra B na lista", who, id)
 			}
 		}
 		selectSite(t, token, f.siteA)
@@ -138,45 +138,45 @@ func TestRequestIsolationBetweenSites(t *testing.T) {
 			before := snapshot(t)
 			response := requestCall(token, http.MethodPost, a.id, a.form)
 			if response.Code != http.StatusNotFound {
-				t.Errorf("%s: %s requisição da obra B: status %d, esperado 404", who, a.name, response.Code)
+				t.Errorf("%s: %s solicitação da obra B: status %d, esperado 404", who, a.name, response.Code)
 			}
 			if snapshot(t) != before {
-				t.Errorf("%s: %s requisição da obra B mudou o banco", who, a.name)
+				t.Errorf("%s: %s solicitação da obra B mudou o banco", who, a.name)
 			}
 		}
 	}
 
-	// Controle: o gestor da obra A vê e aprova a requisição da própria obra.
+	// Controle: o gestor da obra A vê e aprova a solicitação da própria obra.
 	if response := requestCall(f.managerToken, http.MethodGet, f.colleagueA, nil); response.Code != http.StatusOK {
-		t.Errorf("gestor abrindo requisição da própria obra: status %d", response.Code)
+		t.Errorf("gestor abrindo solicitação da própria obra: status %d", response.Code)
 	}
 	if response := requestCall(f.managerToken, http.MethodPost, f.colleagueA, url.Values{"acao": {"aprovar"}}); response.Code != http.StatusSeeOther {
-		t.Errorf("gestor aprovando requisição da própria obra: status %d", response.Code)
+		t.Errorf("gestor aprovando solicitação da própria obra: status %d", response.Code)
 	}
 }
 
 // TestRequesterSeesOnlyOwnRequests: um solicitante não abre, não lista e
-// não cancela a requisição de outro solicitante da mesma obra.
+// não cancela a solicitação de outro solicitante da mesma obra.
 func TestRequesterSeesOnlyOwnRequests(t *testing.T) {
 	f := setupRequestHTTP(t)
 
 	if response := requestCall(f.requesterToken, http.MethodGet, f.colleagueA, nil); response.Code != http.StatusNotFound {
-		t.Errorf("abrir a requisição do colega: status %d, esperado 404", response.Code)
+		t.Errorf("abrir a solicitação do colega: status %d, esperado 404", response.Code)
 	}
-	if strings.Contains(get(f.requesterToken, requestListHandler, "/requisicoes"), fmt.Sprintf(`href="/requisicoes/%d"`, f.colleagueA)) {
-		t.Error("a requisição do colega aparece na lista do solicitante")
+	if strings.Contains(get(f.requesterToken, requestListHandler, "/solicitacoes"), fmt.Sprintf(`href="/solicitacoes/%d"`, f.colleagueA)) {
+		t.Error("a solicitação do colega aparece na lista do solicitante")
 	}
 	before := snapshot(t)
 	if response := requestCall(f.requesterToken, http.MethodPost, f.colleagueA, url.Values{"acao": {"cancelar"}}); response.Code != http.StatusNotFound {
-		t.Errorf("cancelar a requisição do colega: status %d, esperado 404", response.Code)
+		t.Errorf("cancelar a solicitação do colega: status %d, esperado 404", response.Code)
 	}
 	if snapshot(t) != before {
-		t.Error("a tentativa de cancelar a requisição do colega mudou o banco")
+		t.Error("a tentativa de cancelar a solicitação do colega mudou o banco")
 	}
 
 	// Controle: o autor abre e cancela a dele.
 	if response := requestCall(f.otherRequesterToken, http.MethodGet, f.colleagueA, nil); response.Code != http.StatusOK {
-		t.Errorf("autor abrindo a própria requisição: status %d", response.Code)
+		t.Errorf("autor abrindo a própria solicitação: status %d", response.Code)
 	}
 	if response := requestCall(f.otherRequesterToken, http.MethodPost, f.colleagueA, url.Values{"acao": {"cancelar"}}); response.Code != http.StatusSeeOther {
 		t.Errorf("autor cancelando a própria pendente: status %d", response.Code)
@@ -184,8 +184,8 @@ func TestRequesterSeesOnlyOwnRequests(t *testing.T) {
 }
 
 // TestRequestFormIgnoresForgedIDs: obra e item vindos do formulário não
-// são confiados. A requisição nova vai para a obra do usuário mesmo com
-// obra_id da obra B, e um item de outra requisição no atendimento não é
+// são confiados. A solicitação nova vai para a obra do usuário mesmo com
+// obra_id da obra B, e um item de outra solicitação no atendimento não é
 // entregue.
 func TestRequestFormIgnoresForgedIDs(t *testing.T) {
 	f := setupRequestHTTP(t)
@@ -196,19 +196,19 @@ func TestRequestFormIgnoresForgedIDs(t *testing.T) {
 		"quantidade":  {"1"},
 		"observacao":  {"teste"},
 	}
-	response := post(f.requesterToken, newRequestHandler, "/requisicoes/nova", form)
+	response := post(f.requesterToken, newRequestHandler, "/solicitacoes/nova", form)
 	if response.Code != http.StatusSeeOther {
-		t.Fatalf("criar requisição: status %d\n%s", response.Code, response.Body.String())
+		t.Fatalf("criar solicitação: status %d\n%s", response.Code, response.Body.String())
 	}
 	var siteID int
-	if err := database.DB.QueryRow(`SELECT obra_id FROM requisicoes WHERE observacao = 'teste'`).Scan(&siteID); err != nil {
+	if err := database.DB.QueryRow(`SELECT obra_id FROM solicitacoes WHERE observacao = 'teste'`).Scan(&siteID); err != nil {
 		t.Fatal(err)
 	}
 	if siteID != f.siteA {
-		t.Errorf("requisição criada na obra %d, esperado a obra do usuário (%d)", siteID, f.siteA)
+		t.Errorf("solicitação criada na obra %d, esperado a obra do usuário (%d)", siteID, f.siteA)
 	}
 
-	// Atender a requisição da obra A mandando o ID do item da obra B.
+	// Atender a solicitação da obra A mandando o ID do item da obra B.
 	if response := requestCall(f.managerToken, http.MethodPost, f.colleagueA, url.Values{"acao": {"aprovar"}}); response.Code != http.StatusSeeOther {
 		t.Fatalf("aprovar: status %d", response.Code)
 	}
@@ -218,24 +218,24 @@ func TestRequestFormIgnoresForgedIDs(t *testing.T) {
 		fmt.Sprintf("entrega_%d", f.approvedBItem): {"1"},
 	})
 	if response.Code == http.StatusSeeOther || !strings.Contains(response.Body.String(), "pelo menos um item") {
-		t.Errorf("atender com item de outra requisição: status %d", response.Code)
+		t.Errorf("atender com item de outra solicitação: status %d", response.Code)
 	}
 	if snapshot(t) != before {
 		t.Error("o item forjado mudou o banco")
 	}
 }
 
-// TestApproveOwnRequestOverHTTP: o admin não aprova a própria requisição
+// TestApproveOwnRequestOverHTTP: o admin não aprova a própria solicitação
 // pela tela (e o botão nem aparece); o gestor aprova a dele.
 func TestApproveOwnRequestOverHTTP(t *testing.T) {
 	f := setupRequestHTTP(t)
 
 	selectSite(t, f.adminToken, f.siteA)
 	form := url.Values{"obra_id": {fmt.Sprint(f.siteA)}, "material_id": {fmt.Sprint(f.materialA)}, "quantidade": {"1"}, "observacao": {"do admin"}}
-	if response := post(f.adminToken, newRequestHandler, "/requisicoes/nova", form); response.Code != http.StatusSeeOther {
-		t.Fatalf("admin criando requisição: status %d\n%s", response.Code, response.Body.String())
+	if response := post(f.adminToken, newRequestHandler, "/solicitacoes/nova", form); response.Code != http.StatusSeeOther {
+		t.Fatalf("admin criando solicitação: status %d\n%s", response.Code, response.Body.String())
 	}
-	own := queryID(t, `SELECT id FROM requisicoes WHERE observacao = 'do admin'`)
+	own := queryID(t, `SELECT id FROM solicitacoes WHERE observacao = 'do admin'`)
 
 	page := requestCall(f.adminToken, http.MethodGet, own, nil).Body.String()
 	if strings.Contains(page, `name="acao" value="aprovar"`) {
@@ -251,13 +251,13 @@ func TestApproveOwnRequestOverHTTP(t *testing.T) {
 	}
 
 	if response := requestCall(f.managerToken, http.MethodPost, own, url.Values{"acao": {"aprovar"}}); response.Code != http.StatusSeeOther {
-		t.Errorf("gestor aprovando a requisição do admin: status %d", response.Code)
+		t.Errorf("gestor aprovando a solicitação do admin: status %d", response.Code)
 	}
 }
 
-// TestNotFoundPage: requisição de outra obra, requisição que não existe e
+// TestNotFoundPage: solicitação de outra obra, solicitação que não existe e
 // ID inválido mostram a mesma página 404, no layout do sistema. A resposta
-// é idêntica nos dois primeiros casos, para não revelar que a requisição
+// é idêntica nos dois primeiros casos, para não revelar que a solicitação
 // existe. Sem sessão, um endereço desconhecido mostra só o cartão.
 func TestNotFoundPage(t *testing.T) {
 	f := setupRequestHTTP(t)
@@ -272,13 +272,13 @@ func TestNotFoundPage(t *testing.T) {
 	}
 	// O seletor de obra guarda o endereço atual (para voltar a ele), que é o
 	// próprio número digitado; fora isso, as duas respostas são iguais.
-	otherBody := strings.ReplaceAll(otherSite.Body.String(), fmt.Sprintf("/requisicoes/%d", f.pendingB), "/requisicoes/N")
-	missingBody := strings.ReplaceAll(missing.Body.String(), "/requisicoes/999999", "/requisicoes/N")
+	otherBody := strings.ReplaceAll(otherSite.Body.String(), fmt.Sprintf("/solicitacoes/%d", f.pendingB), "/solicitacoes/N")
+	missingBody := strings.ReplaceAll(missing.Body.String(), "/solicitacoes/999999", "/solicitacoes/N")
 	if otherBody != missingBody {
-		t.Error("a 404 de uma requisição de outra obra é diferente da 404 de uma inexistente: revela que ela existe")
+		t.Error("a 404 de uma solicitação de outra obra é diferente da 404 de uma inexistente: revela que ela existe")
 	}
 
-	invalid := httptest.NewRequest(http.MethodGet, "/requisicoes/abc", nil)
+	invalid := httptest.NewRequest(http.MethodGet, "/solicitacoes/abc", nil)
 	invalid.SetPathValue("id", "abc")
 	invalid.AddCookie(&http.Cookie{Name: "sessao", Value: f.managerToken})
 	recorder := httptest.NewRecorder()
@@ -301,5 +301,29 @@ func TestNotFoundPage(t *testing.T) {
 	body := recorder.Body.String()
 	if recorder.Code != http.StatusNotFound || !strings.Contains(body, "Página não encontrada") || strings.Contains(body, `class="sidebar"`) {
 		t.Errorf("endereço desconhecido sem sessão: status %d, esperado só o cartão", recorder.Code)
+	}
+}
+
+// TestRedirectToRequestsKeepsOldLinksWorking: os endereços antigos de
+// "/requisicoes" respondem 301 para "/solicitacoes", preservando o que vem
+// depois e a query string. Sem isso, favorito e link mandado no grupo da
+// obra virariam 404 depois da renomeação da tela.
+func TestRedirectToRequestsKeepsOldLinksWorking(t *testing.T) {
+	cases := []struct{ from, want string }{
+		{"/requisicoes", "/solicitacoes"},
+		{"/requisicoes/nova", "/solicitacoes/nova"},
+		{"/requisicoes/12", "/solicitacoes/12"},
+		{"/requisicoes/12?sucesso=criada", "/solicitacoes/12?sucesso=criada"},
+		{"/requisicoes?busca=cimento&pagina=2", "/solicitacoes?busca=cimento&pagina=2"},
+	}
+	for _, c := range cases {
+		recorder := httptest.NewRecorder()
+		redirectToRequests(recorder, httptest.NewRequest(http.MethodGet, c.from, nil))
+		if recorder.Code != http.StatusMovedPermanently {
+			t.Errorf("%s: status %d, esperado %d", c.from, recorder.Code, http.StatusMovedPermanently)
+		}
+		if got := recorder.Header().Get("Location"); got != c.want {
+			t.Errorf("%s: Location = %q, esperado %q", c.from, got, c.want)
+		}
 	}
 }

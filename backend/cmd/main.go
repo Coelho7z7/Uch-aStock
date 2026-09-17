@@ -186,11 +186,17 @@ func registerRoutes() {
 	http.HandleFunc("/movimentacoes", withUser(movementHandler))
 	http.HandleFunc("/movimentacoes/exportar", withUser(movementExportHandler))
 
-	// "/requisicoes/nova" é mais específica que "/requisicoes/{id}": o
+	// "/solicitacoes/nova" é mais específica que "/solicitacoes/{id}": o
 	// roteador do Go escolhe a mais específica, então "nova" nunca vira ID.
-	http.HandleFunc("/requisicoes", withUser(requestListHandler))
-	http.HandleFunc("/requisicoes/nova", withUser(newRequestHandler))
-	http.HandleFunc("/requisicoes/{id}", withUser(requestDetailHandler))
+	http.HandleFunc("/solicitacoes", withUser(requestListHandler))
+	http.HandleFunc("/solicitacoes/nova", withUser(newRequestHandler))
+	http.HandleFunc("/solicitacoes/{id}", withUser(requestDetailHandler))
+
+	// A tela já se chamou "/requisicoes". Link antigo — favorito, mensagem
+	// no grupo da obra, aba esquecida aberta — continua funcionando: o
+	// redirect leva para o endereço novo sem perder a query string.
+	http.HandleFunc("/requisicoes", redirectToRequests)
+	http.HandleFunc("/requisicoes/{rest...}", redirectToRequests)
 
 	http.HandleFunc("/usuarios", withUser(userHandler))
 }
@@ -330,7 +336,7 @@ func stockChecks(out io.Writer, migrate bool) int {
 
 // reportForeignKeyTables mostra em quais tabelas o foreign_key_check
 // conferiu chave estrangeira. O PRAGMA confere o banco inteiro; a lista
-// deixa visível que as tabelas novas (as de requisição, por exemplo)
+// deixa visível que as tabelas novas (as de solicitação, por exemplo)
 // entraram na conta.
 func reportForeignKeyTables(out io.Writer) error {
 	tables, err := database.TablesWithForeignKeys()

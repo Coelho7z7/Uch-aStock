@@ -108,7 +108,7 @@ func movementHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 		// Nav são os contadores da barra lateral.
 		Nav navData
 		// RequestLinks diz, pelo ID da movimentação, se o "Req. #N" vira
-		// link: só quando a pessoa pode ver a requisição.
+		// link: só quando a pessoa pode ver a solicitação.
 		RequestLinks map[int]bool
 		// CanExport mostra o botão Exportar CSV.
 		CanExport bool
@@ -186,7 +186,7 @@ func movementExportHandler(w http.ResponseWriter, r *http.Request, user *models.
 	writer := csv.NewWriter(w)
 	writer.Comma = ';'
 
-	_ = writer.Write([]string{"Data", "Hora", "Obra", "Tipo", "Material", "Quantidade", "Unidade", "Usuário", "Observação", "Requisição"})
+	_ = writer.Write([]string{"Data", "Hora", "Obra", "Tipo", "Material", "Quantidade", "Unidade", "Usuário", "Observação", "Solicitação"})
 	for _, movement := range movements {
 		quantity, unit := movement.FormattedQuantity, movement.Unit
 		if movement.Type == "ATUALIZACAO" {
@@ -233,8 +233,8 @@ func ownMovementsOnly(user *models.User) int {
 	return user.ID
 }
 
-// requestLinks marca as movimentações cuja requisição a pessoa pode abrir
-// (mesma regra da tela de requisição: obra e solicitante ao alcance).
+// requestLinks marca as movimentações cuja solicitação a pessoa pode abrir
+// (mesma regra da tela de solicitação: obra e solicitante ao alcance).
 func requestLinks(user *models.User, movements []models.Movement) map[int]bool {
 	actor := requestActor(user)
 	links := map[int]bool{}
@@ -246,7 +246,7 @@ func requestLinks(user *models.User, movements []models.Movement) map[int]bool {
 	return links
 }
 
-// requestNumber é a coluna Requisição do CSV: "#12", ou vazio para
+// requestNumber é a coluna Solicitação do CSV: "#12", ou vazio para
 // movimentação avulsa.
 func requestNumber(requestID int) string {
 	if requestID == 0 {

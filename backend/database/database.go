@@ -252,6 +252,13 @@ func TablesWithForeignKeys() ([]string, error) {
 
 // createTablesTx é o corpo de CreateTables, dentro da transação.
 func createTablesTx(tx *sql.Tx) error {
+	// Antes de qualquer CREATE TABLE: renomeia as tabelas de requisição
+	// para solicitação. Se rodasse depois, o CREATE criaria as tabelas
+	// novas vazias e os dados antigos ficariam órfãos. Ver a função.
+	if err := renameRequestTablesTx(tx); err != nil {
+		return err
+	}
+
 	query := `
 		CREATE TABLE IF NOT EXISTS produtos (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -326,13 +333,13 @@ func createTablesTx(tx *sql.Tx) error {
 		PRIMARY KEY (usuario_id, obra_id)
 	);
 
-	-- Requisição de material: alguém da obra pede, o gestor aprova e o
+	-- Solicitação de material: alguém da obra pede, o gestor aprova e o
 	-- almoxarife atende (o atendimento gera as saídas de estoque). status
 	-- é 'PENDENTE', 'APROVADA', 'REJEITADA', 'PARCIAL', 'ATENDIDA' ou
 	-- 'CANCELADA'; as regras de transição ficam em services. aprovado_por e
 	-- aprovado_em só são preenchidos na aprovação. Datas em UTC, como o
 	-- resto do banco: na tela, sempre com 'localtime'.
-	CREATE TABLE IF NOT EXISTS requisicoes (
+	CREATE TABLE IF NOT EXISTS solicitacoes (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		obra_id INTEGER NOT NULL REFERENCES obras(id),
 		solicitante_id INTEGER NOT NULL REFERENCES usuarios(id),
@@ -345,32 +352,32 @@ func createTablesTx(tx *sql.Tx) error {
 		atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
-	-- Itens da requisição. quantidade_atendida cresce a cada atendimento,
+	-- Itens da solicitação. quantidade_atendida cresce a cada atendimento,
 	-- até chegar em quantidade_solicitada. REAL, como o saldo: há material
 	-- medido em fração (2,5 m³).
-	CREATE TABLE IF NOT EXISTS requisicao_itens (
+	CREATE TABLE IF NOT EXISTS solicitacao_itens (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		requisicao_id INTEGER NOT NULL REFERENCES requisicoes(id),
+		solicitacao_id INTEGER NOT NULL REFERENCES solicitacoes(id),
 		produto_id INTEGER NOT NULL REFERENCES produtos(id),
 		quantidade_solicitada REAL NOT NULL,
 		quantidade_atendida REAL NOT NULL DEFAULT 0,
-		UNIQUE (requisicao_id, produto_id)
+		UNIQUE (solicitacao_id, produto_id)
 	);
 
-	-- Histórico da requisição: quem fez o quê e quando. acao é 'CRIADA',
+	-- Histórico da solicitação: quem fez o quê e quando. acao é 'CRIADA',
 	-- 'APROVADA', 'REJEITADA', 'ATENDIMENTO' ou 'CANCELADA'.
-	CREATE TABLE IF NOT EXISTS requisicao_eventos (
+	CREATE TABLE IF NOT EXISTS solicitacao_eventos (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		requisicao_id INTEGER NOT NULL REFERENCES requisicoes(id),
+		solicitacao_id INTEGER NOT NULL REFERENCES solicitacoes(id),
 		usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
 		acao TEXT NOT NULL,
 		detalhe TEXT NOT NULL DEFAULT '',
 		criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
-	CREATE INDEX IF NOT EXISTS idx_requisicoes_obra_status ON requisicoes (obra_id, status);
-	CREATE INDEX IF NOT EXISTS idx_requisicoes_solicitante ON requisicoes (solicitante_id);
-	CREATE INDEX IF NOT EXISTS idx_requisicao_itens_requisicao ON requisicao_itens (requisicao_id);
+	CREATE INDEX IF NOT EXISTS idx_solicitacoes_obra_status ON solicitacoes (obra_id, status);
+	CREATE INDEX IF NOT EXISTS idx_solicitacoes_solicitante ON solicitacoes (solicitante_id);
+	CREATE INDEX IF NOT EXISTS idx_solicitacao_itens_solicitacao ON solicitacao_itens (solicitacao_id);
 	`
 
 	_, err := tx.Exec(query)
@@ -438,9 +445,9 @@ func createTablesTx(tx *sql.Tx) error {
 		{"movimentacoes", "observacao", "TEXT NOT NULL DEFAULT ''"},
 		// Obra escolhida no seletor do topo. NULL é "Todas as obras".
 		{"sessoes", "obra_id", "INTEGER REFERENCES obras(id)"},
-		// Requisição que originou a saída. NULL para entrada, saída avulsa
+		// Solicitação que originou a saída. NULL para entrada, saída avulsa
 		// e atualização de cadastro.
-		{"movimentacoes", "requisicao_id", "INTEGER REFERENCES requisicoes(id)"},
+		{"movimentacoes", "solicitacao_id", "INTEGER REFERENCES solicitacoes(id)"},
 	}
 	for _, c := range newColumns {
 		if err = addColumnIfMissing(tx, c.table, c.column, c.definition); err != nil {
@@ -603,4 +610,120 @@ func addColumnIfMissing(tx *sql.Tx, table, column, definition string) error {
 
 	_, err := tx.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, definition))
 	return err
+}
+
+// renameRequestTablesTx troca os nomes de "requisição" para "solicitação"
+// no banco: requisicoes, requisicao_itens e requisicao_eventos viram
+// solicitacoes, solicitacao_itens e solicitacao_eventos, e a coluna
+// requisicao_id vira solicitacao_id nas tabelas que a usam.
+//
+// Roda ANTES dos CREATE TABLE IF NOT EXISTS de createTablesTx, e a ordem
+// é o ponto todo: se o CREATE viesse primeiro, ele criaria uma tabela
+// solicitacoes vazia, o rename seria pulado (o destino já existiria) e as
+// solicitações antigas ficariam presas numa tabela que ninguém mais
+// consulta — sem erro nenhum, que é o pior tipo de bug de migração.
+//
+// Cada passo confere antes de agir, então rodar a cada inicialização é
+// seguro: em banco novo, ou já migrado, a função não faz nada. O RENAME TO
+// do SQLite ainda acerta sozinho as REFERENCES das outras tabelas que
+// apontavam para a tabela renomeada.
+func renameRequestTablesTx(tx *sql.Tx) error {
+	tables := []struct{ from, to string }{
+		{"requisicoes", "solicitacoes"},
+		{"requisicao_itens", "solicitacao_itens"},
+		{"requisicao_eventos", "solicitacao_eventos"},
+	}
+	for _, t := range tables {
+		hasOld, err := tableExistsTx(tx, t.from)
+		if err != nil {
+			return err
+		}
+		hasNew, err := tableExistsTx(tx, t.to)
+		if err != nil {
+			return err
+		}
+		if !hasOld || hasNew {
+			continue
+		}
+		if _, err := tx.Exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s", t.from, t.to)); err != nil {
+			return err
+		}
+	}
+
+	// As tabelas já estão com o nome novo aqui, então a coluna é
+	// procurada nelas. movimentacoes guarda a solicitação que originou a
+	// saída de estoque.
+	columns := []struct{ table, from, to string }{
+		{"solicitacao_itens", "requisicao_id", "solicitacao_id"},
+		{"solicitacao_eventos", "requisicao_id", "solicitacao_id"},
+		{"movimentacoes", "requisicao_id", "solicitacao_id"},
+	}
+	for _, c := range columns {
+		hasOld, err := columnExistsTx(tx, c.table, c.from)
+		if err != nil {
+			return err
+		}
+		hasNew, err := columnExistsTx(tx, c.table, c.to)
+		if err != nil {
+			return err
+		}
+		if !hasOld || hasNew {
+			continue
+		}
+		if _, err := tx.Exec(fmt.Sprintf("ALTER TABLE %s RENAME COLUMN %s TO %s", c.table, c.from, c.to)); err != nil {
+			return err
+		}
+	}
+
+	// O RENAME TO leva o índice junto, mas mantendo o nome antigo. Apagar
+	// aqui deixa o CREATE INDEX IF NOT EXISTS de createTablesTx recriar
+	// cada um com o nome novo, sobre a mesma tabela.
+	for _, index := range []string{
+		"idx_requisicoes_obra_status",
+		"idx_requisicoes_solicitante",
+		"idx_requisicao_itens_requisicao",
+	} {
+		if _, err := tx.Exec("DROP INDEX IF EXISTS " + index); err != nil {
+			return err
+		}
+	}
+
+	// Histórico já gravado: a saída de estoque criada por um atendimento
+	// guarda "Requisição #12" em movimentacoes.observacao. Sem este UPDATE
+	// a tela de movimentações mostraria o nome velho nas linhas antigas e
+	// o novo nas próximas, para sempre. O filtro por solicitacao_id
+	// garante que só mudem as observações escritas pelo sistema, nunca uma
+	// que alguém digitou.
+	hasColumn, err := columnExistsTx(tx, "movimentacoes", "solicitacao_id")
+	if err != nil {
+		return err
+	}
+	if !hasColumn {
+		return nil
+	}
+	_, err = tx.Exec(`
+		UPDATE movimentacoes
+		SET observacao = REPLACE(observacao, 'Requisição #', 'Solicitação #')
+		WHERE solicitacao_id IS NOT NULL AND observacao LIKE 'Requisição #%'
+	`)
+	return err
+}
+
+// tableExistsTx diz se a tabela existe no banco.
+func tableExistsTx(tx *sql.Tx, table string) (bool, error) {
+	var count int
+	err := tx.QueryRow(`
+		SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?
+	`, table).Scan(&count)
+	return count > 0, err
+}
+
+// columnExistsTx diz se a coluna existe na tabela. Tabela que não existe
+// devolve false, sem erro: o pragma só não traz linha nenhuma.
+func columnExistsTx(tx *sql.Tx, table, column string) (bool, error) {
+	var count int
+	err := tx.QueryRow(`
+		SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?
+	`, table, column).Scan(&count)
+	return count > 0, err
 }

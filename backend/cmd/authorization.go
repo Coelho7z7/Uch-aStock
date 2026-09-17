@@ -78,8 +78,8 @@ func canEditSite(user *models.User, siteID int) bool {
 }
 
 // requestActor traduz as permissões do usuário para o service de
-// requisições. O service confere as regras (obra, autor, própria
-// requisição) só com essas flags, sem saber nome de cargo.
+// solicitações. O service confere as regras (obra, autor, própria
+// solicitação) só com essas flags, sem saber nome de cargo.
 func requestActor(user *models.User) services.RequestActor {
 	return services.RequestActor{
 		UserID:     user.ID,
@@ -95,7 +95,7 @@ func requestActor(user *models.User) services.RequestActor {
 
 // renderNotFound responde 404 com a página "não encontrada" no visual do
 // sistema. É a mesma resposta para um endereço que não existe e para uma
-// requisição fora do alcance: quem pede não fica sabendo se ela existe.
+// solicitação fora do alcance: quem pede não fica sabendo se ela existe.
 // Com user nil (sem sessão), a página mostra só o cartão, sem a barra
 // lateral.
 func renderNotFound(w http.ResponseWriter, r *http.Request, user *models.User) {

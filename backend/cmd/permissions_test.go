@@ -17,7 +17,7 @@ var allPermissions = []Permission{
 	PermManageUsers, PermManageSites, PermReopenSite, PermAllSites,
 }
 
-// adminPermissions é tudo menos aprovar a própria requisição, que fica só
+// adminPermissions é tudo menos aprovar a própria solicitação, que fica só
 // com o superadmin.
 var adminPermissions = []Permission{
 	PermEditMaterial, PermRemoveMaterial, PermMoveStock,
@@ -192,7 +192,7 @@ func TestManagerUserRules(t *testing.T) {
 }
 
 // TestRequestActorFlags confere a tradução de cada cargo para as flags do
-// service de requisições, inclusive superadmin e cargo desconhecido.
+// service de solicitações, inclusive superadmin e cargo desconhecido.
 func TestRequestActorFlags(t *testing.T) {
 	cases := []struct {
 		role string

@@ -15,11 +15,24 @@ import (
 	"uchoastock/backend/utils"
 )
 
-// requestsPerPage é quantas requisições cabem em cada página da lista.
+// requestsPerPage é quantas solicitações cabem em cada página da lista.
 const requestsPerPage = 15
 
+// redirectToRequests atende os endereços antigos "/requisicoes..." e
+// manda para "/solicitacoes...". A tela foi renomeada, mas link já salvo
+// não pode virar 404: 301 avisa o navegador que a mudança é definitiva.
+// O que vem depois de "/requisicoes" e a query string são preservados,
+// então "/requisicoes/12?sucesso=criada" cai em "/solicitacoes/12?sucesso=criada".
+func redirectToRequests(w http.ResponseWriter, r *http.Request) {
+	target := "/solicitacoes" + strings.TrimPrefix(r.URL.Path, "/requisicoes")
+	if r.URL.RawQuery != "" {
+		target += "?" + r.URL.RawQuery
+	}
+	http.Redirect(w, r, target, http.StatusMovedPermanently)
+}
+
 // navData são os contadores da barra lateral, iguais em todas as telas
-// internas. Pending é quantas requisições esperam aprovação (para quem
+// internas. Pending é quantas solicitações esperam aprovação (para quem
 // aprova); ToServe, quantas aprovadas ou parciais esperam atendimento
 // (para quem atende). Contam só a obra do usuário (admin: a do seletor).
 type navData struct {
@@ -39,21 +52,21 @@ func buildNav(user *models.User, scope siteScope) navData {
 		filter := visible
 		filter.Statuses = []string{services.RequestPending}
 		if nav.Pending, err = services.CountRequests(filter); err != nil {
-			log.Println("erro ao contar requisições pendentes:", err)
+			log.Println("erro ao contar solicitações pendentes:", err)
 		}
 	}
 	if actor.CanServe {
 		filter := visible
 		filter.Statuses = []string{services.RequestApproved, services.RequestPartial}
 		if nav.ToServe, err = services.CountRequests(filter); err != nil {
-			log.Println("erro ao contar requisições para atender:", err)
+			log.Println("erro ao contar solicitações para atender:", err)
 		}
 	}
 	return nav
 }
 
 // requestErrorResponse decide a resposta para um erro do service de
-// requisições. Devolve a mensagem para a tela e true quando a tela deve
+// solicitações. Devolve a mensagem para a tela e true quando a tela deve
 // ser mostrada de novo com ela; false quando a resposta já foi enviada
 // (404, 403 ou 500).
 func requestErrorResponse(w http.ResponseWriter, r *http.Request, user *models.User, err error) (string, bool) {
@@ -68,13 +81,13 @@ func requestErrorResponse(w http.ResponseWriter, r *http.Request, user *models.U
 	case errors.As(err, &inputErr):
 		return inputErr.Message, true
 	default:
-		log.Println("erro na requisição:", err)
-		http.Error(w, "Erro ao processar a requisição", http.StatusInternalServerError)
+		log.Println("erro na solicitação:", err)
+		http.Error(w, "Erro ao processar a solicitação", http.StatusInternalServerError)
 		return "", false
 	}
 }
 
-// requestListHandler é a lista de requisições (GET /requisicoes), com
+// requestListHandler é a lista de solicitações (GET /solicitacoes), com
 // filtro por situação, busca e paginação. Cada pessoa só vê o que está ao
 // seu alcance (ver RequestActor.VisibleFilter).
 func requestListHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
@@ -100,7 +113,7 @@ func requestListHandler(w http.ResponseWriter, r *http.Request, user *models.Use
 		Nav            navData
 		CanManageUsers bool
 		CanCreate      bool
-		// OnlyOwn avisa que a lista traz só as requisições da pessoa.
+		// OnlyOwn avisa que a lista traz só as solicitações da pessoa.
 		OnlyOwn bool
 		// OwnSiteOnly avisa que a lista é só da obra da pessoa, mesmo com
 		// outra obra escolhida no seletor.
@@ -136,8 +149,8 @@ func requestListHandler(w http.ResponseWriter, r *http.Request, user *models.Use
 
 	requests, total, err := services.ListRequests(filter, page, requestsPerPage)
 	if err != nil {
-		log.Println("erro ao listar requisições:", err)
-		http.Error(w, "Erro ao buscar requisições", http.StatusInternalServerError)
+		log.Println("erro ao listar solicitações:", err)
+		http.Error(w, "Erro ao buscar solicitações", http.StatusInternalServerError)
 		return
 	}
 	data.Requests = requests
@@ -152,14 +165,14 @@ func requestListHandler(w http.ResponseWriter, r *http.Request, user *models.Use
 	renderPage(w, http.StatusOK, "frontend/html/requests.html", data)
 }
 
-// requestFormRow é uma linha de item do formulário de nova requisição,
+// requestFormRow é uma linha de item do formulário de nova solicitação,
 // como a pessoa digitou (para a tela voltar preenchida se der erro).
 type requestFormRow struct {
 	MaterialID int
 	Quantity   string
 }
 
-// requestTargetSite descobre em qual obra a requisição nova vai ser
+// requestTargetSite descobre em qual obra a solicitação nova vai ser
 // criada: a do usuário, ou a do seletor para quem age em todas as obras.
 // Devolve a obra (ou nil) e, quando não dá para pedir ali, o motivo.
 func requestTargetSite(user *models.User, scope siteScope) (*models.Site, string) {
@@ -181,16 +194,16 @@ func requestTargetSite(user *models.User, scope siteScope) (*models.Site, string
 	}
 
 	if site.Type == services.SiteTypeCentral {
-		return site, "Requisição é feita para uma obra, não para o almoxarifado central. Selecione uma obra no topo."
+		return site, "Solicitação é feita para uma obra, não para o almoxarifado central. Selecione uma obra no topo."
 	}
 	if site.Status != services.SiteStatusInProgress {
-		return site, fmt.Sprintf("A obra %s está %s e não aceita requisição nova.", site.Name, strings.ToLower(site.FormattedStatus))
+		return site, fmt.Sprintf("A obra %s está %s e não aceita solicitação nova.", site.Name, strings.ToLower(site.FormattedStatus))
 	}
 	return site, ""
 }
 
-// newRequestHandler mostra e processa o formulário de nova requisição
-// (/requisicoes/nova). O JS só acrescenta e remove linhas; toda validação
+// newRequestHandler mostra e processa o formulário de nova solicitação
+// (/solicitacoes/nova). O JS só acrescenta e remove linhas; toda validação
 // é aqui e no service.
 func newRequestHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	if !requirePermission(w, user, PermCreateRequest) {
@@ -209,7 +222,7 @@ func newRequestHandler(w http.ResponseWriter, r *http.Request, user *models.User
 
 	materials, err := services.ListActiveMaterialOptions(siteID)
 	if err != nil {
-		log.Println("erro ao listar materiais para requisição:", err)
+		log.Println("erro ao listar materiais para solicitação:", err)
 		http.Error(w, "Erro ao carregar materiais", http.StatusInternalServerError)
 		return
 	}
@@ -254,13 +267,13 @@ func newRequestHandler(w http.ResponseWriter, r *http.Request, user *models.User
 		case site == nil:
 			data.Error = blocker
 		case !sameSiteAsForm(r, scope) && can(user, PermAllSites):
-			// Admin trocou de obra em outra aba: a requisição iria para a
+			// Admin trocou de obra em outra aba: a solicitação iria para a
 			// obra errada.
 			data.Error = siteChangedMessage
 		default:
 			id, err := services.CreateRequest(requestActor(user), site.ID, data.Note, items)
 			if err == nil {
-				http.Redirect(w, r, fmt.Sprintf("/requisicoes/%d?sucesso=criada", id), http.StatusSeeOther)
+				http.Redirect(w, r, fmt.Sprintf("/solicitacoes/%d?sucesso=criada", id), http.StatusSeeOther)
 				return
 			}
 			message, show := requestErrorResponse(w, r, user, err)
@@ -350,8 +363,8 @@ func materialSuffix(names map[int]string, materialID int) string {
 	return ""
 }
 
-// requestDetailHandler mostra a requisição (/requisicoes/{id}) e processa
-// as ações: aprovar, rejeitar, cancelar e atender. Requisição fora do
+// requestDetailHandler mostra a solicitação (/solicitacoes/{id}) e processa
+// as ações: aprovar, rejeitar, cancelar e atender. Solicitação fora do
 // alcance responde 404, igual a uma que não existe.
 func requestDetailHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	id, err := strconv.Atoi(r.PathValue("id"))
@@ -398,12 +411,12 @@ func requestDetailHandler(w http.ResponseWriter, r *http.Request, user *models.U
 	}
 
 	data.Message = map[string]string{
-		"criada":    "Requisição criada. Agora ela espera a aprovação.",
-		"aprovada":  "Requisição aprovada.",
-		"rejeitada": "Requisição rejeitada.",
-		"cancelada": "Requisição cancelada.",
-		"parcial":   "Atendimento registrado. Ainda falta material nesta requisição.",
-		"atendida":  "Atendimento registrado. A requisição foi atendida por completo.",
+		"criada":    "Solicitação criada. Agora ela espera a aprovação.",
+		"aprovada":  "Solicitação aprovada.",
+		"rejeitada": "Solicitação rejeitada.",
+		"cancelada": "Solicitação cancelada.",
+		"parcial":   "Atendimento registrado. Ainda falta material nesta solicitação.",
+		"atendida":  "Atendimento registrado. A solicitação foi atendida por completo.",
 	}[r.URL.Query().Get("sucesso")]
 
 	switch r.Method {
@@ -453,7 +466,7 @@ func requestDetailHandler(w http.ResponseWriter, r *http.Request, user *models.U
 		}
 
 		if actionErr == nil {
-			http.Redirect(w, r, fmt.Sprintf("/requisicoes/%d?sucesso=%s", id, url.QueryEscape(success)), http.StatusSeeOther)
+			http.Redirect(w, r, fmt.Sprintf("/solicitacoes/%d?sucesso=%s", id, url.QueryEscape(success)), http.StatusSeeOther)
 			return
 		}
 		message, show := requestErrorResponse(w, r, user, actionErr)

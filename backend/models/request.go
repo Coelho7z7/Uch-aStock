@@ -1,6 +1,6 @@
 package models
 
-// Request é uma requisição de material: alguém da obra pede, o gestor
+// Request é uma solicitação de material: alguém da obra pede, o gestor
 // aprova e o almoxarife atende. Status guarda o valor do banco
 // ("PENDENTE"); FormattedStatus, o texto da tela ("Pendente"). As datas já
 // vêm formatadas no horário local.
@@ -25,9 +25,9 @@ type Request struct {
 	Events          []RequestEvent
 }
 
-// RequestItem é um material pedido na requisição. Missing é o que ainda
+// RequestItem é um material pedido na solicitação. Missing é o que ainda
 // falta entregar; Balance, o saldo atual do material na obra da
-// requisição. LowBalance marca quando o saldo não cobre o que falta.
+// solicitação. LowBalance marca quando o saldo não cobre o que falta.
 // SuggestedDelivery é o valor que o formulário de atendimento já traz: o
 // que falta, limitado pelo saldo, no formato que o campo aceita ("2,5").
 type RequestItem struct {
@@ -49,7 +49,7 @@ type RequestItem struct {
 	SuggestedDelivery  string
 }
 
-// RequestEvent é uma linha do histórico da requisição.
+// RequestEvent é uma linha do histórico da solicitação.
 type RequestEvent struct {
 	UserName        string
 	Action          string

@@ -87,9 +87,9 @@ func RegisterStockExitWeb(materialID, siteID int, quantity float64, userID int, 
 
 // registerExitTx faz uma saída dentro da transação de quem chama: confere
 // que o material está ativo e que a obra aceita movimentação, debita o
-// saldo sem deixar negativo e grava a movimentação, ligada à requisição
+// saldo sem deixar negativo e grava a movimentação, ligada à solicitação
 // quando requestID > 0. É a única regra de saída do sistema: a tela de
-// estoque e o atendimento de requisição passam por aqui. quantity e note
+// estoque e o atendimento de solicitação passam por aqui. quantity e note
 // já chegam validados.
 func registerExitTx(tx *sql.Tx, materialID, siteID int, quantity float64, userID int, note string, requestID int) error {
 	unit, err := activeMaterialUnitTx(tx, materialID)
@@ -186,7 +186,7 @@ func balanceTx(tx *sql.Tx, materialID, siteID int) (float64, error) {
 
 // registerMovementTx grava uma linha no histórico. siteID 0 grava a obra
 // como NULL: é o caso da atualização de cadastro, que não acontece em
-// nenhuma obra. requestID 0 grava a requisição como NULL (movimentação
+// nenhuma obra. requestID 0 grava a solicitação como NULL (movimentação
 // avulsa).
 func registerMovementTx(tx *sql.Tx, materialID, siteID, userID int, movementType string, quantity float64, note string, requestID int) error {
 	var site, request any
@@ -198,7 +198,7 @@ func registerMovementTx(tx *sql.Tx, materialID, siteID, userID int, movementType
 	}
 	_, err := tx.Exec(`
 		INSERT INTO movimentacoes
-		(produto_id, obra_id, usuario_id, tipo, quantidade, observacao, requisicao_id)
+		(produto_id, obra_id, usuario_id, tipo, quantidade, observacao, solicitacao_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, materialID, site, userID, movementType, quantity, note, request)
 	return err

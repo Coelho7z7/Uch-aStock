@@ -72,12 +72,12 @@ func setupRequests(t *testing.T) requestFixture {
 	return f
 }
 
-// newRequest cria uma requisição que precisa dar certo.
+// newRequest cria uma solicitação que precisa dar certo.
 func newRequest(t *testing.T, actor RequestActor, siteID int, items ...RequestItemInput) int {
 	t.Helper()
 	id, err := CreateRequest(actor, siteID, "Bloco B - laje", items)
 	if err != nil {
-		t.Fatalf("criar requisição: %v", err)
+		t.Fatalf("criar solicitação: %v", err)
 	}
 	return id
 }
@@ -85,7 +85,7 @@ func newRequest(t *testing.T, actor RequestActor, siteID int, items ...RequestIt
 func requestStatusOf(t *testing.T, id int) string {
 	t.Helper()
 	var status string
-	if err := database.DB.QueryRow(`SELECT status FROM requisicoes WHERE id = ?`, id).Scan(&status); err != nil {
+	if err := database.DB.QueryRow(`SELECT status FROM solicitacoes WHERE id = ?`, id).Scan(&status); err != nil {
 		t.Fatal(err)
 	}
 	return status
@@ -104,19 +104,19 @@ func fulfilledOf(t *testing.T, requestID, materialID int) float64 {
 	t.Helper()
 	var quantity float64
 	if err := database.DB.QueryRow(`
-		SELECT quantidade_atendida FROM requisicao_itens WHERE requisicao_id = ? AND produto_id = ?
+		SELECT quantidade_atendida FROM solicitacao_itens WHERE solicitacao_id = ? AND produto_id = ?
 	`, requestID, materialID).Scan(&quantity); err != nil {
 		t.Fatal(err)
 	}
 	return quantity
 }
 
-// itemIDOf devolve o ID do item do material na requisição.
+// itemIDOf devolve o ID do item do material na solicitação.
 func itemIDOf(t *testing.T, requestID, materialID int) int {
 	t.Helper()
 	var id int
 	if err := database.DB.QueryRow(`
-		SELECT id FROM requisicao_itens WHERE requisicao_id = ? AND produto_id = ?
+		SELECT id FROM solicitacao_itens WHERE solicitacao_id = ? AND produto_id = ?
 	`, requestID, materialID).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func itemIDOf(t *testing.T, requestID, materialID int) int {
 
 func eventActions(t *testing.T, requestID int) string {
 	t.Helper()
-	rows, err := database.DB.Query(`SELECT acao FROM requisicao_eventos WHERE requisicao_id = ? ORDER BY id`, requestID)
+	rows, err := database.DB.Query(`SELECT acao FROM solicitacao_eventos WHERE solicitacao_id = ? ORDER BY id`, requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,19 +231,19 @@ func TestCreateRequestValidation(t *testing.T) {
 	_, err = CreateRequest(noSite, 0, "", []RequestItemInput{cement})
 	assertRequestInputError(t, err, "não está vinculado")
 	if _, err := CreateRequest(RequestActor{UserID: f.requester.UserID, SiteID: f.siteA}, f.siteA, "", []RequestItemInput{cement}); !errors.Is(err, ErrRequestForbidden) {
-		t.Errorf("sem requisicao.criar: erro = %v, esperado ErrRequestForbidden", err)
+		t.Errorf("sem solicitacao.criar: erro = %v, esperado ErrRequestForbidden", err)
 	}
 
 	for _, status := range []string{SiteStatusPaused, SiteStatusFinished} {
 		setSiteStatus(t, f.siteA, status)
 		_, err = CreateRequest(f.requester, f.siteA, "", []RequestItemInput{cement})
-		assertRequestInputError(t, err, "não pode receber requisição nova")
+		assertRequestInputError(t, err, "não pode receber solicitação nova")
 	}
 	setSiteStatus(t, f.siteA, SiteStatusInProgress)
 
 	// Nenhuma tentativa recusada gravou nada (só a de 30 itens passou).
-	if got := countRows(t, `SELECT COUNT(*) FROM requisicoes`); got != 1 {
-		t.Errorf("%d requisições gravadas, esperado 1", got)
+	if got := countRows(t, `SELECT COUNT(*) FROM solicitacoes`); got != 1 {
+		t.Errorf("%d solicitações gravadas, esperado 1", got)
 	}
 
 	// A que dá certo grava itens e o evento CRIADA.
@@ -251,7 +251,7 @@ func TestCreateRequestValidation(t *testing.T) {
 	if status := requestStatusOf(t, id); status != RequestPending {
 		t.Errorf("situação inicial = %s", status)
 	}
-	if got := countRows(t, `SELECT COUNT(*) FROM requisicao_itens WHERE requisicao_id = ?`, id); got != 2 {
+	if got := countRows(t, `SELECT COUNT(*) FROM solicitacao_itens WHERE solicitacao_id = ?`, id); got != 2 {
 		t.Errorf("%d itens, esperado 2", got)
 	}
 	if got := eventActions(t, id); got != "CRIADA" {
@@ -267,7 +267,7 @@ func TestNobodyDecidesOwnRequestExceptSuperadmin(t *testing.T) {
 	assertRequestInputError(t, ApproveRequest(f.manager, own), "não pode aprovar a própria")
 	assertRequestInputError(t, RejectRequest(f.manager, own, "não precisa mais"), "não pode rejeitar a própria")
 	if status := requestStatusOf(t, own); status != RequestPending {
-		t.Fatalf("a própria requisição mudou para %s", status)
+		t.Fatalf("a própria solicitação mudou para %s", status)
 	}
 
 	// O admin comum também não decide a própria.
@@ -285,7 +285,7 @@ func TestNobodyDecidesOwnRequestExceptSuperadmin(t *testing.T) {
 		t.Fatal(err)
 	}
 	var approvedBy int
-	if err := database.DB.QueryRow(`SELECT aprovado_por FROM requisicoes WHERE id = ? AND aprovado_em IS NOT NULL`, own).Scan(&approvedBy); err != nil {
+	if err := database.DB.QueryRow(`SELECT aprovado_por FROM solicitacoes WHERE id = ? AND aprovado_em IS NOT NULL`, own).Scan(&approvedBy); err != nil {
 		t.Fatal(err)
 	}
 	if approvedBy != f.admin.UserID || eventActions(t, own) != "CRIADA,APROVADA" {
@@ -316,7 +316,7 @@ func TestRejectRequiresReason(t *testing.T) {
 		t.Fatal(err)
 	}
 	var reason string
-	if err := database.DB.QueryRow(`SELECT motivo_rejeicao FROM requisicoes WHERE id = ?`, id).Scan(&reason); err != nil {
+	if err := database.DB.QueryRow(`SELECT motivo_rejeicao FROM solicitacoes WHERE id = ?`, id).Scan(&reason); err != nil {
 		t.Fatal(err)
 	}
 	if requestStatusOf(t, id) != RequestRejected || reason != "Pedido duplicado" || eventActions(t, id) != "CRIADA,REJEITADA" {
@@ -403,18 +403,18 @@ func TestServePartialThenTotal(t *testing.T) {
 		t.Error("quantidade atendida final errada")
 	}
 
-	// Três saídas, todas ligadas à requisição, na obra A, com o número na observação.
+	// Três saídas, todas ligadas à solicitação, na obra A, com o número na observação.
 	if got := countRows(t, `
 		SELECT COUNT(*) FROM movimentacoes
-		WHERE requisicao_id = ? AND tipo = 'SAIDA' AND obra_id = ? AND usuario_id = ? AND observacao = ?
-	`, id, f.siteA, f.storekeeper.UserID, fmt.Sprintf("Requisição #%d", id)); got != 3 {
-		t.Errorf("%d saídas ligadas à requisição, esperado 3", got)
+		WHERE solicitacao_id = ? AND tipo = 'SAIDA' AND obra_id = ? AND usuario_id = ? AND observacao = ?
+	`, id, f.siteA, f.storekeeper.UserID, fmt.Sprintf("Solicitação #%d", id)); got != 3 {
+		t.Errorf("%d saídas ligadas à solicitação, esperado 3", got)
 	}
 	if got := eventActions(t, id); got != "CRIADA,APROVADA,ATENDIMENTO,ATENDIMENTO" {
 		t.Errorf("eventos = %s", got)
 	}
 	var lastDetail string
-	if err := database.DB.QueryRow(`SELECT detalhe FROM requisicao_eventos WHERE requisicao_id = ? ORDER BY id DESC LIMIT 1`, id).Scan(&lastDetail); err != nil {
+	if err := database.DB.QueryRow(`SELECT detalhe FROM solicitacao_eventos WHERE solicitacao_id = ? ORDER BY id DESC LIMIT 1`, id).Scan(&lastDetail); err != nil {
 		t.Fatal(err)
 	}
 	if lastDetail != "Cimento: 4 saco; Areia: 4 saco" {
@@ -432,7 +432,7 @@ func TestServePartialThenTotal(t *testing.T) {
 	if err := CancelRequest(f.manager, partial); err != nil {
 		t.Fatal(err)
 	}
-	if balanceOf(t, f.cement, f.siteA) != 8 || countRows(t, `SELECT COUNT(*) FROM movimentacoes WHERE requisicao_id = ?`, partial) != 1 {
+	if balanceOf(t, f.cement, f.siteA) != 8 || countRows(t, `SELECT COUNT(*) FROM movimentacoes WHERE solicitacao_id = ?`, partial) != 1 {
 		t.Error("cancelar a parcial desfez a saída já feita")
 	}
 }
@@ -458,7 +458,7 @@ func TestServeInsufficientStockRollsBackEverything(t *testing.T) {
 		t.Errorf("saldos mudaram: cimento %v, areia %v", balanceOf(t, f.cement, f.siteA), balanceOf(t, f.sand, f.siteA))
 	}
 	if fulfilledOf(t, id, f.cement) != 0 || requestStatusOf(t, id) != RequestApproved || eventActions(t, id) != "CRIADA,APROVADA" {
-		t.Errorf("requisição mudou: atendido %v, situação %s, eventos %s", fulfilledOf(t, id, f.cement), requestStatusOf(t, id), eventActions(t, id))
+		t.Errorf("solicitação mudou: atendido %v, situação %s, eventos %s", fulfilledOf(t, id, f.cement), requestStatusOf(t, id), eventActions(t, id))
 	}
 }
 
@@ -481,14 +481,14 @@ func TestServeRejectsInvalidDeliveries(t *testing.T) {
 		{"nenhum item", nil, "pelo menos um item"},
 		{"negativo", []RequestDelivery{{cementItem, -1}}, "não pode ser negativa"},
 		{"item repetido", []RequestDelivery{{cementItem, 1}, {cementItem, 1}}, "mais de uma vez"},
-		{"item de outra requisição", []RequestDelivery{{itemIDOf(t, other, f.cement), 1}}, "não pertence"},
+		{"item de outra solicitação", []RequestDelivery{{itemIDOf(t, other, f.cement), 1}}, "não pertence"},
 	}
 	for _, c := range cases {
 		_, err := ServeRequest(f.storekeeper, id, c.deliveries)
 		assertRequestInputError(t, err, c.want)
 	}
 
-	// Material removido depois da criação: a requisição continua, mas o
+	// Material removido depois da criação: a solicitação continua, mas o
 	// item não é atendido (a areia, que continua ativa, é).
 	if _, err := database.DB.Exec(`UPDATE produtos SET ativo = 0 WHERE id = ?`, f.cement); err != nil {
 		t.Fatal(err)
@@ -496,17 +496,17 @@ func TestServeRejectsInvalidDeliveries(t *testing.T) {
 	_, err := ServeRequest(f.storekeeper, id, []RequestDelivery{{cementItem, 1}})
 	assertRequestInputError(t, err, "Cimento foi removido do catálogo e não pode ser atendido")
 	if _, err := ServeRequest(f.storekeeper, id, []RequestDelivery{{itemIDOf(t, id, f.sand), 2}}); err != nil {
-		t.Errorf("item ativo da mesma requisição: %v", err)
+		t.Errorf("item ativo da mesma solicitação: %v", err)
 	}
 	request, err := GetRequest(f.storekeeper, id)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if request.Status != RequestPartial || request.Items[0].MaterialActive || request.Items[0].SuggestedDelivery != "0" {
-		t.Errorf("requisição com material removido: situação %s, item %+v", request.Status, request.Items[0])
+		t.Errorf("solicitação com material removido: situação %s, item %+v", request.Status, request.Items[0])
 	}
 
-	if got := countRows(t, `SELECT COUNT(*) FROM movimentacoes WHERE requisicao_id = ?`, id); got != 1 {
+	if got := countRows(t, `SELECT COUNT(*) FROM movimentacoes WHERE solicitacao_id = ?`, id); got != 1 {
 		t.Errorf("%d saídas gravadas, esperado só a da areia", got)
 	}
 }
@@ -527,8 +527,8 @@ func TestServeRequiresApprovedOrPartial(t *testing.T) {
 
 	for name, id := range map[string]int{"pendente": pending, "rejeitada": rejected, "cancelada": canceled} {
 		_, err := ServeRequest(f.storekeeper, id, []RequestDelivery{{itemIDOf(t, id, f.cement), 1}})
-		assertRequestInputError(t, err, "só requisição aprovada ou parcial")
-		if got := countRows(t, `SELECT COUNT(*) FROM movimentacoes WHERE requisicao_id = ?`, id); got != 0 {
+		assertRequestInputError(t, err, "só solicitação aprovada ou parcial")
+		if got := countRows(t, `SELECT COUNT(*) FROM movimentacoes WHERE solicitacao_id = ?`, id); got != 0 {
 			t.Errorf("%s: %d saídas gravadas", name, got)
 		}
 	}
@@ -542,7 +542,7 @@ func TestServeRequiresApprovedOrPartial(t *testing.T) {
 	}
 }
 
-// Dois atendimentos montados com a mesma tela (a requisição ainda
+// Dois atendimentos montados com a mesma tela (a solicitação ainda
 // aprovada, faltando tudo): o primeiro atende, o segundo é recusado e não
 // grava nada. Depois, o mesmo com duas goroutines ao mesmo tempo.
 func TestServeTwiceWithStaleState(t *testing.T) {
@@ -557,8 +557,8 @@ func TestServeTwiceWithStaleState(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := ServeRequest(f.manager, id, delivery)
-	assertRequestInputError(t, err, "só requisição aprovada ou parcial")
-	if balanceOf(t, f.cement, f.siteA) != 15 || countRows(t, `SELECT COUNT(*) FROM movimentacoes WHERE requisicao_id = ?`, id) != 1 {
+	assertRequestInputError(t, err, "só solicitação aprovada ou parcial")
+	if balanceOf(t, f.cement, f.siteA) != 15 || countRows(t, `SELECT COUNT(*) FROM movimentacoes WHERE solicitacao_id = ?`, id) != 1 {
 		t.Error("o segundo atendimento gravou alguma coisa")
 	}
 
@@ -586,7 +586,7 @@ func TestServeTwiceWithStaleState(t *testing.T) {
 	if successes != 1 {
 		t.Errorf("%d atendimentos simultâneos passaram (%v), esperado 1", successes, results)
 	}
-	if balanceOf(t, f.cement, f.siteA) != 10 || countRows(t, `SELECT COUNT(*) FROM movimentacoes WHERE requisicao_id = ?`, concurrent) != 1 {
+	if balanceOf(t, f.cement, f.siteA) != 10 || countRows(t, `SELECT COUNT(*) FROM movimentacoes WHERE solicitacao_id = ?`, concurrent) != 1 {
 		t.Error("atendimentos simultâneos gravaram mais de uma saída")
 	}
 }
@@ -602,7 +602,7 @@ func TestChangeRequestStatusGuardsAgainstStaleStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback()
-	// Quem leu a requisição como aprovada tenta marcá-la como atendida,
+	// Quem leu a solicitação como aprovada tenta marcá-la como atendida,
 	// mas no banco ela ainda está pendente.
 	if err := changeRequestStatusTx(tx, id, []string{RequestApproved, RequestPartial}, RequestFulfilled); !errors.Is(err, ErrRequestChanged) {
 		t.Errorf("situação velha: erro = %v, esperado ErrRequestChanged", err)
@@ -648,23 +648,23 @@ func TestFinishSiteBlockedByOpenRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assertInputError(t, ChangeSiteStatus(empty, SiteStatusFinished, true), "2 requisições ainda estão em aberto")
+	assertInputError(t, ChangeSiteStatus(empty, SiteStatusFinished, true), "2 solicitações ainda estão em aberto")
 	if err := CancelRequest(f.admin, pending); err != nil {
 		t.Fatal(err)
 	}
-	assertInputError(t, ChangeSiteStatus(empty, SiteStatusFinished, true), "1 requisição ainda está em aberto")
+	assertInputError(t, ChangeSiteStatus(empty, SiteStatusFinished, true), "1 solicitação ainda está em aberto")
 	if err := CancelRequest(f.admin, approved); err != nil {
 		t.Fatal(err)
 	}
 	if err := ChangeSiteStatus(empty, SiteStatusFinished, true); err != nil {
-		t.Errorf("sem requisição em aberto e sem saldo, deveria encerrar: %v", err)
+		t.Errorf("sem solicitação em aberto e sem saldo, deveria encerrar: %v", err)
 	}
 
-	// Saldo e requisição juntos: a mensagem fala dos dois.
+	// Saldo e solicitação juntos: a mensagem fala dos dois.
 	newRequest(t, f.manager, f.siteA, RequestItemInput{MaterialID: f.cement, Quantity: 1})
 	err := ChangeSiteStatus(f.siteA, SiteStatusFinished, true)
 	assertInputError(t, err, "2 materiais ainda têm saldo")
-	assertInputError(t, err, "1 requisição ainda está em aberto")
+	assertInputError(t, err, "1 solicitação ainda está em aberto")
 }
 
 func TestRequestVisibility(t *testing.T) {
@@ -729,7 +729,7 @@ func TestRequestVisibility(t *testing.T) {
 		}
 	}
 	if _, err := GetRequest(f.manager, 99999); !errors.Is(err, ErrRequestNotFound) {
-		t.Errorf("requisição inexistente: %v", err)
+		t.Errorf("solicitação inexistente: %v", err)
 	}
 
 	// Filtros da tela e contadores.
@@ -778,7 +778,7 @@ func TestGetRequestItemsAndHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	if request.RequesterName != "Solic A" || request.SiteName != "Obra A" || request.FormattedStatus != "Aprovada" || request.ApprovedByName != "Gestor A" || request.ItemCount != 2 {
-		t.Errorf("requisição = %+v", request)
+		t.Errorf("solicitação = %+v", request)
 	}
 	cement, sand := request.Items[0], request.Items[1]
 	if cement.FormattedMissing != "25" || cement.FormattedBalance != "20" || !cement.LowBalance || cement.SuggestedDelivery != "20" {
@@ -792,11 +792,11 @@ func TestGetRequestItemsAndHistory(t *testing.T) {
 	}
 }
 
-// Material em requisição em aberto não pode ser removido do catálogo; em
-// requisição rejeitada, atendida ou cancelada, pode.
+// Material em solicitação em aberto não pode ser removido do catálogo; em
+// solicitação rejeitada, atendida ou cancelada, pode.
 func TestDeleteMaterialBlockedByOpenRequests(t *testing.T) {
 	f := setupRequests(t)
-	// Sem saldo em lugar nenhum, para testar só a regra das requisições.
+	// Sem saldo em lugar nenhum, para testar só a regra das solicitações.
 	nail := createTestMaterial(t, f.admin.UserID, "Prego", 0, 1)
 	item := RequestItemInput{MaterialID: nail, Quantity: 3}
 	isActive := func() bool {
@@ -806,8 +806,8 @@ func TestDeleteMaterialBlockedByOpenRequests(t *testing.T) {
 
 	pending := newRequest(t, f.requester, f.siteA, item)
 	err := DeleteMaterialWeb(nail)
-	if err == nil || !strings.Contains(err.Error(), "está em 1 requisição em aberto") {
-		t.Errorf("com 1 requisição pendente: erro = %v", err)
+	if err == nil || !strings.Contains(err.Error(), "está em 1 solicitação em aberto") {
+		t.Errorf("com 1 solicitação pendente: erro = %v", err)
 	}
 
 	approved := newRequest(t, f.manager, f.siteA, item)
@@ -815,27 +815,27 @@ func TestDeleteMaterialBlockedByOpenRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = DeleteMaterialWeb(nail)
-	if err == nil || !strings.Contains(err.Error(), "está em 2 requisições em aberto") {
+	if err == nil || !strings.Contains(err.Error(), "está em 2 solicitações em aberto") {
 		t.Errorf("com pendente e aprovada: erro = %v", err)
 	}
 	if !isActive() {
 		t.Fatal("a remoção recusada desativou o material")
 	}
 
-	// Saldo e requisição juntos: a mensagem fala dos dois.
+	// Saldo e solicitação juntos: a mensagem fala dos dois.
 	if err := AddStockWeb(nail, f.siteA, 1, f.admin.UserID, ""); err != nil {
 		t.Fatal(err)
 	}
 	err = DeleteMaterialWeb(nail)
-	if err == nil || !strings.Contains(err.Error(), "saldo em 1 obra") || !strings.Contains(err.Error(), "2 requisições em aberto") {
-		t.Errorf("com saldo e requisições: erro = %v", err)
+	if err == nil || !strings.Contains(err.Error(), "saldo em 1 obra") || !strings.Contains(err.Error(), "2 solicitações em aberto") {
+		t.Errorf("com saldo e solicitações: erro = %v", err)
 	}
 	if _, err := ServeRequest(f.storekeeper, approved, []RequestDelivery{{itemIDOf(t, approved, nail), 1}}); err != nil {
 		t.Fatal(err)
 	}
 	// Parcial continua contando.
 	err = DeleteMaterialWeb(nail)
-	if err == nil || !strings.Contains(err.Error(), "2 requisições em aberto") || strings.Contains(err.Error(), "saldo") {
+	if err == nil || !strings.Contains(err.Error(), "2 solicitações em aberto") || strings.Contains(err.Error(), "saldo") {
 		t.Errorf("com parcial e pendente, sem saldo: erro = %v", err)
 	}
 
@@ -847,7 +847,7 @@ func TestDeleteMaterialBlockedByOpenRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := DeleteMaterialWeb(nail); err != nil {
-		t.Errorf("sem requisição em aberto e sem saldo, deveria remover: %v", err)
+		t.Errorf("sem solicitação em aberto e sem saldo, deveria remover: %v", err)
 	}
 	if isActive() {
 		t.Error("o material deveria ter sido removido")

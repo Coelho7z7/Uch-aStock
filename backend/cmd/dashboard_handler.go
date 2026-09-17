@@ -19,7 +19,7 @@ type DashboardData struct {
 	// para a linha "e mais N".
 	LowStockExtra int
 	GeneratedAt   string
-	// OpenRequests são as requisições em aberto mais antigas ao alcance
+	// OpenRequests são as solicitações em aberto mais antigas ao alcance
 	// do usuário.
 	OpenRequests []models.Request
 	// CanManageUsers mostra a aba Usuários.
@@ -68,7 +68,7 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request, user *models.User)
 
 	openRequests, err := services.OldestOpenRequests(requestActor(user).VisibleFilter(scope.SiteID()), 5)
 	if err != nil {
-		http.Error(w, "Erro ao carregar requisições em aberto", http.StatusInternalServerError)
+		http.Error(w, "Erro ao carregar solicitações em aberto", http.StatusInternalServerError)
 		return
 	}
 

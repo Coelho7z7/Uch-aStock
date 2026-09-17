@@ -118,16 +118,16 @@ func queryID(t *testing.T, query string) int {
 
 // snapshot copia, como texto, tudo o que um ataque poderia alterar:
 // catálogo, saldos, movimentações, usuários (cargo, senha, ativo), vínculos,
-// obras e requisições (com itens e histórico). Se o texto não muda, nada foi gravado.
+// obras e solicitações (com itens e histórico). Se o texto não muda, nada foi gravado.
 func snapshot(t *testing.T) string {
 	t.Helper()
 	queries := []string{
 		`SELECT id, nome, unidade, limite_minimo, ativo FROM produtos ORDER BY id`,
 		`SELECT produto_id, obra_id, quantidade FROM saldos ORDER BY produto_id, obra_id`,
-		`SELECT id, produto_id, usuario_id, COALESCE(obra_id, 0), tipo, quantidade, COALESCE(requisicao_id, 0) FROM movimentacoes ORDER BY id`,
-		`SELECT id, obra_id, solicitante_id, status, observacao, COALESCE(aprovado_por, 0), COALESCE(aprovado_em, ''), motivo_rejeicao, atualizado_em FROM requisicoes ORDER BY id`,
-		`SELECT id, requisicao_id, produto_id, quantidade_solicitada, quantidade_atendida FROM requisicao_itens ORDER BY id`,
-		`SELECT id, requisicao_id, usuario_id, acao, detalhe FROM requisicao_eventos ORDER BY id`,
+		`SELECT id, produto_id, usuario_id, COALESCE(obra_id, 0), tipo, quantidade, COALESCE(solicitacao_id, 0) FROM movimentacoes ORDER BY id`,
+		`SELECT id, obra_id, solicitante_id, status, observacao, COALESCE(aprovado_por, 0), COALESCE(aprovado_em, ''), motivo_rejeicao, atualizado_em FROM solicitacoes ORDER BY id`,
+		`SELECT id, solicitacao_id, produto_id, quantidade_solicitada, quantidade_atendida FROM solicitacao_itens ORDER BY id`,
+		`SELECT id, solicitacao_id, usuario_id, acao, detalhe FROM solicitacao_eventos ORDER BY id`,
 		`SELECT id, email, role, senha, ativo FROM usuarios ORDER BY id`,
 		`SELECT usuario_id, obra_id FROM usuario_obras ORDER BY usuario_id`,
 		`SELECT id, nome, cidade, responsavel, situacao FROM obras ORDER BY id`,

@@ -12,7 +12,7 @@ import (
 	"uchoastock/backend/utils"
 )
 
-// RequestFilter é o recorte de uma consulta de requisições. Quem chama
+// RequestFilter é o recorte de uma consulta de solicitações. Quem chama
 // monta a parte de visibilidade com RequestActor.VisibleFilter e acrescenta
 // os filtros da tela (situação e busca).
 type RequestFilter struct {
@@ -46,11 +46,11 @@ const requestColumns = `
 	strftime('%d/%m/%Y', r.criado_em, 'localtime'),
 	strftime('%d/%m/%Y %H:%M', r.criado_em, 'localtime'),
 	strftime('%d/%m/%Y %H:%M', r.atualizado_em, 'localtime'),
-	(SELECT COUNT(*) FROM requisicao_itens i WHERE i.requisicao_id = r.id)
+	(SELECT COUNT(*) FROM solicitacao_itens i WHERE i.solicitacao_id = r.id)
 `
 
 const requestJoins = `
-	FROM requisicoes r
+	FROM solicitacoes r
 	JOIN obras o ON o.id = r.obra_id
 	JOIN usuarios u ON u.id = r.solicitante_id
 	LEFT JOIN usuarios a ON a.id = r.aprovado_por
@@ -110,7 +110,7 @@ func requestWhere(filter RequestFilter) (string, []any) {
 	return where, args
 }
 
-// ListRequests devolve uma página de requisições, da mais nova para a mais
+// ListRequests devolve uma página de solicitações, da mais nova para a mais
 // antiga, e o total do filtro.
 func ListRequests(filter RequestFilter, page, perPage int) ([]models.Request, int, error) {
 	if filter.None {
@@ -131,7 +131,7 @@ func ListRequests(filter RequestFilter, page, perPage int) ([]models.Request, in
 	return requests, total, err
 }
 
-// OldestOpenRequests devolve as requisições em aberto (pendente, aprovada
+// OldestOpenRequests devolve as solicitações em aberto (pendente, aprovada
 // ou parcial) mais antigas do recorte, para o cartão do dashboard.
 func OldestOpenRequests(filter RequestFilter, limit int) ([]models.Request, error) {
 	if filter.None {
@@ -143,7 +143,7 @@ func OldestOpenRequests(filter RequestFilter, limit int) ([]models.Request, erro
 		append(args, limit)...)
 }
 
-// CountRequests conta as requisições do recorte (para os contadores da
+// CountRequests conta as solicitações do recorte (para os contadores da
 // barra lateral).
 func CountRequests(filter RequestFilter) (int, error) {
 	if filter.None {
@@ -173,7 +173,7 @@ func queryRequests(query string, args ...any) ([]models.Request, error) {
 	return requests, rows.Err()
 }
 
-// GetRequest devolve a requisição com itens (e o saldo atual de cada
+// GetRequest devolve a solicitação com itens (e o saldo atual de cada
 // material na obra) e histórico. Fora do alcance do actor é
 // ErrRequestNotFound, igual a não existir.
 func GetRequest(actor RequestActor, requestID int) (*models.Request, error) {
@@ -193,9 +193,9 @@ func GetRequest(actor RequestActor, requestID int) (*models.Request, error) {
 			i.id, i.produto_id, p.nome, p.unidade, p.ativo,
 			i.quantidade_solicitada, i.quantidade_atendida,
 			COALESCE((SELECT s.quantidade FROM saldos s WHERE s.produto_id = i.produto_id AND s.obra_id = ?), 0)
-		FROM requisicao_itens i
+		FROM solicitacao_itens i
 		JOIN produtos p ON p.id = i.produto_id
-		WHERE i.requisicao_id = ?
+		WHERE i.solicitacao_id = ?
 		ORDER BY i.id
 	`, request.SiteID, requestID)
 	if err != nil {
@@ -217,9 +217,9 @@ func GetRequest(actor RequestActor, requestID int) (*models.Request, error) {
 
 	events, err := database.DB.Query(`
 		SELECT u.nome, e.acao, e.detalhe, strftime('%d/%m/%Y %H:%M', e.criado_em, 'localtime')
-		FROM requisicao_eventos e
+		FROM solicitacao_eventos e
 		JOIN usuarios u ON u.id = e.usuario_id
-		WHERE e.requisicao_id = ?
+		WHERE e.solicitacao_id = ?
 		ORDER BY e.id
 	`, requestID)
 	if err != nil {
@@ -272,7 +272,7 @@ func fillRequestItem(item *models.RequestItem) {
 }
 
 // ActiveMaterialOption é um material do catálogo para o formulário de
-// requisição, com o saldo na obra.
+// solicitação, com o saldo na obra.
 type ActiveMaterialOption struct {
 	ID               int
 	Name             string

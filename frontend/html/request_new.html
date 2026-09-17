@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UchôaStock - Nova requisição</title>
+    <title>UchôaStock - Nova solicitação</title>
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
@@ -33,7 +33,7 @@
                 <a href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
                 <a href="/estoque"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM7 7V4h10v3M8 11h8M8 15h5"></path></svg>Estoque</a>
                 <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
-                <a class="tab-active" href="/requisicoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"></path><path d="M9 5H6v16h12V5h-3"></path><path d="M9 12h6M9 16h4"></path></svg>Requisições{{ template "nav-request-badges" .Nav }}</a>
+                <a class="tab-active" href="/solicitacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"></path><path d="M9 5H6v16h12V5h-3"></path><path d="M9 12h6M9 16h4"></path></svg>Solicitações{{ template "nav-request-badges" .Nav }}</a>
                 {{ if .CanManageUsers }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
             </nav>
 
@@ -52,7 +52,7 @@
                         <path d="M4 6h16M4 12h16M4 18h16"></path>
                     </svg>
                 </button>
-                <h2>Nova requisição</h2>
+                <h2>Nova solicitação</h2>
 
                 {{ template "site-switcher" .Scope }}
 
@@ -79,8 +79,8 @@
                 <header class="page-hero">
                     <div class="page-hero-text">
                         <span class="eyebrow">Pedido de material</span>
-                        <h3>Nova requisição</h3>
-                        <p>{{ if and .Site (not .Blocker) }}Para a obra <strong>{{ .Site.Name }}</strong>. {{ end }}Escolha os materiais e as quantidades. Depois de criada, a requisição espera a aprovação do gestor; o almoxarife entrega o material.</p>
+                        <h3>Nova solicitação</h3>
+                        <p>{{ if and .Site (not .Blocker) }}Para a obra <strong>{{ .Site.Name }}</strong>. {{ end }}Escolha os materiais e as quantidades. Depois de criada, a solicitação espera a aprovação do gestor; o almoxarife entrega o material.</p>
                     </div>
                 </header>
 
@@ -91,11 +91,11 @@
                 {{ if .Blocker }}
 
                 <p class="scope-notice">{{ .Blocker }}</p>
-                <p><a class="button-secondary" href="/requisicoes">Voltar para as requisições</a></p>
+                <p><a class="button-secondary" href="/solicitacoes">Voltar para as solicitações</a></p>
 
                 {{ else }}
 
-                <form class="request-form" action="/requisicoes/nova" method="POST">
+                <form class="request-form" action="/solicitacoes/nova" method="POST">
                     <input type="hidden" name="obra_id" value="{{ .Scope.SiteID }}">
 
                     <div class="request-items" data-request-items data-max-items="{{ .MaxItems }}">
@@ -151,8 +151,8 @@
                     </div>
 
                     <div class="request-form-actions">
-                        <button class="save-button" type="submit">Criar requisição</button>
-                        <a class="button-secondary" href="/requisicoes">Cancelar</a>
+                        <button class="save-button" type="submit">Criar solicitação</button>
+                        <a class="button-secondary" href="/solicitacoes">Cancelar</a>
                     </div>
                 </form>
 
