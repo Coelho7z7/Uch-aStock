@@ -18,6 +18,7 @@ cmd/
 - material_handler.go — materiais
 - stock_handler.go — estoque
 - movement_handler.go — movimentações
+- report_handler.go — relatórios: período na URL, atalhos de 7/30/90 dias
 - request_handler.go — solicitações (lista, nova, detalhe e ações) e contadores da barra lateral
 - user_handler.go — usuários
 
@@ -26,6 +27,7 @@ services/
 - material_query.go — consultas de materiais e alerta de estoque baixo
 - stock_service.go — entradas e saídas
 - movement_service.go — movimentações
+- report_query.go — relatórios: resumo do período, consumo por material e comparativo entre obras
 - user_auth.go — autenticação
 - user_query.go — consultas de usuários
 - user_management.go — gerenciamento de usuários
@@ -62,6 +64,7 @@ html/
 - edit_material.html — editar material
 - stock.html — estoque
 - movements.html — movimentações
+- reports.html — relatórios (consumo por material e comparativo entre obras)
 - requests.html — lista de solicitações
 - request_new.html — nova solicitação
 - request_detail.html — detalhe da solicitação (aprovar, rejeitar, atender, cancelar)
@@ -148,6 +151,9 @@ Solicitante (solicitante), Auditor (auditor).
   superadmin@gmail.com: não aparece no dropdown e não pode ser alterado,
   removido nem ter a senha trocada por outra pessoa.
 - Todo cargo vê dashboard, materiais e estoque.
+- A aba Relatórios usa movimentacoes.ver_todas: o relatório é a soma do que
+  a obra inteira movimentou, então quem só vê as próprias movimentações
+  (solicitante) não recebe a aba nem a rota /relatorios.
 - solicitacao.aprovar_propria não é de nenhum cargo: só o superadmin (can()
   libera tudo para ele) aprova ou rejeita a própria solicitação. Assim a
   exceção existe sem checar nome de cargo.

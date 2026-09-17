@@ -31,13 +31,18 @@ func redirectToRequests(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, target, http.StatusMovedPermanently)
 }
 
-// navData são os contadores da barra lateral, iguais em todas as telas
+// navData é o que a barra lateral precisa, igual em todas as telas
 // internas. Pending é quantas solicitações esperam aprovação (para quem
 // aprova); ToServe, quantas aprovadas ou parciais esperam atendimento
 // (para quem atende). Contam só a obra do usuário (admin: a do seletor).
 type navData struct {
 	Pending int
 	ToServe int
+	// CanViewReports mostra a aba Relatórios. Fica aqui, e não no dado de
+	// cada tela como CanManageUsers, porque navData já chega a todos os
+	// templates internos: assim a aba nova não precisou de um campo novo
+	// em cada handler.
+	CanViewReports bool
 }
 
 // buildNav calcula os contadores da barra lateral. Erro no banco não
@@ -45,7 +50,7 @@ type navData struct {
 func buildNav(user *models.User, scope siteScope) navData {
 	actor := requestActor(user)
 	visible := actor.VisibleFilter(scope.SiteID())
-	var nav navData
+	nav := navData{CanViewReports: can(user, PermViewAllMovements)}
 	var err error
 
 	if actor.CanApprove {

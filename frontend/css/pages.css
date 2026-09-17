@@ -797,3 +797,29 @@
         grid-column: 1 / -1;
     }
 }
+
+/* ============================================================
+   Relatórios
+   ============================================================ */
+
+/* Os painéis do relatório ficam um embaixo do outro (o comparativo entre
+   obras só aparece na visão de todas as obras), então o espaço entre eles
+   é margem, e não o gap de um grid como no dashboard. */
+.report-section + .report-section {
+    margin-top: var(--space-5);
+}
+
+/* Saldo do período: verde quando entrou mais do que saiu, âmbar quando a
+   obra gastou o que já estava no estoque. São os tons claros das cores
+   semânticas — é o que se lê sobre o fundo escuro. */
+.report-balance {
+    font-weight: var(--weight-semibold);
+}
+
+.report-balance-up {
+    color: var(--color-success-text);
+}
+
+.report-balance-down {
+    color: var(--color-warning-text);
+}
