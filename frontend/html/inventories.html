@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UchôaStock - Inventários</title>
+    <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/tokens.css?v=10">
+    <link rel="stylesheet" href="/css/base.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=17">
+    <link rel="stylesheet" href="/css/layout.css?v=15">
+    <link rel="stylesheet" href="/css/pages.css?v=19">
+</head>
+
+<body class="inventories-page">
+
+    <div class="dashboard">
+
+        <aside class="sidebar">
+
+            <h1 class="logo">
+                <img class="logo-image" src="/images/uchoa-logo.png" alt="">
+                <span class="logo-text">
+                    <strong>Uchôa Stock</strong>
+                    <small>Controle de estoque</small>
+                </span>
+            </h1>
+
+            <nav>
+                <a href="/dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>Dashboard</a>
+                <a href="/obras"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4v18M12 9h7v12M8 9h1M8 13h1M8 17h1M15 13h1M15 17h1"></path></svg>Obras</a>
+                <a href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
+                <a href="/fornecedores"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v10H3z"></path><path d="M14 10h4l3 3v3h-7"></path><circle cx="7" cy="17.5" r="1.5"></circle><circle cx="17" cy="17.5" r="1.5"></circle></svg>Fornecedores</a>
+                <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
+                <a class="tab-active" href="/inventarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17"></path><path d="M11 6h9M11 12h9M11 18h9"></path></svg>Inventários{{ if .Nav.InventoryPending }}<span class="nav-badge nav-badge-pending" title="Inventários aguardando aprovação" aria-label="{{ .Nav.InventoryPending }} aguardando aprovação">{{ .Nav.InventoryPending }}</span>{{ end }}</a>
+                <a href="/solicitacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"></path><path d="M9 5H6v16h12V5h-3"></path><path d="M9 12h6M9 16h4"></path></svg>Solicitações{{ template "nav-request-badges" .Nav }}</a>
+                {{ if .Nav.CanViewReports }}<a href="/relatorios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16h16"></path><path d="M8 17v-5M13 17V8M18 17v-8"></path></svg>Relatórios</a>{{ end }}
+                {{ if .CanManageUsers }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="/logout" class="sidebar-logout"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg>Sair</a>
+            </div>
+
+        </aside>
+        <div class="mobile-sidebar-overlay" aria-hidden="true"></div>
+
+        <main class="main-content">
+
+            <header class="topbar">
+                <button class="mobile-menu-button" type="button" aria-label="Abrir menu" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+                <h2>Inventários</h2>
+
+                {{ template "site-switcher" .Scope }}
+
+                <div class="user">
+                    <span class="user-name">{{ .User.Name }}</span>
+                    {{ if eq .User.Role "superadmin" }}
+                    <span class="user-role user-role-superadmin">SuperAdmin</span>
+                    {{ else if eq .User.Role "admin" }}
+                    <span class="user-role user-role-admin">Administrador</span>
+                    {{ else if eq .User.Role "gestor" }}
+                    <span class="user-role user-role-manager">Gestor</span>
+                    {{ else if eq .User.Role "almoxarife" }}
+                    <span class="user-role user-role-storekeeper">Almoxarife</span>
+                    {{ else if eq .User.Role "auditor" }}
+                    <span class="user-role user-role-auditor">Auditor</span>
+                    {{ else }}
+                    <span class="user-role user-role-user">Solicitante</span>
+                    {{ end }}
+                </div>
+            </header>
+
+            <section class="content">
+
+                <header class="page-hero">
+                    <div class="page-hero-text">
+                        <span class="eyebrow">Controle · {{ if .Scope.Current }}{{ .Scope.Current.Name }}{{ else }}Todas as obras{{ end }}</span>
+                        <h3>Inventários</h3>
+                        <p>Compare a contagem física com o saldo registrado.</p>
+                        <span class="page-hero-meta" data-live-region="contagem">{{ .Total }} inventário(s)</span>
+                        {{ if and .CanStart .StartSites }}
+                        <div class="page-hero-actions">
+                            <a class="new-material-button" href="/inventarios?iniciar=1" id="open-start-inventory">+ Iniciar inventário</a>
+                        </div>
+                        {{ end }}
+                    </div>
+                </header>
+
+                <p class="scope-notice">Ao iniciar, as entradas e saídas da obra ficam bloqueadas. Conte os materiais, justifique as diferenças e envie para a aprovação do ajuste.</p>
+
+                {{ if .Error }}
+                <p class="form-error" role="alert">{{ .Error }}</p>
+                {{ end }}
+
+                <form class="materials-filter" method="GET" action="/inventarios" data-live-search>
+                    <input type="search" name="busca" value="{{ .Search }}" placeholder="Buscar por número (INV-0001), obra ou contador" aria-label="Buscar inventário">
+                    <select name="situacao" aria-label="Filtrar por situação">
+                        <option value="">Todas as situações</option>
+                        {{ range .Statuses }}<option value="{{ .Value }}"{{ if eq .Value $.Status }} selected{{ end }}>{{ .Label }}</option>{{ end }}
+                    </select>
+                    <button type="submit">Filtrar</button>
+                </form>
+
+                <div class="materials-section inventory-list-section">
+
+                    <div class="section-header">
+                        <div>
+                            <h3>Contagem de materiais</h3>
+                            <small>O saldo esperado fica congelado no início da contagem.</small>
+                        </div>
+                    </div>
+
+                    <div class="page-table inventories-table" data-live-region="tabela">
+
+                        <table>
+
+                            <thead>
+                                <tr>
+                                    <th>Inventário</th>
+                                    <th>Local</th>
+                                    <th>Abertura</th>
+                                    <th>Contador</th>
+                                    <th>Situação</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                {{ range .Inventories }}
+                                <tr>
+                                    <td><span class="request-number">{{ .Code }}</span></td>
+                                    <td>{{ .SiteName }}</td>
+                                    <td>{{ .OpenedDate }}</td>
+                                    <td>{{ .OpenedByName }}</td>
+                                    <td>
+                                        <span class="badge inventory-status-{{ .Status }}">{{ .FormattedStatus }}</span>
+                                        <span class="row-site-name">{{ .CountedCount }} de {{ .ItemCount }} contado(s){{ if .DifferenceCount }} · {{ .DifferenceCount }} com diferença{{ end }}</span>
+                                    </td>
+                                    <td class="material-actions"><a class="edit-material-link" href="/inventarios/{{ .ID }}" aria-label="Abrir {{ .Code }}">{{ if eq .Status "EM_CONTAGEM" }}Abrir contagem{{ else }}Abrir inventário{{ end }}</a></td>
+                                </tr>
+                                {{ else }}
+                                <tr>
+                                    <td colspan="6"><div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17"></path><path d="M11 6h9M11 12h9M11 18h9"></path></svg><span>{{ if or $.Search $.Status }}Nenhum inventário com esses filtros.{{ else }}Nenhum inventário por aqui ainda.{{ end }}</span></div></td>
+                                </tr>
+                                {{ end }}
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                    <div data-live-region="paginacao">
+                    {{ if gt .TotalPages 1 }}
+                    <div class="pagination">
+                        {{ if gt .Page 1 }}
+                        <a href="/inventarios?pagina={{ .PreviousPage }}{{ if .Search }}&busca={{ .Search }}{{ end }}{{ if .Status }}&situacao={{ .Status }}{{ end }}">« Anterior</a>
+                        {{ end }}
+                        <span>Página {{ .Page }} de {{ .TotalPages }}</span>
+                        {{ if lt .Page .TotalPages }}
+                        <a href="/inventarios?pagina={{ .NextPage }}{{ if .Search }}&busca={{ .Search }}{{ end }}{{ if .Status }}&situacao={{ .Status }}{{ end }}">Próxima »</a>
+                        {{ end }}
+                    </div>
+                    {{ end }}
+                    </div>
+
+                </div>
+
+                <div class="materials-section inventory-how-section">
+
+                    <div class="section-header">
+                        <div>
+                            <h3>Como funciona</h3>
+                            <small>Um ajuste precisa de explicação, nunca de uma edição silenciosa.</small>
+                        </div>
+                    </div>
+
+                    <ol class="inventory-steps">
+                        <li>
+                            <strong>Congele a obra</strong>
+                            <span>Finalize recebimentos e retiradas antes de iniciar: enquanto o inventário está aberto, a obra não aceita entrada nem saída.</span>
+                        </li>
+                        <li>
+                            <strong>Conte e registre as diferenças</strong>
+                            <span>O estoque físico é comparado com o saldo do sistema. Toda diferença precisa de justificativa.</span>
+                        </li>
+                        <li>
+                            <strong>O gestor aprova o ajuste</strong>
+                            <span>Quem contou não aprova. Cada diferença vira uma movimentação de ajuste, rastreável no histórico.</span>
+                        </li>
+                    </ol>
+
+                </div>
+
+                {{ if and .CanStart .StartSites }}
+                <!-- Modal de iniciar. Sem JS, o link abre ?iniciar=1 e o
+                     servidor já manda o modal aberto (sem hidden). -->
+                <div class="modal-edit" id="start-inventory-modal" {{ if not .StartOpen }}hidden{{ end }}>
+                    <div class="modal-edit-content" role="dialog" aria-modal="true" aria-labelledby="start-inventory-title">
+                        <div class="modal-create-header">
+                            <div>
+                                <span class="edit-kicker">Controle</span>
+                                <h3 id="start-inventory-title">Iniciar inventário</h3>
+                            </div>
+                            <a class="close-modal-button" href="/inventarios" id="close-start-inventory" aria-label="Fechar">&times;</a>
+                        </div>
+
+                        <form class="create-form" method="POST" action="/inventarios">
+                            <input type="hidden" name="acao" value="iniciar">
+                            <label for="start-inventory-site">Obra</label>
+                            <select id="start-inventory-site" name="obra" required>
+                                {{ range .StartSites }}<option value="{{ .ID }}"{{ if eq .ID $.StartSiteID }} selected{{ end }}>{{ .Name }}{{ if eq .Status "PARALISADA" }} (paralisada){{ end }}</option>{{ end }}
+                            </select>
+                            <small class="role-help">O saldo de agora de cada material da obra vira o saldo esperado. Material que aparecer sem estar na lista pode ser acrescentado durante a contagem.</small>
+                            <button class="save-button" type="submit"
+                                data-confirm="Iniciar o inventário? Enquanto ele estiver aberto, a obra não aceita entrada, saída nem atendimento de solicitação."
+                                data-confirm-title="Iniciar inventário" data-confirm-ok="Iniciar" data-confirm-tone="warning">Iniciar inventário</button>
+                        </form>
+                    </div>
+                </div>
+                {{ end }}
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <script src="/js/app.js?v=17"></script>
+    <script>
+        // Modal de iniciar inventário. Com JS o link abre o modal na hora;
+        // sem JS, ele leva a ?iniciar=1 e o servidor manda o modal aberto.
+        document.addEventListener('DOMContentLoaded', function () {
+            const modal = document.getElementById('start-inventory-modal');
+            if (!modal) return;
+            const site = document.getElementById('start-inventory-site');
+
+            const openModal = function (event) {
+                if (event) event.preventDefault();
+                modal.hidden = false;
+                site.focus();
+            };
+            const closeModal = function (event) {
+                if (event) event.preventDefault();
+                modal.hidden = true;
+                if (location.search.indexOf('iniciar=') !== -1) {
+                    history.replaceState(null, '', location.pathname);
+                }
+            };
+
+            document.getElementById('open-start-inventory').addEventListener('click', openModal);
+            document.getElementById('close-start-inventory').addEventListener('click', closeModal);
+            modal.addEventListener('click', function (event) {
+                if (event.target === modal) closeModal();
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && !modal.hidden) closeModal();
+            });
+            if (!modal.hidden) site.focus();
+        });
+    </script>
+</body>
+
+</html>

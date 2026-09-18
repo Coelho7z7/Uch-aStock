@@ -173,6 +173,7 @@ label {
 
 input[type="text"],
 input[type="email"],
+input[type="tel"],
 input[type="password"],
 input[type="number"],
 input[type="search"],
@@ -236,6 +237,118 @@ select {
     padding-right: var(--space-7);
 }
 
+/* ---------- Lista com busca (select[data-searchable]) ----------
+   Montada pelo app.js na frente do <select>, que fica escondido e
+   continua guardando o valor. O botão imita o visual do select. */
+
+.gs-combobox {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+}
+
+.gs-combobox-native {
+    display: none;
+}
+
+.gs-combobox-button {
+    display: block;
+    width: 100%;
+    min-height: var(--touch-target);
+    padding: var(--space-3) var(--space-7) var(--space-3) var(--space-4);
+    overflow: hidden;
+    font-size: var(--text-base);
+    color: var(--color-text);
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background-color: var(--color-surface-alt);
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A8B8CC' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right var(--space-3) center;
+    background-size: 18px;
+    border: 1px solid var(--color-border-input);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: border-color var(--duration-fast) ease,
+        box-shadow var(--duration-fast) ease;
+}
+
+.gs-combobox-button:hover {
+    border-color: var(--color-text-subtle);
+}
+
+.gs-combobox-button:focus-visible,
+.gs-combobox-button[aria-expanded="true"] {
+    outline: none;
+    border-color: var(--color-brand);
+    box-shadow: var(--shadow-focus);
+}
+
+.gs-combobox-panel {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    left: 0;
+    right: 0;
+    z-index: var(--z-modal);
+    padding: var(--space-2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+}
+
+.gs-combobox-panel[hidden] {
+    display: none;
+}
+
+/* Dentro de modal a lista abre no fluxo, empurrando o resto: o conteúdo
+   do modal rola (overflow-y: auto) e cortaria um painel flutuante. */
+.modal-create-content .gs-combobox-panel,
+.modal-edit-content .gs-combobox-panel {
+    position: static;
+    margin-top: var(--space-2);
+    box-shadow: none;
+}
+
+.gs-combobox-search {
+    margin-bottom: var(--space-2);
+}
+
+.gs-combobox-list {
+    max-height: 260px;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.gs-combobox-list li {
+    display: flex;
+    align-items: center;
+    min-height: var(--touch-target);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--color-text);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.gs-combobox-list li.gs-combobox-active {
+    background: var(--color-surface-hover);
+}
+
+.gs-combobox-list li[aria-selected="true"] {
+    font-weight: var(--weight-semibold);
+    color: var(--color-brand-light);
+}
+
+.gs-combobox-empty {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
 /* Campo com erro — o app.js aplica .form-error no input. */
 input.form-error,
 select.form-error {
@@ -264,13 +377,15 @@ input.form-error:focus {
     padding-right: var(--space-8);
 }
 
+/* O alvo de toque segue o mínimo do sistema (44px): a tela é usada de
+   luva, em obra. O ícone continua com 20px — só a área clicável cresce. */
 .eye {
     position: absolute;
     right: var(--space-2);
     display: grid;
     place-items: center;
-    width: 36px;
-    height: 36px;
+    width: var(--touch-target);
+    height: var(--touch-target);
     color: var(--color-text-muted);
     background: none;
     border: none;
@@ -322,6 +437,15 @@ input.form-error:focus {
     color: var(--color-danger-text);
     background: var(--color-danger-tint);
     border-color: var(--color-danger);
+}
+
+/* O app.js esconde o banner original (atributo hidden) ao criar o toast.
+   O display:flex acima vencia o [hidden] padrão do navegador, e a mesma
+   mensagem aparecia duas vezes: no banner e no toast. Classe + atributo
+   pesa mais que as regras acima, então [hidden] vence sem !important. */
+.form-success[hidden],
+.form-error[hidden] {
+    display: none;
 }
 
 /* ============================================================
@@ -490,9 +614,23 @@ input.form-error:focus {
     color: var(--color-text-muted);
 }
 
+/* Mesmo motivo do .eye: no celular este link ("Repor estoque", "Ver
+   histórico") tinha só 20px de altura de toque. O min-height some no
+   desktop, onde o ponteiro é preciso e a altura extra desalinharia o
+   cabeçalho. */
 .section-header a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
     font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
+}
+
+@media (min-width: 768px) {
+
+    .section-header a {
+        min-height: 0;
+    }
 }
 
 /* ============================================================
@@ -712,6 +850,18 @@ input.form-error:focus {
     border-color: var(--color-border-strong);
 }
 
+.role-badge-storekeeper {
+    color: var(--color-success-text);
+    background: var(--color-success-tint);
+    border-color: var(--color-success);
+}
+
+.role-badge-auditor {
+    color: var(--color-brand-light);
+    background: var(--color-surface-alt);
+    border-color: var(--color-brand-soft);
+}
+
 .role-badge-you {
     color: var(--color-success-text);
     background: var(--color-success-tint);
@@ -795,6 +945,13 @@ input.form-error:focus {
     color: var(--color-info-text);
     background: var(--color-info-tint);
     border-color: var(--color-brand-soft);
+}
+
+/* Ajuste de inventário: nem entrada nem saída comum, por isso o dourado. */
+.activity-AJUSTE {
+    color: var(--color-gold);
+    background: var(--color-gold-tint);
+    border-color: var(--color-gold-border);
 }
 
 /* ---------- Status de estoque ----------
@@ -1453,6 +1610,24 @@ body.gs-leaving {
 
 .confirm-delete-button:hover {
     background: var(--color-danger-strong);
+}
+
+/* Tom de aviso (data-confirm-tone="warning"): para confirmar algo que
+   não é remoção, como paralisar ou concluir uma obra. O texto do botão
+   é escuro porque branco sobre o laranja não chega a 4.5:1. */
+.modal-confirm-warning .modal-confirm-icon {
+    color: var(--color-warning);
+    background: var(--color-warning-tint);
+}
+
+.modal-confirm-warning .confirm-delete-button {
+    color: var(--color-bg);
+    background: var(--color-warning-solid);
+    border-color: var(--color-warning-solid);
+}
+
+.modal-confirm-warning .confirm-delete-button:hover {
+    background: var(--color-warning);
 }
 
 /* Envolve o texto destacado na busca; não deve alterar o layout da

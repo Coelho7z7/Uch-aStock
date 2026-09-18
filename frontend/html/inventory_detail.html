@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UchôaStock - {{ .Inventory.Code }}</title>
+    <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/tokens.css?v=10">
+    <link rel="stylesheet" href="/css/base.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=17">
+    <link rel="stylesheet" href="/css/layout.css?v=15">
+    <link rel="stylesheet" href="/css/pages.css?v=19">
+</head>
+
+<body class="inventory-detail-page">
+
+    <div class="dashboard">
+
+        <aside class="sidebar">
+
+            <h1 class="logo">
+                <img class="logo-image" src="/images/uchoa-logo.png" alt="">
+                <span class="logo-text">
+                    <strong>Uchôa Stock</strong>
+                    <small>Controle de estoque</small>
+                </span>
+            </h1>
+
+            <nav>
+                <a href="/dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>Dashboard</a>
+                <a href="/obras"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4v18M12 9h7v12M8 9h1M8 13h1M8 17h1M15 13h1M15 17h1"></path></svg>Obras</a>
+                <a href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
+                <a href="/fornecedores"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v10H3z"></path><path d="M14 10h4l3 3v3h-7"></path><circle cx="7" cy="17.5" r="1.5"></circle><circle cx="17" cy="17.5" r="1.5"></circle></svg>Fornecedores</a>
+                <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
+                <a class="tab-active" href="/inventarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17"></path><path d="M11 6h9M11 12h9M11 18h9"></path></svg>Inventários{{ if .Nav.InventoryPending }}<span class="nav-badge nav-badge-pending" title="Inventários aguardando aprovação" aria-label="{{ .Nav.InventoryPending }} aguardando aprovação">{{ .Nav.InventoryPending }}</span>{{ end }}</a>
+                <a href="/solicitacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"></path><path d="M9 5H6v16h12V5h-3"></path><path d="M9 12h6M9 16h4"></path></svg>Solicitações{{ template "nav-request-badges" .Nav }}</a>
+                {{ if .Nav.CanViewReports }}<a href="/relatorios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16h16"></path><path d="M8 17v-5M13 17V8M18 17v-8"></path></svg>Relatórios</a>{{ end }}
+                {{ if .CanManageUsers }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="/logout" class="sidebar-logout"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg>Sair</a>
+            </div>
+
+        </aside>
+        <div class="mobile-sidebar-overlay" aria-hidden="true"></div>
+
+        <main class="main-content">
+
+            <header class="topbar">
+                <button class="mobile-menu-button" type="button" aria-label="Abrir menu" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+                <h2>Inventários</h2>
+
+                {{ template "site-switcher" .Scope }}
+
+                <div class="user">
+                    <span class="user-name">{{ .User.Name }}</span>
+                    {{ if eq .User.Role "superadmin" }}
+                    <span class="user-role user-role-superadmin">SuperAdmin</span>
+                    {{ else if eq .User.Role "admin" }}
+                    <span class="user-role user-role-admin">Administrador</span>
+                    {{ else if eq .User.Role "gestor" }}
+                    <span class="user-role user-role-manager">Gestor</span>
+                    {{ else if eq .User.Role "almoxarife" }}
+                    <span class="user-role user-role-storekeeper">Almoxarife</span>
+                    {{ else if eq .User.Role "auditor" }}
+                    <span class="user-role user-role-auditor">Auditor</span>
+                    {{ else }}
+                    <span class="user-role user-role-user">Solicitante</span>
+                    {{ end }}
+                </div>
+            </header>
+
+            <section class="content">
+
+                {{ $inv := .Inventory }}
+
+                <header class="page-hero">
+                    <div class="page-hero-text">
+                        <span class="eyebrow">Inventário · {{ $inv.SiteName }}</span>
+                        <h3>{{ $inv.Code }}</h3>
+                        <p>Compare a contagem física com o saldo registrado.</p>
+                        <span class="page-hero-meta"><span class="badge inventory-status-{{ $inv.Status }}">{{ $inv.FormattedStatus }}</span> Aberto por {{ $inv.OpenedByName }} em {{ $inv.OpenedAt }}</span>
+                        <div class="page-hero-actions">
+                            <a class="button-secondary" href="/inventarios/{{ $inv.ID }}/exportar">↓ Exportar CSV</a>
+                            <a class="button-secondary" href="/inventarios">Voltar para a lista</a>
+                        </div>
+                    </div>
+                </header>
+
+                {{ if .Message }}
+                <p class="form-success" role="status">{{ .Message }}</p>
+                {{ end }}
+
+                {{ if and .Error (not .RejectOpen) }}
+                <p class="form-error" role="alert">{{ .Error }}</p>
+                {{ end }}
+
+                {{ if eq $inv.Status "EM_CONTAGEM" }}
+                <p class="scope-notice">A obra {{ $inv.SiteName }} está com entradas e saídas bloqueadas até este inventário ser aprovado ou cancelado.{{ if $inv.RejectionReason }} Devolvido para contagem por {{ $inv.DecidedByName }} em {{ $inv.DecidedAt }}: “{{ $inv.RejectionReason }}”.{{ end }}</p>
+                {{ else if eq $inv.Status "AGUARDANDO_APROVACAO" }}
+                <p class="scope-notice">Contagem enviada por {{ $inv.SentByName }} em {{ $inv.SentAt }}. A obra continua bloqueada até a aprovação do ajuste.{{ if .Buttons.Participated }} Você participou desta contagem: outra pessoa com permissão de aprovar decide o ajuste.{{ end }}</p>
+                {{ else if eq $inv.Status "APROVADO" }}
+                <p class="scope-notice">Ajuste aprovado por {{ $inv.DecidedByName }} em {{ $inv.DecidedAt }}. {{ if $inv.DifferenceCount }}{{ $inv.DifferenceCount }} diferença(s) viraram movimentações de ajuste.{{ else }}Não houve diferença: nenhum saldo mudou.{{ end }}</p>
+                {{ else if eq $inv.Status "CANCELADO" }}
+                <p class="scope-notice">Cancelado por {{ $inv.DecidedByName }} em {{ $inv.DecidedAt }}, sem ajuste de saldo.</p>
+                {{ end }}
+
+                <dl class="request-info">
+                    <div><dt>Obra</dt><dd>{{ $inv.SiteName }}</dd></div>
+                    <div><dt>Aberto por</dt><dd>{{ $inv.OpenedByName }} em {{ $inv.OpenedAt }}</dd></div>
+                    <div><dt>Situação</dt><dd><span class="badge inventory-status-{{ $inv.Status }}">{{ $inv.FormattedStatus }}</span></dd></div>
+                    <div><dt>Contados</dt><dd>{{ $inv.CountedCount }} de {{ $inv.ItemCount }}{{ if $inv.DifferenceCount }} · {{ $inv.DifferenceCount }} com diferença{{ end }}</dd></div>
+                    {{ if $inv.SentByName }}<div><dt>Enviado por</dt><dd>{{ $inv.SentByName }} em {{ $inv.SentAt }}</dd></div>{{ end }}
+                    {{ if and $inv.DecidedByName (ne $inv.Status "EM_CONTAGEM") }}<div><dt>{{ if eq $inv.Status "APROVADO" }}Aprovado por{{ else if eq $inv.Status "CANCELADO" }}Cancelado por{{ else }}Última decisão{{ end }}</dt><dd>{{ $inv.DecidedByName }} em {{ $inv.DecidedAt }}</dd></div>{{ end }}
+                </dl>
+
+                {{ if or .Buttons.Approve .Buttons.Reject .Buttons.Cancel }}
+                <div class="request-actions">
+                    {{ if .Buttons.Approve }}
+                    <form method="POST" action="/inventarios/{{ $inv.ID }}">
+                        <input type="hidden" name="acao" value="aprovar">
+                        <button class="save-button" type="submit"
+                            data-confirm="Aprovar o ajuste de {{ $inv.Code }}? {{ if $inv.DifferenceCount }}{{ $inv.DifferenceCount }} diferença(s) viram movimentações de ajuste e o saldo passa a ser o contado.{{ else }}Não há diferença: nenhum saldo muda.{{ end }} A obra volta a aceitar entrada e saída."
+                            data-confirm-title="Aprovar ajuste" data-confirm-ok="Aprovar ajuste" data-confirm-tone="warning">Aprovar ajuste</button>
+                    </form>
+                    {{ end }}
+                    {{ if .Buttons.Reject }}
+                    <a class="button-secondary" href="/inventarios/{{ $inv.ID }}?rejeitar=1" data-open-reject>Devolver para contagem</a>
+                    {{ end }}
+                    {{ if .Buttons.Cancel }}
+                    <form method="POST" action="/inventarios/{{ $inv.ID }}">
+                        <input type="hidden" name="acao" value="cancelar">
+                        <button class="button-danger" type="submit"
+                            data-confirm="Cancelar {{ $inv.Code }}? Nenhum saldo é ajustado, a contagem fica só no histórico e a obra volta a aceitar entrada e saída."
+                            data-confirm-title="Cancelar inventário" data-confirm-ok="Cancelar inventário" data-confirm-tone="warning">Cancelar inventário</button>
+                    </form>
+                    {{ end }}
+                </div>
+                {{ end }}
+
+                <div class="materials-section inventory-items-section">
+
+                    <div class="section-header">
+                        <div>
+                            <h3>Contagem de materiais</h3>
+                            <small>{{ if .Buttons.Count }}Informe quanto há fisicamente de cada material. Campo vazio fica para depois; toda diferença precisa de justificativa antes do envio.{{ else }}O saldo esperado ficou congelado no início da contagem.{{ end }}</small>
+                        </div>
+                    </div>
+
+                    <div class="page-table inventory-count-table">
+
+                        <table>
+
+                            <thead>
+                                <tr>
+                                    <th>Material</th>
+                                    <th>Saldo esperado</th>
+                                    <th>Contado</th>
+                                    <th>Diferença</th>
+                                    <th>Justificativa</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                {{ range $inv.Items }}
+                                <tr data-inventory-row data-expected="{{ .Expected }}">
+                                    <td class="activity-material">{{ .MaterialName }}</td>
+                                    <td>{{ .FormattedExpected }}<span class="unit-label">{{ .Unit }}</span></td>
+                                    {{ if $.Buttons.Count }}
+                                    <td><input class="inventory-qty-input" type="text" inputmode="decimal" name="contado_{{ .ID }}" form="count-form" value="{{ if $.Typed }}{{ index $.Inputs .ID }}{{ else }}{{ .CountedInput }}{{ end }}" placeholder="—" aria-label="Contado: {{ .MaterialName }} ({{ .Unit }})" data-count-input><span class="unit-label">{{ .Unit }}</span></td>
+                                    {{ else }}
+                                    <td>{{ if .IsCounted }}{{ .FormattedCounted }}<span class="unit-label">{{ .Unit }}</span>{{ else }}<span class="muted-dash">—</span>{{ end }}</td>
+                                    {{ end }}
+                                    <td><span class="inventory-diff{{ if .HasDifference }}{{ if gt .Difference 0.0 }} inventory-diff-up{{ else }} inventory-diff-down{{ end }}{{ end }}" data-diff>{{ if .IsCounted }}{{ .FormattedDifference }}{{ else }}—{{ end }}</span></td>
+                                    {{ if $.Buttons.Count }}
+                                    <td><input class="inventory-note-input" type="text" name="justificativa_{{ .ID }}" form="count-form" maxlength="200" value="{{ if $.Typed }}{{ index $.Notes .ID }}{{ else }}{{ .Justification }}{{ end }}" placeholder="Obrigatória se houver diferença" aria-label="Justificativa: {{ .MaterialName }}"></td>
+                                    {{ else }}
+                                    <td>{{ if .Justification }}{{ .Justification }}{{ else }}<span class="muted-dash">—</span>{{ end }}{{ if .CountedByName }}<span class="row-site-name">Contado por {{ .CountedByName }}</span>{{ end }}</td>
+                                    {{ end }}
+                                </tr>
+                                {{ else }}
+                                <tr>
+                                    <td colspan="5"><div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17"></path><path d="M11 6h9M11 12h9M11 18h9"></path></svg><span>Nenhum material com saldo nesta obra.{{ if $.Buttons.Count }} Se encontrar material, acrescente abaixo.{{ end }}</span></div></td>
+                                </tr>
+                                {{ end }}
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                    {{ if .Buttons.Count }}
+                    <!-- Um formulário só para salvar e enviar: os campos da tabela
+                         entram nele pelo atributo form="count-form". O "acao"
+                         escondido é o que vale com JS (o app.js envia com
+                         form.submit(), que não leva o botão clicado); sem JS,
+                         o botão Enviar manda enviar=1. -->
+                    <form id="count-form" class="inventory-count-actions" method="POST" action="/inventarios/{{ $inv.ID }}">
+                        <input type="hidden" name="acao" value="salvar" id="count-action">
+                        <button class="button-secondary" type="submit" id="save-count">Salvar contagem</button>
+                        <button class="save-button" type="submit" name="enviar" value="1" id="send-count" data-confirm-optional>Enviar para aprovação</button>
+                    </form>
+
+                    {{ if .Materials }}
+                    <form class="inventory-add-form" method="POST" action="/inventarios/{{ $inv.ID }}">
+                        <input type="hidden" name="acao" value="adicionar">
+                        <label for="add-material">Acrescentar material encontrado</label>
+                        <div class="inventory-add-row">
+                            <select id="add-material" name="produto_id" data-searchable data-search-placeholder="Buscar material..." required>
+                                <option value="">Escolha o material</option>
+                                {{ range .Materials }}<option value="{{ .ID }}">{{ .Name }} ({{ .Unit }})</option>{{ end }}
+                            </select>
+                            <button class="button-secondary" type="submit">Acrescentar</button>
+                        </div>
+                    </form>
+                    {{ end }}
+                    {{ end }}
+
+                </div>
+
+                {{ if .Buttons.Reject }}
+                <div class="modal-edit" id="reject-modal" {{ if not .RejectOpen }}hidden{{ end }}>
+                    <div class="modal-edit-content" role="dialog" aria-modal="true" aria-labelledby="reject-title">
+                        <div class="modal-create-header">
+                            <div>
+                                <span class="edit-kicker">{{ $inv.Code }}</span>
+                                <h3 id="reject-title">Devolver para contagem</h3>
+                            </div>
+                            <a class="close-modal-button" href="/inventarios/{{ $inv.ID }}" id="close-reject-modal" aria-label="Fechar">&times;</a>
+                        </div>
+
+                        {{ if and .Error .RejectOpen }}
+                        <p class="form-error" role="alert">{{ .Error }}</p>
+                        {{ end }}
+
+                        <form class="create-form" method="POST" action="/inventarios/{{ $inv.ID }}">
+                            <input type="hidden" name="acao" value="rejeitar">
+                            <label for="reject-reason">Motivo</label>
+                            <textarea id="reject-reason" name="motivo" maxlength="300" rows="3" placeholder="Ex.: recontar o cimento, a diferença parece erro de contagem">{{ .RejectReason }}</textarea>
+                            <small class="role-help">A obra continua bloqueada, e quem conta vê o motivo no topo da contagem.</small>
+                            <button class="button-danger" type="submit">Devolver para contagem</button>
+                        </form>
+                    </div>
+                </div>
+                {{ end }}
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <script src="/js/app.js?v=17"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Diferença calculada enquanto se digita. O servidor recalcula
+            // tudo ao salvar; isto é só para a pessoa ver na hora.
+            const parseQuantity = function (text) {
+                text = text.trim();
+                if (text === '') return null;
+                // Mesma regra do servidor: com vírgula, o ponto é milhar.
+                if (text.indexOf(',') !== -1) text = text.replace(/\./g, '').replace(',', '.');
+                if (!/^-?\d*\.?\d+$/.test(text)) return NaN;
+                return parseFloat(text);
+            };
+            const formatDifference = function (value) {
+                const rounded = Math.round(value * 1000) / 1000;
+                const text = Math.abs(rounded).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+                if (rounded > 0) return '+' + text;
+                if (rounded < 0) return '-' + text;
+                return '0';
+            };
+            document.querySelectorAll('[data-count-input]').forEach(function (input) {
+                input.addEventListener('input', function () {
+                    const row = input.closest('[data-inventory-row]');
+                    const diff = row.querySelector('[data-diff]');
+                    const counted = parseQuantity(input.value);
+                    diff.classList.remove('inventory-diff-up', 'inventory-diff-down');
+                    if (counted === null || isNaN(counted)) {
+                        diff.textContent = '—';
+                        return;
+                    }
+                    const difference = counted - parseFloat(row.dataset.expected);
+                    diff.textContent = formatDifference(difference);
+                    if (Math.round(difference * 1000) > 0) diff.classList.add('inventory-diff-up');
+                    if (Math.round(difference * 1000) < 0) diff.classList.add('inventory-diff-down');
+                });
+            });
+
+            // Salvar e Enviar dividem o mesmo formulário. Só o Enviar pede
+            // confirmação: o data-confirm é colocado no clique dele e tirado
+            // no clique do Salvar (o app.js confirma quando o formulário tem
+            // um botão com data-confirm).
+            const action = document.getElementById('count-action');
+            const save = document.getElementById('save-count');
+            const send = document.getElementById('send-count');
+            if (action && save && send) {
+                save.addEventListener('click', function () {
+                    action.value = 'salvar';
+                    delete send.dataset.confirm;
+                });
+                send.addEventListener('click', function () {
+                    action.value = 'enviar';
+                    send.dataset.confirm = 'Enviar a contagem para aprovação? Depois do envio ela não pode mais ser alterada, a não ser que seja devolvida para contagem.';
+                    send.dataset.confirmTitle = 'Enviar para aprovação';
+                    send.dataset.confirmOk = 'Enviar';
+                    send.dataset.confirmTone = 'warning';
+                });
+            }
+
+            // Modal de devolver para contagem. Sem JS, o link abre a mesma
+            // tela com ?rejeitar=1, e o servidor já manda o modal aberto.
+            const modal = document.getElementById('reject-modal');
+            if (!modal) return;
+            const reason = document.getElementById('reject-reason');
+            const closeModal = function (event) {
+                if (event) event.preventDefault();
+                modal.hidden = true;
+                if (location.search.indexOf('rejeitar=') !== -1) {
+                    history.replaceState(null, '', location.pathname);
+                }
+            };
+            const open = document.querySelector('[data-open-reject]');
+            if (open) {
+                open.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    modal.hidden = false;
+                    reason.focus();
+                });
+            }
+            document.getElementById('close-reject-modal').addEventListener('click', closeModal);
+            modal.addEventListener('click', function (event) {
+                if (event.target === modal) closeModal();
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && !modal.hidden) closeModal();
+            });
+            if (!modal.hidden) reason.focus();
+        });
+    </script>
+</body>
+
+</html>

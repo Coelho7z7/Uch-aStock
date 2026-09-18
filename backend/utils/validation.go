@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"math"
+	"net/mail"
 	"strconv"
 	"strings"
 	"time"
@@ -18,10 +19,6 @@ var MaterialUnits = []string{
 
 func ValidateName(name string) bool {
 	return strings.TrimSpace(name) != ""
-}
-
-func ValidateQuantity(quantity int) bool {
-	return quantity >= 0
 }
 
 // ValidateUnit indica se a unidade está na lista de MaterialUnits.
@@ -109,6 +106,14 @@ func FormatQuantity(value float64) string {
 	return result
 }
 
+// FormatQuantityInput escreve a quantidade para o valor de um campo de
+// formulário: vírgula nos decimais e SEM separador de milhar ("1200",
+// "2,5"). FormatQuantity serve para leitura ("1.200"), mas nesse formato
+// o ParseQuantity leria "1.200" como 1,2.
+func FormatQuantityInput(value float64) string {
+	return strings.ReplaceAll(strconv.FormatFloat(RoundQuantity(value), 'f', -1, 64), ".", ",")
+}
+
 // ValidateDate confere se o texto é uma data no formato AAAA-MM-DD, que
 // é o que o <input type="date"> envia.
 func ValidateDate(text string) bool {
@@ -116,22 +121,25 @@ func ValidateDate(text string) bool {
 	return err == nil
 }
 
+// ValidateEmail aceita qualquer endereço de email válido, de qualquer
+// domínio. O formato é conferido pelo net/mail, da biblioteca padrão.
+//
+// Duas regras a mais: o endereço precisa vir puro ("Ana <ana@empresa.com>"
+// é válido para o net/mail, mas não serve como login), e o domínio precisa
+// ter um ponto no meio ("ana@empresacom" também passa no net/mail, mas é
+// quase sempre erro de digitação).
 func ValidateEmail(email string) bool {
 	email = strings.TrimSpace(email)
 
-	if !strings.HasSuffix(email, "@gmail.com") {
+	address, err := mail.ParseAddress(email)
+	if err != nil || address.Address != email {
 		return false
 	}
 
-	if strings.Count(email, "@") != 1 {
-		return false
-	}
-
-	if strings.HasPrefix(email, "@") {
-		return false
-	}
-
-	return true
+	_, domain, _ := strings.Cut(email, "@")
+	return strings.Contains(domain, ".") &&
+		!strings.HasPrefix(domain, ".") &&
+		!strings.HasSuffix(domain, ".")
 }
 
 func ValidatePassword(password string) bool {

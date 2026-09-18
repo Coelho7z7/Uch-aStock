@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>UchôaStock - Relatórios</title>
+
+    <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/tokens.css?v=10">
+    <link rel="stylesheet" href="/css/base.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=17">
+    <link rel="stylesheet" href="/css/layout.css?v=15">
+    <link rel="stylesheet" href="/css/pages.css?v=19">
+</head>
+
+<body>
+
+    <div class="dashboard">
+
+        <aside class="sidebar">
+
+            <h1 class="logo">
+                <img class="logo-image" src="/images/uchoa-logo.png" alt="">
+                <span class="logo-text">
+                    <strong>Uchôa Stock</strong>
+                    <small>Controle de estoque</small>
+                </span>
+            </h1>
+
+            <nav>
+                <a href="/dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>Dashboard</a>
+                <a href="/obras"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4v18M12 9h7v12M8 9h1M8 13h1M8 17h1M15 13h1M15 17h1"></path></svg>Obras</a>
+                <a href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
+<a href="/fornecedores"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v10H3z"></path><path d="M14 10h4l3 3v3h-7"></path><circle cx="7" cy="17.5" r="1.5"></circle><circle cx="17" cy="17.5" r="1.5"></circle></svg>Fornecedores</a>
+                <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
+                {{ if .Nav.CanViewInventory }}<a href="/inventarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17"></path><path d="M11 6h9M11 12h9M11 18h9"></path></svg>Inventários{{ if .Nav.InventoryPending }}<span class="nav-badge nav-badge-pending" title="Inventários aguardando aprovação" aria-label="{{ .Nav.InventoryPending }} aguardando aprovação">{{ .Nav.InventoryPending }}</span>{{ end }}</a>{{ end }}
+                <a href="/solicitacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"></path><path d="M9 5H6v16h12V5h-3"></path><path d="M9 12h6M9 16h4"></path></svg>Solicitações{{ template "nav-request-badges" .Nav }}</a>
+                {{ if .Nav.CanViewReports }}<a class="tab-active" href="/relatorios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16h16"></path><path d="M8 17v-5M13 17V8M18 17v-8"></path></svg>Relatórios</a>{{ end }}
+                {{ if .CanManageUsers }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="/logout" class="sidebar-logout"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg>Sair</a>
+            </div>
+
+        </aside>
+        <div class="mobile-sidebar-overlay" aria-hidden="true"></div>
+
+        <main class="main-content">
+
+            <header class="topbar">
+                <button class="mobile-menu-button" type="button" aria-label="Abrir menu" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+                <h2>Relatórios</h2>
+
+                {{ template "site-switcher" .Scope }}
+
+                <div class="user">
+                    <span class="user-name">{{ .User.Name }}</span>
+                    {{ if eq .User.Role "superadmin" }}
+                    <span class="user-role user-role-superadmin">SuperAdmin</span>
+                    {{ else if eq .User.Role "admin" }}
+                    <span class="user-role user-role-admin">Administrador</span>
+                    {{ else if eq .User.Role "gestor" }}
+                    <span class="user-role user-role-manager">Gestor</span>
+                    {{ else if eq .User.Role "almoxarife" }}
+                    <span class="user-role user-role-storekeeper">Almoxarife</span>
+                    {{ else if eq .User.Role "auditor" }}
+                    <span class="user-role user-role-auditor">Auditor</span>
+                    {{ else }}
+                    <span class="user-role user-role-user">Solicitante</span>
+                    {{ end }}
+                </div>
+            </header>
+
+            <section class="content">
+
+                <header class="page-hero">
+                    <div class="page-hero-text">
+                        <span class="eyebrow">Relatórios</span>
+                        <h3>Consumo de materiais</h3>
+                        <p>O que entrou e o que saiu {{ if .Scope.Current }}em <strong>{{ .Scope.Current.Name }}</strong>{{ else }}em todas as obras{{ end }}{{ if and .FormattedFrom .FormattedTo }}, de {{ .FormattedFrom }} a {{ .FormattedTo }}{{ else if .FormattedFrom }}, a partir de {{ .FormattedFrom }}{{ else if .FormattedTo }}, até {{ .FormattedTo }}{{ end }}.</p>
+                        <span class="page-hero-meta">{{ .Summary.Entries }} entrada(s) · {{ .Summary.Exits }} saída(s)</span>
+                    </div>
+                </header>
+
+                <nav class="materials-tabs" aria-label="Escolher período do relatório">
+                    {{ range .Shortcuts }}
+                    <a href="/relatorios?de={{ .From }}&ate={{ .To }}"{{ if .Active }} class="material-tab-active"{{ end }}>{{ .Label }}</a>
+                    {{ end }}
+                </nav>
+
+                <form class="movements-filter" method="GET" action="/relatorios">
+
+                    <div class="filter-field">
+                        <label for="filter-from">De</label>
+                        <input type="date" id="filter-from" name="de" value="{{ .From }}">
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="filter-to">Até</label>
+                        <input type="date" id="filter-to" name="ate" value="{{ .To }}">
+                    </div>
+
+                    <div class="filter-actions">
+                        <button type="submit">Filtrar</button>
+                        <a class="button-secondary" href="/relatorios">Últimos 30 dias</a>
+                    </div>
+                </form>
+
+                {{ if .Error }}
+                <p class="form-error" role="alert">
+                    {{ .Error }}
+                </p>
+                {{ end }}
+
+                <div class="cards">
+
+                    <div class="card">
+                        <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg></span>
+                        <span class="card-title">Entradas</span>
+                        <strong>{{ .Summary.Entries }}</strong>
+                        <small>Registros de entrada no período</small>
+                    </div>
+
+                    <div class="card">
+                        <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14"></path><path d="m5 12 7 7 7-7"></path></svg></span>
+                        <span class="card-title">Saídas</span>
+                        <strong>{{ .Summary.Exits }}</strong>
+                        <small>Registros de saída no período</small>
+                    </div>
+
+                    <div class="card">
+                        <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg></span>
+                        <span class="card-title">Materiais</span>
+                        <strong>{{ .Summary.Materials }}</strong>
+                        <small>Materiais diferentes movimentados</small>
+                    </div>
+
+                </div>
+
+                <div class="materials-section report-section">
+
+                    <div class="section-header">
+                        <div>
+                            <h3>Materiais que mais saíram</h3>
+                            <small>Do que mais saiu para o que menos saiu. Quantidade só soma dentro do material: cada um tem a sua unidade.</small>
+                        </div>
+                        <a href="/movimentacoes?tipo=SAIDA&de={{ .From }}&ate={{ .To }}">Ver movimentações</a>
+                    </div>
+
+                    <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Material</th>
+                                <th>Entrou</th>
+                                <th>Saiu</th>
+                                <th>Saídas</th>
+                                <th>Saldo do período</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {{ range .Materials }}
+                            <tr>
+                                <td class="activity-material">{{ .Material }}</td>
+                                <td>{{ .FormattedEntered }}<span class="unit-label">{{ .Unit }}</span></td>
+                                <td>{{ .FormattedExited }}<span class="unit-label">{{ .Unit }}</span></td>
+                                <td>{{ .ExitCount }}</td>
+                                <td><span class="report-balance{{ if lt .Balance 0.0 }} report-balance-down{{ else if gt .Balance 0.0 }} report-balance-up{{ end }}">{{ .FormattedBalance }}</span><span class="unit-label">{{ .Unit }}</span></td>
+                            </tr>
+                            {{ else }}
+                            <tr>
+                                <td colspan="5"><div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16h16"></path><path d="M8 17v-5M13 17V8M18 17v-8"></path></svg><span>Nenhuma entrada ou saída nesse período.</span></div></td>
+                            </tr>
+                            {{ end }}
+                            {{ if gt .MaterialsExtra 0 }}
+                            <tr class="low-stock-more">
+                                <td colspan="5">
+                                    <a href="/movimentacoes?de={{ .From }}&ate={{ .To }}">e mais {{ .MaterialsExtra }} material(is) movimentado(s) →</a>
+                                </td>
+                            </tr>
+                            {{ end }}
+                        </tbody>
+                    </table>
+                    </div>
+
+                </div>
+
+                {{ if not .Scope.Current }}
+                <div class="materials-section report-section">
+
+                    <div class="section-header">
+                        <div>
+                            <h3>Comparativo entre obras</h3>
+                            <small>Quantas movimentações cada obra teve no período. Sem coluna de quantidade: somar saco com m³ não diria nada.</small>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Obra</th>
+                                <th>Entradas</th>
+                                <th>Saídas</th>
+                                <th>Materiais</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {{ range .Sites }}
+                            <tr>
+                                <td class="site-name">{{ .SiteName }}</td>
+                                <td>{{ .Entries }}</td>
+                                <td>{{ .Exits }}</td>
+                                <td>{{ if gt .Materials 0 }}{{ .Materials }}{{ else }}<span class="muted-dash">—</span>{{ end }}</td>
+                            </tr>
+                            {{ else }}
+                            <tr>
+                                <td colspan="4"><div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4v18M12 9h7v12"></path></svg><span>Nenhuma obra cadastrada.</span></div></td>
+                            </tr>
+                            {{ end }}
+                        </tbody>
+                    </table>
+                    </div>
+
+                </div>
+                {{ end }}
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <script src="/js/app.js?v=17"></script>
+
+</body>
+</html>

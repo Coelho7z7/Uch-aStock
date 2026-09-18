@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UchôaStock - Obras</title>
+    <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/tokens.css?v=10">
+    <link rel="stylesheet" href="/css/base.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=17">
+    <link rel="stylesheet" href="/css/layout.css?v=15">
+    <link rel="stylesheet" href="/css/pages.css?v=19">
+</head>
+
+<body class="sites-page">
+
+    <div class="dashboard">
+
+        <aside class="sidebar">
+
+            <h1 class="logo">
+                <img class="logo-image" src="/images/uchoa-logo.png" alt="">
+                <span class="logo-text">
+                    <strong>Uchôa Stock</strong>
+                    <small>Controle de estoque</small>
+                </span>
+            </h1>
+
+            <nav>
+                <a href="/dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>Dashboard</a>
+                <a class="tab-active" href="/obras"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4v18M12 9h7v12M8 9h1M8 13h1M8 17h1M15 13h1M15 17h1"></path></svg>Obras</a>
+                <a href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
+<a href="/fornecedores"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v10H3z"></path><path d="M14 10h4l3 3v3h-7"></path><circle cx="7" cy="17.5" r="1.5"></circle><circle cx="17" cy="17.5" r="1.5"></circle></svg>Fornecedores</a>
+                <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
+                {{ if .Nav.CanViewInventory }}<a href="/inventarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17"></path><path d="M11 6h9M11 12h9M11 18h9"></path></svg>Inventários{{ if .Nav.InventoryPending }}<span class="nav-badge nav-badge-pending" title="Inventários aguardando aprovação" aria-label="{{ .Nav.InventoryPending }} aguardando aprovação">{{ .Nav.InventoryPending }}</span>{{ end }}</a>{{ end }}
+                <a href="/solicitacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"></path><path d="M9 5H6v16h12V5h-3"></path><path d="M9 12h6M9 16h4"></path></svg>Solicitações{{ template "nav-request-badges" .Nav }}</a>
+                {{ if .Nav.CanViewReports }}<a href="/relatorios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16h16"></path><path d="M8 17v-5M13 17V8M18 17v-8"></path></svg>Relatórios</a>{{ end }}
+                {{ if .CanManageUsers }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="/logout" class="sidebar-logout"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg>Sair</a>
+            </div>
+
+        </aside>
+        <div class="mobile-sidebar-overlay" aria-hidden="true"></div>
+
+        <main class="main-content">
+
+            <header class="topbar">
+                <button class="mobile-menu-button" type="button" aria-label="Abrir menu" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+                <h2>Obras</h2>
+
+                {{ template "site-switcher" .Scope }}
+
+                <div class="user">
+                    <span class="user-name">{{ .User.Name }}</span>
+                    {{ if eq .User.Role "superadmin" }}
+                    <span class="user-role user-role-superadmin">SuperAdmin</span>
+                    {{ else if eq .User.Role "admin" }}
+                    <span class="user-role user-role-admin">Administrador</span>
+                    {{ else if eq .User.Role "gestor" }}
+                    <span class="user-role user-role-manager">Gestor</span>
+                    {{ else if eq .User.Role "almoxarife" }}
+                    <span class="user-role user-role-storekeeper">Almoxarife</span>
+                    {{ else if eq .User.Role "auditor" }}
+                    <span class="user-role user-role-auditor">Auditor</span>
+                    {{ else }}
+                    <span class="user-role user-role-user">Solicitante</span>
+                    {{ end }}
+                </div>
+            </header>
+
+            <section class="content">
+
+                <header class="page-hero">
+                    <div class="page-hero-text">
+                        <span class="eyebrow">Estrutura</span>
+                        <h3>Obras e locais</h3>
+                        <p>O almoxarifado central e as obras da empresa. Obra encerrada não é apagada: muda para concluída e continua no histórico.</p>
+                        <div class="page-hero-actions">
+                            {{ if .CanCreateSite }}
+                            <button class="new-material-button" type="button" id="open-create-site">
+                                Nova obra
+                            </button>
+                            {{ end }}
+                        </div>
+                    </div>
+                </header>
+
+                <form class="materials-filter" method="GET" action="/obras" data-live-search>
+                    <input type="search" name="busca" value="{{ .Search }}" placeholder="Buscar obra, cidade ou responsável" aria-label="Buscar obra">
+                    <select name="situacao" aria-label="Filtrar por situação">
+                        <option value="">Todas as situações</option>
+                        {{ range .Statuses }}<option value="{{ .Value }}"{{ if eq .Value $.Status }} selected{{ end }}>{{ .Label }}</option>{{ end }}
+                    </select>
+                    <button type="submit">Filtrar</button>
+                </form>
+
+                {{ if .Message }}
+                <p class="form-success" role="status">
+                    {{ .Message }}
+                </p>
+                {{ end }}
+
+                {{ if and .FormError (not .Form) }}
+                <p class="form-error" role="alert">
+                    {{ .FormError }}
+                </p>
+                {{ end }}
+
+                <div class="materials-table page-table sites-table" data-live-region="tabela">
+
+                    <table>
+
+                        <thead>
+                            <tr>
+                                <th>Obra</th>
+                                <th>Cidade</th>
+                                <th>Responsável</th>
+                                <th>Equipe</th>
+                                <th>Situação</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {{ range .Sites }}
+
+                            <tr>
+                                <td>
+                                    <span class="site-name">{{ .Name }}</span>
+                                    {{ if eq .Type "CENTRAL" }}<span class="badge site-type-central">{{ .FormattedType }}</span>{{ end }}
+                                </td>
+                                <td>{{ if .City }}{{ .City }}{{ else }}<span class="muted-dash">—</span>{{ end }}</td>
+                                <td>{{ if .Manager }}{{ .Manager }}{{ else }}<span class="muted-dash">—</span>{{ end }}</td>
+                                <td class="site-team">{{ with index $.Teams .ID }}{{ range $i, $name := . }}{{ if $i }}, {{ end }}{{ $name }}{{ end }}{{ else }}<span class="muted-dash">—</span>{{ end }}</td>
+                                <td><span class="badge site-status-{{ .Status }}">{{ .FormattedStatus }}</span></td>
+                                <td class="material-actions">
+                                    <form class="site-open-form" method="POST" action="/obra-atual">
+                                        <input type="hidden" name="obra_id" value="{{ .ID }}">
+                                        <input type="hidden" name="voltar" value="/dashboard">
+                                        <button class="edit-material-link" type="submit" aria-label="Abrir o dashboard de {{ .Name }}">Abrir</button>
+                                    </form>
+                                    {{ if and $.CanManageSites (or $.AllSites (eq .ID $.OwnSiteID)) }}
+                                    <a
+                                        class="edit-material-link"
+                                        href="/obras?editar={{ .ID }}"
+                                        aria-label="Editar {{ .Name }}"
+                                        data-id="{{ .ID }}"
+                                        data-name="{{ .Name }}"
+                                        data-city="{{ .City }}"
+                                        data-manager="{{ .Manager }}"
+                                        data-status="{{ .Status }}"
+                                        data-central="{{ if eq .Type "CENTRAL" }}sim{{ end }}">Editar</a>
+                                    <!-- Mudar a situação: quem gerencia obras, na obra
+                                         que está ao alcance dele, e nunca o almoxarifado
+                                         central. O servidor confere de novo. -->
+                                    {{ if ne .Type "CENTRAL" }}
+                                    {{ if eq .Status "CONCLUIDA" }}
+                                    {{ if $.CanReopenSite }}
+                                    <form class="site-status-form" method="POST" action="/obras">
+                                        <input type="hidden" name="acao" value="situacao">
+                                        <input type="hidden" name="obra_id" value="{{ .ID }}">
+                                        <input type="hidden" name="situacao" value="ANDAMENTO">
+                                        <button class="edit-material-link" type="submit" aria-label="Reabrir {{ .Name }}"
+                                            data-confirm="Reabrir a obra &quot;{{ .Name }}&quot;? Ela volta a ficar em andamento e aceita entrada e saída de material de novo."
+                                            data-confirm-title="Reabrir obra" data-confirm-ok="Reabrir" data-confirm-tone="warning">Reabrir</button>
+                                    </form>
+                                    {{ end }}
+                                    {{ else }}
+                                    {{ if eq .Status "PARALISADA" }}
+                                    <form class="site-status-form" method="POST" action="/obras">
+                                        <input type="hidden" name="acao" value="situacao">
+                                        <input type="hidden" name="obra_id" value="{{ .ID }}">
+                                        <input type="hidden" name="situacao" value="ANDAMENTO">
+                                        <button class="edit-material-link" type="submit" aria-label="Retomar {{ .Name }}"
+                                            data-confirm="Retomar a obra &quot;{{ .Name }}&quot;? Ela volta a ficar em andamento e aceita entrada e saída de material."
+                                            data-confirm-title="Retomar obra" data-confirm-ok="Retomar" data-confirm-tone="warning">Retomar</button>
+                                    </form>
+                                    {{ else }}
+                                    <form class="site-status-form" method="POST" action="/obras">
+                                        <input type="hidden" name="acao" value="situacao">
+                                        <input type="hidden" name="obra_id" value="{{ .ID }}">
+                                        <input type="hidden" name="situacao" value="PARALISADA">
+                                        <button class="edit-material-link" type="submit" aria-label="Paralisar {{ .Name }}"
+                                            data-confirm="Confirma a paralisação da obra &quot;{{ .Name }}&quot;?"
+                                            data-confirm-title="Paralisar obra" data-confirm-ok="Paralisar" data-confirm-tone="warning">Paralisar</button>
+                                    </form>
+                                    {{ end }}
+                                    <form class="site-status-form" method="POST" action="/obras">
+                                        <input type="hidden" name="acao" value="situacao">
+                                        <input type="hidden" name="obra_id" value="{{ .ID }}">
+                                        <input type="hidden" name="situacao" value="CONCLUIDA">
+                                        <button class="edit-material-link" type="submit" aria-label="Encerrar {{ .Name }}"
+                                            data-confirm="Confirma o encerramento da obra &quot;{{ .Name }}&quot;? Ela passa para concluída e fica só para consulta: não aceita mais entrada nem saída de material."
+                                            data-confirm-title="Encerrar obra" data-confirm-ok="Encerrar obra" data-confirm-tone="warning">Encerrar</button>
+                                    </form>
+                                    {{ end }}
+                                    {{ end }}
+                                    {{ end }}
+                                </td>
+                            </tr>
+
+                            {{ else }}
+
+                            <tr>
+                                <td colspan="6">
+                                    <div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4v18M12 9h7v12"></path></svg><span>Nenhuma obra encontrada para esse filtro.</span></div>
+                                </td>
+                            </tr>
+
+                            {{ end }}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+                <!-- Um modal só para cadastrar e editar. O servidor o manda
+                     aberto (sem hidden) com ?editar=ID ou quando o envio deu
+                     erro; sem JS, o link "Editar" continua funcionando. -->
+                <div class="modal-edit" id="site-modal" data-can-change-status="{{ if .CanManageSites }}sim{{ end }}" data-can-reopen="{{ if .CanReopenSite }}sim{{ end }}" {{ if not .Form }}hidden{{ end }}>
+                    <div class="modal-edit-content" role="dialog" aria-modal="true" aria-labelledby="site-modal-title">
+                        <div class="modal-create-header">
+                            <div>
+                                <span class="edit-kicker">Estrutura</span>
+                                <h3 id="site-modal-title">{{ if and .Form .Form.ID }}Editar obra{{ else }}Nova obra{{ end }}</h3>
+                            </div>
+                            <button class="close-modal-button" type="button" id="close-site-modal" aria-label="Fechar">&times;</button>
+                        </div>
+
+                        {{ if and .FormError .Form }}
+                        <p class="form-error" role="alert">{{ .FormError }}</p>
+                        {{ end }}
+
+                        <form class="create-form" action="/obras" method="POST">
+                            <input type="hidden" name="acao" id="site-action" value="{{ if and .Form .Form.ID }}atualizar{{ else }}cadastrar{{ end }}">
+                            <input type="hidden" name="obra_id" id="site-id" value="{{ with .Form }}{{ .ID }}{{ end }}">
+
+                            <label for="site-name">Nome da obra</label>
+                            <input id="site-name" type="text" name="nome" maxlength="100" value="{{ with .Form }}{{ .Name }}{{ end }}" placeholder="Ex.: Residencial Atlântico" required>
+
+                            <div class="form-row">
+                                <div>
+                                    <label for="site-city">Cidade</label>
+                                    <input id="site-city" type="text" name="cidade" maxlength="80" value="{{ with .Form }}{{ .City }}{{ end }}" placeholder="Ex.: Maceió · AL">
+                                </div>
+                                <div>
+                                    <label for="site-manager">Responsável</label>
+                                    <input id="site-manager" type="text" name="responsavel" maxlength="80" value="{{ with .Form }}{{ .Manager }}{{ end }}" placeholder="Ex.: Eng. Rafael Lima">
+                                </div>
+                            </div>
+
+                            <!-- Situação só existe na edição, e nunca para o
+                                 almoxarifado central. -->
+                            <div class="site-status-field" id="site-status-field" {{ if not .Form }}hidden{{ else if or (not .Form.ID) .Form.IsCentral (not .CanManageSites) }}hidden{{ end }}>
+                                <label for="site-status">Situação</label>
+                                <select id="site-status" name="situacao" data-original="{{ with .Form }}{{ .OriginalStatus }}{{ end }}">
+                                    <!-- Obra concluída só volta para "Em andamento" (reabrir) com obras.reabrir:
+                                         sem ela, a opção fica escondida e desabilitada. O JS refaz isso a cada
+                                         obra aberta no modal, e o servidor recusa de qualquer jeito. -->
+                                    {{ range .Statuses }}<option value="{{ .Value }}"{{ if $.Form }}{{ if eq .Value $.Form.Status }} selected{{ end }}{{ if and (eq .Value "ANDAMENTO") (eq $.Form.OriginalStatus "CONCLUIDA") (not $.CanReopenSite) }} hidden disabled{{ end }}{{ end }}>{{ .Label }}</option>{{ end }}
+                                </select>
+                            </div>
+
+                            <small class="role-help" id="site-help">{{ if and .Form .Form.IsCentral }}O almoxarifado central fica sempre em andamento: é dele que o material sai para as obras.{{ else if and .Form .Form.ID }}Obra concluída continua na lista e no histórico.{{ else }}A obra nasce em andamento. A situação pode ser mudada depois, na edição.{{ end }}</small>
+
+                            <button class="save-button" type="submit" id="site-submit" data-confirm-optional>{{ if and .Form .Form.ID }}Salvar alterações{{ else }}Cadastrar obra{{ end }}</button>
+                        </form>
+                    </div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <script src="/js/app.js?v=17"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const modal = document.getElementById('site-modal');
+            const title = document.getElementById('site-modal-title');
+            const action = document.getElementById('site-action');
+            const id = document.getElementById('site-id');
+            const name = document.getElementById('site-name');
+            const city = document.getElementById('site-city');
+            const manager = document.getElementById('site-manager');
+            const statusField = document.getElementById('site-status-field');
+            const status = document.getElementById('site-status');
+            const help = document.getElementById('site-help');
+            const submit = document.getElementById('site-submit');
+
+            // Obra concluída só volta para "Em andamento" (reabrir) com a
+            // permissão de reabrir. Sem ela, a opção some do seletor. O
+            // disabled garante que ela também não seja escolhida nos
+            // navegadores que ignoram hidden em <option>.
+            const syncReopenOption = function (originalStatus) {
+                const reopen = status.querySelector('option[value="ANDAMENTO"]');
+                const blocked = originalStatus === 'CONCLUIDA' && modal.dataset.canReopen !== 'sim';
+                reopen.hidden = blocked;
+                reopen.disabled = blocked;
+            };
+
+            // Preenche o modal e abre. site é null no cadastro.
+            const openModal = function (site) {
+                const editing = site !== null;
+                const central = editing && site.central === 'sim';
+
+                // Um erro de envio anterior não deve aparecer no próximo.
+                const oldError = modal.querySelector('.form-error');
+                if (oldError) oldError.remove();
+
+                title.textContent = editing ? 'Editar obra' : 'Nova obra';
+                action.value = editing ? 'atualizar' : 'cadastrar';
+                submit.textContent = editing ? 'Salvar alterações' : 'Cadastrar obra';
+                id.value = editing ? site.id : '';
+                name.value = editing ? site.name : '';
+                city.value = editing ? site.city : '';
+                manager.value = editing ? site.manager : '';
+                status.value = editing ? site.status : 'ANDAMENTO';
+                status.dataset.original = editing ? site.status : '';
+                syncReopenOption(status.dataset.original);
+                // Só quem gerencia obras muda a situação; para os outros o
+                // campo some (e o servidor recusa a edição).
+                statusField.hidden = !editing || central || modal.dataset.canChangeStatus !== 'sim';
+                help.textContent = central
+                    ? 'O almoxarifado central fica sempre em andamento: é dele que o material sai para as obras.'
+                    : editing
+                        ? 'Obra concluída continua na lista e no histórico.'
+                        : 'A obra nasce em andamento. A situação pode ser mudada depois, na edição.';
+
+                updateConfirmation();
+                modal.hidden = false;
+                name.focus();
+            };
+
+            // Paralisar ou concluir uma obra pede confirmação antes de
+            // salvar. O modal de confirmação é o do app.js: ele aparece
+            // quando o botão tem data-confirm, então o atributo é colocado
+            // só quando a situação escolhida muda para uma dessas duas.
+            const confirmations = {
+                ANDAMENTO: { title: 'Retomar obra', ok: 'Retomar', text: 'Retomar a obra "{nome}"? Ela volta a ficar em andamento e aceita entrada e saída de material.' },
+                PARALISADA: { title: 'Paralisar obra', ok: 'Paralisar', text: 'Confirma a paralisação da obra "{nome}"?' },
+                CONCLUIDA: { title: 'Concluir obra', ok: 'Concluir obra', text: 'Confirma a conclusão da obra "{nome}"? Ela passa a ser só consulta: não aceita mais entrada nem saída de material.' }
+            };
+            const updateConfirmation = function () {
+                const chosen = confirmations[status.value];
+                const changed = action.value === 'atualizar' && status.value !== status.dataset.original;
+                if (chosen && changed && !statusField.hidden) {
+                    submit.dataset.confirm = chosen.text.replace('{nome}', name.value.trim());
+                    submit.dataset.confirmTitle = chosen.title;
+                    submit.dataset.confirmOk = chosen.ok;
+                    submit.dataset.confirmTone = 'warning';
+                } else {
+                    delete submit.dataset.confirm;
+                    delete submit.dataset.confirmTitle;
+                    delete submit.dataset.confirmOk;
+                    delete submit.dataset.confirmTone;
+                }
+            };
+            status.addEventListener('change', updateConfirmation);
+            name.addEventListener('input', updateConfirmation);
+
+            // O botão só existe para quem pode cadastrar obra.
+            const openCreate = document.getElementById('open-create-site');
+            if (openCreate) {
+                openCreate.addEventListener('click', function () {
+                    openModal(null);
+                });
+            }
+
+            // Com JS o "Editar" abre o modal na hora, sem recarregar a página.
+            // O clique é ouvido no document ("delegação"): a busca em tempo
+            // real troca a tabela, e os links novos não teriam ouvinte próprio.
+            document.addEventListener('click', function (event) {
+                const link = event.target.closest('.sites-table a[data-id]');
+                if (!link) return;
+                event.preventDefault();
+                openModal(link.dataset);
+            });
+
+            // Aberto pelo servidor (?editar=ID ou erro): foco no nome.
+            if (!modal.hidden) {
+                syncReopenOption(status.dataset.original);
+                updateConfirmation();
+                name.focus();
+            }
+
+            const closeModal = function () {
+                modal.hidden = true;
+                // Tira o ?editar da URL, para um F5 não reabrir o modal.
+                if (location.search.indexOf('editar=') !== -1) {
+                    history.replaceState(null, '', location.pathname);
+                }
+            };
+            document.getElementById('close-site-modal').addEventListener('click', closeModal);
+            modal.addEventListener('click', function (event) {
+                if (event.target === modal) closeModal();
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && !modal.hidden) closeModal();
+            });
+        });
+    </script>
+
+</body>
+
+</html>

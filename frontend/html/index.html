@@ -10,8 +10,8 @@
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=10">
-    <link rel="stylesheet" href="/css/login.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=17">
+    <link rel="stylesheet" href="/css/login.css?v=11">
 </head>
 
 <body>
@@ -24,6 +24,31 @@
                     stroke-width="2" opacity="0.35" />
                 <polyline points="0,220 90,180 180,200 270,110 360,140 450,50 500,70 500,300 0,300"
                     fill="url(#chartFade)" stroke="none" opacity="0.5" />
+
+                <!-- Pontos de leitura do gráfico. Cada um é um traço de
+                     comprimento quase nulo com a ponta redonda — o que o
+                     navegador desenha como um círculo. O
+                     vector-effect="non-scaling-stroke" mantém esse círculo
+                     redondo mesmo com o SVG esticado
+                     (preserveAspectRatio="none"), porque a espessura passa
+                     a ser medida em pixels de tela, não no viewBox. -->
+                <g class="hero-chart-nodes">
+                    <path d="M90 180 l0.01 0" vector-effect="non-scaling-stroke" />
+                    <path d="M270 110 l0.01 0" vector-effect="non-scaling-stroke" />
+                    <path d="M450 50 l0.01 0" vector-effect="non-scaling-stroke" />
+                </g>
+
+                <!-- O ponto que percorre o gráfico. Os dois traços nascem
+                     na origem (0 0) e quem os leva pela linha é o
+                     offset-path do grupo, no CSS. São duas cópias
+                     sobrepostas — uma larga e quase transparente, outra
+                     fina e acesa — e juntas fazem o brilho sem custar um
+                     filtro de desfoque. -->
+                <g class="hero-chart-pulse">
+                    <path class="hero-chart-pulse-glow" d="M0 0 l0.01 0" vector-effect="non-scaling-stroke" />
+                    <path class="hero-chart-pulse-dot" d="M0 0 l0.01 0" vector-effect="non-scaling-stroke" />
+                </g>
+
                 <defs>
                     <linearGradient id="chartFade" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stop-color="#1E64BE" stop-opacity="0.2" />
@@ -33,7 +58,21 @@
             </svg>
 
             <div class="login-brand">
-                <img class="login-logo-image" src="/images/uchoa-logo.png" alt="">
+                <!-- A logo entra linha a linha. São seis cópias da mesma
+                     imagem, empilhadas no mesmo lugar; o CSS recorta cada
+                     uma na altura de uma barra do símbolo, e assim cada
+                     barra pode se desenhar na sua vez. Somadas, elas
+                     remontam o arquivo original sem redimensionar nada. O
+                     navegador baixa a imagem uma vez só. É decoração: quem
+                     anuncia o nome é o <h1> ao lado. -->
+                <div class="login-logo" aria-hidden="true">
+                    <img class="login-logo-line" src="/images/uchoa-logo.png" alt="">
+                    <img class="login-logo-line" src="/images/uchoa-logo.png" alt="">
+                    <img class="login-logo-line" src="/images/uchoa-logo.png" alt="">
+                    <img class="login-logo-line" src="/images/uchoa-logo.png" alt="">
+                    <img class="login-logo-line" src="/images/uchoa-logo.png" alt="">
+                    <img class="login-logo-line" src="/images/uchoa-logo.png" alt="">
+                </div>
 
                 <div class="login-brand-text">
                     <h1>Uchôa Stock</h1>
@@ -121,8 +160,13 @@
 
     </main>
 
-    {{ if .Error }}
-    <div class="login-alert" role="alert" aria-live="assertive">
+    <!-- O mesmo aviso serve para os dois casos: senha errada e espera por
+         tentativas demais. No segundo, data-login-lock leva os segundos
+         que o servidor ainda vai recusar, e o app.js usa esse número para
+         a contagem regressiva e para desabilitar o botão. -->
+    {{ if or .Error (gt .LockSeconds 0) }}
+    <div class="login-alert" role="alert" aria-live="assertive"
+        {{ if gt .LockSeconds 0 }}data-login-lock="{{ .LockSeconds }}"{{ end }}>
         <span class="login-alert-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                 stroke-linejoin="round">
@@ -132,13 +176,21 @@
             </svg>
         </span>
         <span>
+            {{ if gt .LockSeconds 0 }}
+            <strong>Muitas tentativas seguidas</strong>
+            <small>
+                Aguarde <span class="login-lock-timer" data-login-countdown>{{ .LockSeconds }}</span>s
+                para tentar de novo.
+            </small>
+            {{ else }}
             <strong>Não foi possível entrar</strong>
             <small>{{ .Error }}</small>
+            {{ end }}
         </span>
     </div>
     {{ end }}
 
-    <script src="/js/app.js?v=12"></script>
+    <script src="/js/app.js?v=16"></script>
 
 </body>
 

@@ -215,6 +215,118 @@
 }
 
 /* ============================================================
+   Obras
+   ============================================================ */
+
+/* Nome e selo "Almoxarifado central" na mesma linha; se não couber,
+   o selo desce. */
+.site-name {
+    margin-right: var(--space-2);
+    font-weight: var(--weight-semibold);
+}
+
+.site-type-central {
+    color: var(--color-info-text);
+    background: var(--color-info-tint);
+    border-color: var(--color-brand-soft);
+}
+
+/* Selos de situação. O sufixo vem do banco (site-status-{{ .Status }}),
+   por isso fica em maiúsculas: não renomear. */
+.site-status-ANDAMENTO {
+    color: var(--color-success-text);
+    background: var(--color-success-tint);
+    border-color: var(--color-success);
+}
+
+.site-status-PARALISADA {
+    color: var(--color-warning-text);
+    background: var(--color-warning-tint);
+    border-color: var(--color-warning);
+}
+
+.site-status-CONCLUIDA {
+    color: var(--color-text-muted);
+    background: var(--color-surface-alt);
+    border-color: var(--color-border-strong);
+}
+
+/* Fornecedores: o selo "Desativado" segue o tom neutro da obra concluída,
+   e o CNPJ não quebra no meio. */
+.supplier-inactive {
+    color: var(--color-text-muted);
+    background: var(--color-surface-alt);
+    border-color: var(--color-border-strong);
+}
+
+.supplier-cnpj {
+    white-space: nowrap;
+}
+
+/* Botões "Abrir", "Paralisar", "Retomar" e "Encerrar" da linha: cada um
+   é um <form> e fica em linha com o link "Editar". */
+.site-open-form,
+.site-status-form {
+    display: inline-block;
+}
+
+/* Nome da obra embaixo do material, nas listas da visão "Todas as obras". */
+.row-site-name {
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-normal);
+    color: var(--color-text-muted);
+}
+
+/* Aviso fixo de por que a tela está só em consulta. Não usa
+   .form-success/.form-error de propósito: o app.js transforma essas em
+   toast que some, e este aviso precisa ficar visível. */
+.scope-notice {
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--color-info-text);
+    background: var(--color-info-tint);
+    border: 1px solid var(--color-brand-border);
+    border-radius: var(--radius-md);
+}
+
+/* Campo de situação do modal. O [hidden] precisa de regra própria:
+   sem ela o display:flex abaixo venceria e o campo nunca sumiria. */
+.site-status-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.site-status-field[hidden] {
+    display: none;
+}
+
+/* Equipe da obra: lista de nomes que pode quebrar em várias linhas. */
+.site-team {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+/* ============================================================
+   Usuários
+   ============================================================ */
+
+/* Campo Obra do modal de usuário. Some quando a permissão é
+   Administrador; o [hidden] precisa de regra própria pelo mesmo motivo
+   do .site-status-field. */
+.user-site-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.user-site-field[hidden] {
+    display: none;
+}
+
+/* ============================================================
    Estoque
    ============================================================ */
 
@@ -448,4 +560,408 @@
 
 .access-denied-card button:hover {
     background: var(--color-brand-strong);
+}
+
+
+/* ============================================================
+   Solicitações
+   ============================================================ */
+
+/* Selos de situação. O sufixo vem do banco (request-status-{{ .Status }}),
+   por isso fica em maiúsculas: não renomear. */
+.request-status-PENDENTE {
+    color: var(--color-warning-text);
+    background: var(--color-warning-tint);
+    border-color: var(--color-warning);
+}
+
+.request-status-APROVADA {
+    color: var(--color-info-text);
+    background: var(--color-info-tint);
+    border-color: var(--color-brand-soft);
+}
+
+.request-status-PARCIAL {
+    color: var(--color-gold);
+    background: var(--color-gold-tint);
+    border-color: var(--color-gold-border);
+}
+
+.request-status-ATENDIDA {
+    color: var(--color-success-text);
+    background: var(--color-success-tint);
+    border-color: var(--color-success);
+}
+
+.request-status-REJEITADA {
+    color: var(--color-danger-text);
+    background: var(--color-danger-tint);
+    border-color: var(--color-danger);
+}
+
+.request-status-CANCELADA {
+    color: var(--color-text-muted);
+    background: var(--color-surface-alt);
+    border-color: var(--color-border-strong);
+}
+
+.request-number {
+    font-weight: var(--weight-semibold);
+    color: var(--color-brand-light);
+    white-space: nowrap;
+}
+
+/* Formulário de nova solicitação. Cada item é um bloco: no celular os
+   campos empilham; do tablet em diante ficam na mesma linha. */
+.request-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.request-items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.request-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.request-item-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.request-item-label {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--color-text-muted);
+}
+
+.request-item-quantity {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.request-item-remove {
+    justify-self: end;
+}
+
+.request-add-row,
+.request-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.request-hint {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+/* Detalhe: dados da solicitação. */
+.request-info {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+    margin: 0 0 var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.request-info div {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.request-info dt {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--color-text-muted);
+}
+
+.request-info dd {
+    margin: 0;
+    color: var(--color-text);
+}
+
+.request-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.request-items-section,
+.request-history-section,
+.requests-open-section {
+    margin-top: var(--space-5);
+}
+
+.request-item-removed {
+    margin-left: var(--space-2);
+    color: var(--color-danger-text);
+    background: var(--color-danger-tint);
+    border-color: var(--color-danger);
+}
+
+.request-item-done {
+    font-weight: var(--weight-semibold);
+    color: var(--color-success-text);
+}
+
+/* Saldo da obra menor que o que falta: destaque na tela de aprovação e
+   de atendimento (a aprovação não reserva estoque). */
+.request-balance-low {
+    font-weight: var(--weight-semibold);
+    color: var(--color-danger-text);
+}
+
+.request-balance-note {
+    display: block;
+    font-size: var(--text-xs);
+    color: var(--color-danger-text);
+}
+
+.request-serve-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--space-4);
+}
+
+/* Histórico: uma linha por evento, com a cor da ação na borda. */
+.request-history {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.request-event {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: var(--space-1) solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+}
+
+.request-event-CRIADA {
+    border-left-color: var(--color-brand-soft);
+}
+
+.request-event-APROVADA,
+.request-event-ATENDIMENTO {
+    border-left-color: var(--color-success);
+}
+
+.request-event-REJEITADA {
+    border-left-color: var(--color-danger);
+}
+
+.request-event-when,
+.request-event-detail {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+.request-event-detail {
+    font-size: var(--text-sm);
+}
+
+/* "Req. #N" nas movimentações. */
+.movement-request-link {
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--color-brand-light);
+}
+
+@media (min-width: 768px) {
+    .request-item {
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+        align-items: end;
+    }
+
+    .request-info {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .request-info-wide {
+        grid-column: 1 / -1;
+    }
+}
+
+/* ============================================================
+   Relatórios
+   ============================================================ */
+
+/* Os painéis do relatório ficam um embaixo do outro (o comparativo entre
+   obras só aparece na visão de todas as obras), então o espaço entre eles
+   é margem, e não o gap de um grid como no dashboard. */
+.report-section + .report-section {
+    margin-top: var(--space-5);
+}
+
+/* Saldo do período: verde quando entrou mais do que saiu, âmbar quando a
+   obra gastou o que já estava no estoque. São os tons claros das cores
+   semânticas — é o que se lê sobre o fundo escuro. */
+.report-balance {
+    font-weight: var(--weight-semibold);
+}
+
+.report-balance-up {
+    color: var(--color-success-text);
+}
+
+.report-balance-down {
+    color: var(--color-warning-text);
+}
+
+/* ---------- Inventários ----------
+   inventory-status-{{ .Status }} vem do template: os nomes são os valores
+   de inventarios.status. Não renomear. */
+
+.inventory-status-EM_CONTAGEM {
+    color: var(--color-warning-text);
+    background: var(--color-warning-tint);
+    border-color: var(--color-warning);
+}
+
+.inventory-status-AGUARDANDO_APROVACAO {
+    color: var(--color-info-text);
+    background: var(--color-info-tint);
+    border-color: var(--color-brand-soft);
+}
+
+.inventory-status-APROVADO {
+    color: var(--color-success-text);
+    background: var(--color-success-tint);
+    border-color: var(--color-success);
+}
+
+.inventory-status-CANCELADO {
+    color: var(--color-text-muted);
+    background: var(--color-surface-alt);
+    border-color: var(--color-border-strong);
+}
+
+.inventory-how-section,
+.inventory-items-section {
+    margin-top: var(--space-5);
+}
+
+/* "Como funciona": passos numerados pelo próprio CSS (counter). */
+.inventory-steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: inventory-step;
+}
+
+.inventory-steps li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--space-3);
+    row-gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface-alt);
+    border-radius: var(--radius-md);
+    counter-increment: inventory-step;
+}
+
+.inventory-steps li::before {
+    content: counter(inventory-step);
+    grid-row: span 2;
+    font-weight: var(--weight-semibold);
+    color: var(--color-brand-light);
+}
+
+.inventory-steps strong {
+    font-weight: var(--weight-medium);
+    color: var(--color-text);
+}
+
+.inventory-steps span {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+/* Contagem: o campo de quantidade é estreito (a unidade fica ao lado) e o
+   da justificativa ocupa o resto. */
+.inventory-count-table .inventory-qty-input {
+    width: 7rem;
+    margin-right: var(--space-1);
+}
+
+.inventory-count-table .inventory-note-input {
+    min-width: 14rem;
+}
+
+.inventory-diff {
+    font-weight: var(--weight-semibold);
+    white-space: nowrap;
+}
+
+.inventory-diff-up {
+    color: var(--color-success-text);
+}
+
+.inventory-diff-down {
+    color: var(--color-danger-text);
+}
+
+.inventory-count-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.inventory-add-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.inventory-add-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+    .inventory-add-row {
+        flex-direction: row;
+        align-items: center;
+    }
+
+    .inventory-add-row select {
+        flex: 1;
+    }
 }

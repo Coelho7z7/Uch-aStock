@@ -12,45 +12,71 @@ import (
 )
 
 // userHandler exibe a lista de usuários cadastrados e processa a
-// criação de novos usuários, a alteração de permissão e a remoção.
-// A tela é acessível a administradores e gerentes; remover e alterar
-// permissão continuam restritos a administradores (checado abaixo).
-func userHandler(w http.ResponseWriter, r *http.Request) {
-	user, authenticated := loggedUser(r)
-	if !authenticated {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
+// criação de novos usuários, a alteração de permissão, a troca de senha
+// e a remoção.
+// A tela inteira exige PermManageUsers. Dentro dela, cada ação confere
+// em qual conta, com qual cargo e em qual obra a pessoa pode mexer (ver
+// canManageUser, canAssignRole e canAssignSite): o gestor, por exemplo,
+// só cuida de almoxarifes e solicitantes da obra dele.
+func userHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	userID := user.ID
-	if !requireAdminOrManager(w, r) {
+	if !requirePermission(w, user, PermManageUsers) {
 		return
 	}
 
-	admin := isAdmin(r)
+	scope, ok := requireSiteScope(w, r, user)
+	if !ok {
+		return
+	}
 
 	const usersPerPage = 8
 
 	data := struct {
-		User         *models.User
-		Users        []models.User
-		UserID       int
-		IsAdmin      bool
+		User   *models.User
+		Scope  siteScope
+		Users  []models.User
+		UserID int
+		// CanManageUsers mostra a aba Usuários (aqui é sempre true: a tela
+		// inteira já exige a permissão).
+		CanManageUsers bool
+		// Nav são os contadores da barra lateral.
+		Nav navData
+		// Roles são os cargos que a pessoa pode dar (o dropdown).
+		Roles []struct{ Value, Label string }
+		// Sites são as obras a que a pessoa pode vincular alguém.
+		Sites []models.Site
+		// Manageable diz, pelo ID, em quais contas da lista aparecem os
+		// botões de senha, permissão e remoção.
+		Manageable   map[int]bool
 		Search       string
 		Name         string
 		Email        string
 		Role         string
+		SiteID       int
 		Message      string
 		Error        string
 		Page         int
 		TotalPages   int
 		PreviousPage int
 		NextPage     int
-	}{User: user, UserID: userID, IsAdmin: admin}
+	}{
+		User:           user,
+		Scope:          scope,
+		UserID:         userID,
+		CanManageUsers: true,
+		Nav:            buildNav(user, scope),
+		Roles:          assignableRoles(user),
+		Manageable:     map[int]bool{},
+		// Cargo pré-selecionado no cadastro: o de menos poder, para
+		// ninguém virar administrador sem querer.
+		Role: services.RoleRequester,
+	}
 
 	data.Message = map[string]string{
 		"criado":     "Usuário criado com sucesso.",
 		"atualizado": "Permissão atualizada com sucesso.",
 		"removido":   "Usuário removido com sucesso.",
+		"senha":      "Senha atualizada com sucesso.",
 	}[r.URL.Query().Get("sucesso")]
 
 	if r.Method == http.MethodPost {
@@ -61,14 +87,13 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 			data.Email = strings.TrimSpace(r.FormValue("email"))
 			data.Role = r.FormValue("role")
 			password := r.FormValue("senha")
+			data.SiteID, _ = strconv.Atoi(r.FormValue("obra_id"))
 
-			// Gerente só pode cadastrar usuários com permissão básica —
-			// não pode criar outro admin/gerente por aqui.
-			if !admin {
-				data.Role = "basico"
+			if !canAssignRole(user, data.Role) || !canAssignSite(user, data.SiteID) {
+				renderAccessDenied(w)
+				return
 			}
-
-			if err := services.CreateUserWeb(data.Name, data.Email, password, data.Role); err != nil {
+			if err := services.CreateUserWeb(data.Name, data.Email, password, data.Role, data.SiteID); err != nil {
 				data.Error = err.Error()
 			} else {
 				http.Redirect(w, r, "/usuarios?sucesso=criado", http.StatusSeeOther)
@@ -76,37 +101,53 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 		case "alterar_permissao":
-			if !admin {
-				data.Error = "Apenas administradores podem alterar permissões."
-				break
-			}
-
 			targetID, idErr := strconv.Atoi(r.FormValue("usuario_id"))
 			newRole := r.FormValue("role")
+			siteID, siteErr := strconv.Atoi(r.FormValue("obra_id"))
 
 			if idErr != nil {
 				data.Error = "Usuário inválido."
+			} else if siteErr != nil {
+				data.Error = "Obra inválida."
 			} else if targetID == userID {
 				data.Error = "Você não pode alterar a sua própria permissão."
-			} else if err := services.UpdateUserRoleWeb(targetID, newRole); err != nil {
+			} else if !canActOnUser(w, user, targetID) {
+				return
+			} else if !canAssignRole(user, newRole) || !canAssignSite(user, siteID) {
+				renderAccessDenied(w)
+				return
+			} else if err := services.UpdateUserAccessWeb(targetID, newRole, siteID); err != nil {
 				data.Error = err.Error()
 			} else {
 				http.Redirect(w, r, "/usuarios?sucesso=atualizado", http.StatusSeeOther)
 				return
 			}
 
-		case "remover":
-			if !admin {
-				data.Error = "Apenas administradores podem remover usuários."
-				break
+		case "redefinir_senha":
+			targetID, idErr := strconv.Atoi(r.FormValue("usuario_id"))
+
+			if idErr != nil {
+				data.Error = "Usuário inválido."
+			} else if targetID != userID && !canActOnUser(w, user, targetID) {
+				// A própria senha qualquer um troca; a dos outros, só em
+				// quem a pessoa pode mexer.
+				return
+			} else if err := services.ResetUserPasswordWeb(targetID, userID, r.FormValue("senha")); err != nil {
+				data.Error = err.Error()
+			} else {
+				http.Redirect(w, r, "/usuarios?sucesso=senha", http.StatusSeeOther)
+				return
 			}
 
+		case "remover":
 			targetID, idErr := strconv.Atoi(r.FormValue("usuario_id"))
 
 			if idErr != nil {
 				data.Error = "Usuário inválido."
 			} else if targetID == userID {
 				data.Error = "Você não pode remover a sua própria conta."
+			} else if !canActOnUser(w, user, targetID) {
+				return
 			} else if err := services.DeleteUserWeb(targetID); err != nil {
 				data.Error = err.Error()
 			} else {
@@ -137,6 +178,18 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data.Users = users
+	for i := range users {
+		data.Manageable[users[i].ID] = canManageUser(user, &users[i])
+	}
+
+	// Quem age em todas as obras vincula a qualquer uma; os outros, só à
+	// própria (e "Nenhuma", que o template sempre oferece).
+	for _, site := range scope.Sites {
+		if can(user, PermAllSites) || site.ID == user.SiteID {
+			data.Sites = append(data.Sites, site)
+		}
+	}
+
 	data.Page = page
 	data.TotalPages = (total + usersPerPage - 1) / usersPerPage
 	if data.TotalPages < 1 {
@@ -145,7 +198,7 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 	data.PreviousPage = page - 1
 	data.NextPage = page + 1
 
-	tmpl, err := template.ParseFiles("frontend/html/users.html")
+	tmpl, err := template.ParseFiles("frontend/html/users.html", "frontend/html/site_switcher.html")
 	if err != nil {
 		http.Error(w, "Erro ao carregar usuários", http.StatusInternalServerError)
 		return
@@ -158,4 +211,19 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 	if err := tmpl.Execute(w, data); err != nil {
 		http.Error(w, "Erro ao renderizar usuários", http.StatusInternalServerError)
 	}
+}
+
+// canActOnUser busca a conta targetID e confere se user pode mexer nela.
+// Se não pode, já responde "Acesso negado" e devolve false. Conta que não
+// existe passa, para o service responder "Usuário não encontrado".
+func canActOnUser(w http.ResponseWriter, user *models.User, targetID int) bool {
+	target, err := services.GetUserByID(targetID)
+	if err != nil {
+		return true
+	}
+	if !canManageUser(user, target) {
+		renderAccessDenied(w)
+		return false
+	}
+	return true
 }

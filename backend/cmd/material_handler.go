@@ -18,15 +18,23 @@ const materialsPerPage = 10
 
 // materialHandler exibe a lista de materiais e processa o cadastro de
 // um novo material (POST).
-func materialHandler(w http.ResponseWriter, r *http.Request) {
-	user, authenticated := loggedUser(r)
-	if !authenticated {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+func materialHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
+	scope, ok := requireSiteScope(w, r, user)
+	if !ok {
 		return
+	}
+
+	// O estoque inicial de um material novo entra na obra selecionada. Na
+	// visão de todas as obras, entra no almoxarifado central.
+	targetSite := scope.Current
+	if targetSite == nil {
+		targetSite = scope.Central()
 	}
 
 	data := struct {
 		User         *models.User
+		Scope        siteScope
+		TargetSite   *models.Site
 		Materials    []models.Material
 		Units        []string
 		Name         string
@@ -41,14 +49,23 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 		TotalPages   int
 		PreviousPage int
 		NextPage     int
-		IsAdmin      bool
+		// Flags de permissão: escondem na tela o que a pessoa não pode
+		// fazer. Quem barra de verdade é a checagem no POST.
+		CanManageUsers bool
+		// Nav são os contadores da barra lateral.
+		Nav             navData
+		CanEditMaterial bool
 	}{
-		User:     user,
-		Units:    utils.MaterialUnits,
-		Quantity: "0",
-		Unit:     "un",
-		Minimum:  utils.FormatQuantity(services.LowStockThreshold),
-		IsAdmin:  canViewUsersTab(r),
+		User:            user,
+		Scope:           scope,
+		TargetSite:      targetSite,
+		Units:           utils.MaterialUnits,
+		Quantity:        "0",
+		Unit:            "un",
+		Minimum:         utils.FormatQuantity(services.LowStockThreshold),
+		CanManageUsers:  can(user, PermManageUsers),
+		Nav:             buildNav(user, scope),
+		CanEditMaterial: can(user, PermEditMaterial),
 	}
 
 	data.Message = map[string]string{
@@ -60,7 +77,7 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 	}[r.URL.Query().Get("sucesso")]
 
 	if r.Method == http.MethodPost {
-		if !requireAdmin(w, r) {
+		if !requirePermission(w, user, PermEditMaterial) {
 			return
 		}
 		data.Name = strings.TrimSpace(r.FormValue("nome"))
@@ -72,14 +89,22 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 		minimum, minimumErr := utils.ParseQuantity(data.Minimum)
 
 		switch {
+		case !sameSiteAsForm(r, scope):
+			data.Error = siteChangedMessage
+		case targetSite == nil:
+			data.Error = "Almoxarifado central não encontrado."
 		case data.Name == "":
 			data.Error = "Informe o nome do material."
 		case quantityErr != nil || quantity < 0:
 			data.Error = "Informe uma quantidade inicial válida."
 		case minimumErr != nil || minimum < 0:
 			data.Error = "Informe um limite de aviso válido."
+		case quantity > 0 && !canMoveStockAt(user, targetSite.ID):
+			// Estoque inicial é uma entrada na obra: exige a mesma
+			// permissão da tela de estoque.
+			data.Error = "Você não pode dar entrada de estoque nesta obra. Cadastre o material com quantidade 0."
 		default:
-			if err := services.CreateMaterialWeb(data.Name, quantity, data.Unit, minimum, user.ID); err != nil {
+			if err := services.CreateMaterialWeb(data.Name, quantity, data.Unit, minimum, targetSite.ID, user.ID); err != nil {
 				data.Error = err.Error()
 			} else {
 				http.Redirect(w, r, "/materiais?sucesso=cadastrado", http.StatusSeeOther)
@@ -107,6 +132,7 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 		page,
 		materialsPerPage,
 		data.Order,
+		scope.SiteID(),
 	)
 	if err != nil {
 		log.Println("erro em PaginatedMaterials:", err)
@@ -125,7 +151,7 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 	data.PreviousPage = page - 1
 	data.NextPage = page + 1
 
-	tmpl, err := template.ParseFiles("frontend/html/materials.html")
+	tmpl, err := template.ParseFiles("frontend/html/materials.html", "frontend/html/site_switcher.html")
 	if err != nil {
 		http.Error(w, "Erro ao carregar materiais", http.StatusInternalServerError)
 		return
@@ -147,20 +173,20 @@ func materialHandler(w http.ResponseWriter, r *http.Request) {
 // preenchido. É o destino do botão "Editar" da lista de materiais — antes
 // ele só levava para esta tela, e a pessoa tinha que achar o material de
 // novo, às vezes em outra página.
-func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
-	user, authenticated := loggedUser(r)
-	if !authenticated {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
-
+func editMaterialHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	messages := map[string]string{
 		"atualizado": "Material atualizado com sucesso.",
 		"removido":   "Material removido com sucesso.",
 	}
 
+	scope, ok := requireSiteScope(w, r, user)
+	if !ok {
+		return
+	}
+
 	data := struct {
 		User         *models.User
+		Scope        siteScope
 		Materials    []models.Material
 		Units        []string
 		Editing      *models.Material
@@ -170,16 +196,32 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 		TotalPages   int
 		PreviousPage int
 		NextPage     int
-		IsAdmin      bool
+		// Flags de permissão: escondem na tela o que a pessoa não pode
+		// fazer. Quem barra de verdade é a checagem no POST.
+		CanManageUsers bool
+		// Nav são os contadores da barra lateral.
+		Nav               navData
+		CanEditMaterial   bool
+		CanRemoveMaterial bool
 	}{
-		User:    user,
-		Units:   utils.MaterialUnits,
-		Message: messages[r.URL.Query().Get("sucesso")],
-		IsAdmin: canViewUsersTab(r),
+		User:              user,
+		Scope:             scope,
+		Units:             utils.MaterialUnits,
+		Message:           messages[r.URL.Query().Get("sucesso")],
+		CanManageUsers:    can(user, PermManageUsers),
+		Nav:               buildNav(user, scope),
+		CanEditMaterial:   can(user, PermEditMaterial),
+		CanRemoveMaterial: can(user, PermRemoveMaterial),
 	}
 
 	if r.Method == http.MethodPost {
-		if !requireAdmin(w, r) {
+		// Cada ação exige a sua permissão (hoje as duas são só do
+		// administrador, mas continuam separadas no map).
+		action := r.FormValue("acao")
+		if action == "remover" && !requirePermission(w, user, PermRemoveMaterial) {
+			return
+		}
+		if action == "atualizar" && !requirePermission(w, user, PermEditMaterial) {
 			return
 		}
 		materialID, idErr := strconv.Atoi(r.FormValue("material_id"))
@@ -187,7 +229,7 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 		if idErr != nil {
 			data.Error = "Material inválido."
 
-		} else if r.FormValue("acao") == "remover" {
+		} else if action == "remover" {
 			if opErr := services.DeleteMaterialWeb(materialID); opErr != nil {
 				data.Error = opErr.Error()
 			} else {
@@ -195,7 +237,7 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-		} else if r.FormValue("acao") == "atualizar" {
+		} else if action == "atualizar" {
 			name := strings.TrimSpace(r.FormValue("nome"))
 			unit := r.FormValue("unidade")
 			minimumText := strings.TrimSpace(r.FormValue("limite_minimo"))
@@ -235,7 +277,7 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 		page = 1
 	}
 
-	materials, total, err := services.PaginatedMaterials("", page, materialsPerPage)
+	materials, total, err := services.PaginatedMaterials("", page, materialsPerPage, scope.SiteID())
 	if err != nil {
 		log.Println("erro em PaginatedMaterials:", err)
 		http.Error(w, "Erro ao buscar materiais", http.StatusInternalServerError)
@@ -253,7 +295,7 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request) {
 	data.PreviousPage = page - 1
 	data.NextPage = page + 1
 
-	tmpl, err := template.ParseFiles("frontend/html/edit_material.html")
+	tmpl, err := template.ParseFiles("frontend/html/edit_material.html", "frontend/html/site_switcher.html")
 	if err != nil {
 		http.Error(w, "Erro ao carregar alteração de material", http.StatusInternalServerError)
 		return

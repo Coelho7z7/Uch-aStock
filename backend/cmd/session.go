@@ -39,8 +39,23 @@ func createSession(userID int) (string, error) {
 	return token, nil
 }
 
+// sessionTokenHash devolve o hash do token do cookie de sessão, que é
+// como a sessão está identificada no banco. Não confere se a sessão é
+// válida: isso é papel de userFromSession.
+func sessionTokenHash(r *http.Request) (string, bool) {
+	cookie, err := r.Cookie("sessao")
+	if err != nil {
+		return "", false
+	}
+	hash := sha256.Sum256([]byte(cookie.Value))
+	return hex.EncodeToString(hash[:]), true
+}
+
 // userFromSession lê o cookie de sessão da requisição e retorna o ID
-// do usuário logado, se a sessão existir e ainda não tiver expirado.
+// do usuário logado, se a sessão existir, ainda não tiver expirado e o
+// usuário continuar ativo. Sem a checagem de ativo, uma conta removida
+// seguia usando o sistema até a sessão expirar, desde que a remoção não
+// tivesse passado por DeleteUserWeb (que apaga as sessões).
 func userFromSession(r *http.Request) (int, bool) {
 	cookie, err := r.Cookie("sessao")
 
@@ -52,15 +67,14 @@ func userFromSession(r *http.Request) (int, bool) {
 	tokenHash := hex.EncodeToString(hash[:])
 
 	var userID int
-	var role string
 	var expiresAt time.Time
 
 	err = database.DB.QueryRow(`
-		SELECT s.usuario_id, s.expira_em, u.role
+		SELECT s.usuario_id, s.expira_em
 		FROM sessoes s
 		JOIN usuarios u ON u.id = s.usuario_id
-		WHERE token_hash = ?
-	`, tokenHash).Scan(&userID, &expiresAt, &role)
+		WHERE s.token_hash = ? AND u.ativo = 1
+	`, tokenHash).Scan(&userID, &expiresAt)
 
 	if err != nil {
 		return 0, false

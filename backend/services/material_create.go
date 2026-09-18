@@ -1,7 +1,6 @@
 package services
 
 import (
-	"bufio"
 	"fmt"
 	"strings"
 
@@ -9,10 +8,11 @@ import (
 	"uchoastock/backend/utils"
 )
 
-// CreateMaterialWeb cadastra um material e já registra a entrada da
-// quantidade inicial no histórico de movimentações, tudo em uma única
-// transação.
-func CreateMaterialWeb(name string, quantity float64, unit string, minimum float64, userID int) error {
+// CreateMaterialWeb cadastra um material no catálogo e já registra a
+// entrada da quantidade inicial na obra siteID, tudo em uma única
+// transação. O material nasce com saldo (mesmo zero) nessa obra, para
+// aparecer no controle dela.
+func CreateMaterialWeb(name string, quantity float64, unit string, minimum float64, siteID, userID int) error {
 	name = strings.TrimSpace(name)
 	if !utils.ValidateName(name) {
 		return fmt.Errorf("o nome do material é obrigatório")
@@ -35,10 +35,16 @@ func CreateMaterialWeb(name string, quantity float64, unit string, minimum float
 	}
 	defer tx.Rollback()
 
+	if err := requireOperableSiteTx(tx, siteID); err != nil {
+		return err
+	}
+
+	// produtos.quantidade é a coluna do tempo em que havia um estoque só.
+	// Ela é NOT NULL, então recebe 0; o saldo de verdade fica em saldos.
 	result, err := tx.Exec(`
 		INSERT INTO produtos (nome, quantidade, unidade, limite_minimo)
-		VALUES (?, ?, ?, ?)
-	`, name, quantity, unit, minimum)
+		VALUES (?, 0, ?, ?)
+	`, name, unit, minimum)
 	if err != nil {
 		return err
 	}
@@ -48,80 +54,12 @@ func CreateMaterialWeb(name string, quantity float64, unit string, minimum float
 		return err
 	}
 
-	if err := registerMovementTx(tx, int(materialID), userID, "ENTRADA", quantity, "Estoque inicial"); err != nil {
+	if err := addToBalanceTx(tx, int(materialID), siteID, quantity); err != nil {
+		return err
+	}
+	if err := registerMovementTx(tx, int(materialID), siteID, userID, "ENTRADA", quantity, "Estoque inicial", 0); err != nil {
 		return err
 	}
 
 	return tx.Commit()
-}
-
-func CreateMaterial(reader *bufio.Reader, userID int) {
-	name := utils.ReadValidName(reader)
-	quantity := utils.ReadValidQuantity(reader, "Quantidade: ")
-
-	tx, err := database.DB.Begin()
-	if err != nil {
-		fmt.Println("Erro ao iniciar cadastro:", err)
-		return
-	}
-	defer tx.Rollback()
-
-	result, err := tx.Exec(`
-		INSERT INTO produtos (nome, quantidade)
-		VALUES (?, ?)
-	`, name, quantity)
-
-	if err != nil {
-		fmt.Println("Erro ao cadastrar material:", err)
-		return
-	}
-
-	materialID, err := result.LastInsertId()
-	if err != nil {
-		fmt.Println("Erro ao obter ID do material:", err)
-		return
-	}
-
-	if err := registerMovementTx(tx, int(materialID), userID, "ENTRADA", float64(quantity), "Estoque inicial"); err != nil {
-		fmt.Println("Erro ao registrar movimentação:", err)
-		return
-	}
-
-	if err := tx.Commit(); err != nil {
-		fmt.Println("Erro ao confirmar cadastro:", err)
-		return
-	}
-
-	fmt.Println("Material cadastrado com sucesso!")
-}
-
-func DeleteMaterial(reader *bufio.Reader) {
-	id, err := utils.ReadInt(reader, "Digite o ID do material: ")
-	if err != nil {
-		fmt.Println("ID inválido.")
-		return
-	}
-
-	result, err := database.DB.Exec(`
-		DELETE FROM produtos
-		WHERE id = ?
-	`, id)
-
-	if err != nil {
-		fmt.Println("Erro ao remover material:", err)
-		return
-	}
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		fmt.Println("Erro ao verificar remoção:", err)
-		return
-	}
-
-	if rows > 0 {
-		fmt.Println("Material removido com sucesso.")
-	} else {
-		fmt.Println("Material não encontrado.")
-	}
-
 }

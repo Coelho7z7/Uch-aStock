@@ -8,9 +8,9 @@
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/css/tokens.css?v=10">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=10">
-    <link rel="stylesheet" href="/css/layout.css?v=10">
-    <link rel="stylesheet" href="/css/pages.css?v=11">
+    <link rel="stylesheet" href="/css/components.css?v=17">
+    <link rel="stylesheet" href="/css/layout.css?v=15">
+    <link rel="stylesheet" href="/css/pages.css?v=19">
 </head>
 
 <body class="materials-page">
@@ -29,10 +29,14 @@
 
             <nav>
                 <a href="/dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>Dashboard</a>
+                <a href="/obras"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4v18M12 9h7v12M8 9h1M8 13h1M8 17h1M15 13h1M15 17h1"></path></svg>Obras</a>
                 <a class="tab-active" href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
-                <a href="/estoque"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM7 7V4h10v3M8 11h8M8 15h5"></path></svg>Estoque</a>
+<a href="/fornecedores"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v10H3z"></path><path d="M14 10h4l3 3v3h-7"></path><circle cx="7" cy="17.5" r="1.5"></circle><circle cx="17" cy="17.5" r="1.5"></circle></svg>Fornecedores</a>
                 <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
-                {{ if .IsAdmin }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
+                {{ if .Nav.CanViewInventory }}<a href="/inventarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17"></path><path d="M11 6h9M11 12h9M11 18h9"></path></svg>Inventários{{ if .Nav.InventoryPending }}<span class="nav-badge nav-badge-pending" title="Inventários aguardando aprovação" aria-label="{{ .Nav.InventoryPending }} aguardando aprovação">{{ .Nav.InventoryPending }}</span>{{ end }}</a>{{ end }}
+                <a href="/solicitacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"></path><path d="M9 5H6v16h12V5h-3"></path><path d="M9 12h6M9 16h4"></path></svg>Solicitações{{ template "nav-request-badges" .Nav }}</a>
+                {{ if .Nav.CanViewReports }}<a href="/relatorios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16h16"></path><path d="M8 17v-5M13 17V8M18 17v-8"></path></svg>Relatórios</a>{{ end }}
+                {{ if .CanManageUsers }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
             </nav>
 
             <div class="sidebar-footer">
@@ -52,16 +56,22 @@
                 </button>
                 <h2>Alterar material</h2>
 
+                {{ template "site-switcher" .Scope }}
+
                 <div class="user">
                     <span class="user-name">{{ .User.Name }}</span>
                     {{ if eq .User.Role "superadmin" }}
                     <span class="user-role user-role-superadmin">SuperAdmin</span>
                     {{ else if eq .User.Role "admin" }}
                     <span class="user-role user-role-admin">Administrador</span>
-                    {{ else if eq .User.Role "gerente" }}
-                    <span class="user-role user-role-manager">Gerente</span>
+                    {{ else if eq .User.Role "gestor" }}
+                    <span class="user-role user-role-manager">Gestor</span>
+                    {{ else if eq .User.Role "almoxarife" }}
+                    <span class="user-role user-role-storekeeper">Almoxarife</span>
+                    {{ else if eq .User.Role "auditor" }}
+                    <span class="user-role user-role-auditor">Auditor</span>
                     {{ else }}
-                    <span class="user-role user-role-user">Usuário</span>
+                    <span class="user-role user-role-user">Solicitante</span>
                     {{ end }}
                 </div>
             </header>
@@ -102,7 +112,7 @@
                             <tr>
                                 <th>ID</th>
                                 <th>Material</th>
-                                <th>Estoque</th>
+                                <th>{{ if .Scope.Current }}Saldo na obra{{ else }}Saldo total{{ end }}</th>
                                 <th>Avisar em</th>
                                 <th>Ações</th>
                             </tr>
@@ -124,6 +134,7 @@
 
                                 <td class="material-actions">
 
+                                    {{ if $.CanEditMaterial }}
                                     <button
                                         class="edit-material-button"
                                         type="button"
@@ -135,7 +146,9 @@
                                         data-minimum="{{ .FormattedMinimum }}">
                                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path></svg>
                                     </button>
+                                    {{ end }}
 
+                                    {{ if $.CanRemoveMaterial }}
                                     <form class="delete-material-form" action="/alterar-material" method="POST">
                                         <input type="hidden" name="material_id" value="{{ .ID }}">
                                         <input type="hidden" name="acao" value="remover">
@@ -148,6 +161,9 @@
                                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg>
                                         </button>
                                     </form>
+                                    {{ end }}
+
+                                    {{ if not (or $.CanEditMaterial $.CanRemoveMaterial) }}<span class="muted-dash">—</span>{{ end }}
 
                                 </td>
 
@@ -231,7 +247,7 @@
 
     </div>
 
-    <script src="/js/app.js?v=12"></script>
+    <script src="/js/app.js?v=17"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const modal = document.getElementById('edit-material-modal');

@@ -1,7 +1,11 @@
 package database
 
 import (
+	"context"
+	"database/sql"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -15,6 +19,19 @@ func openTestDB(t *testing.T) {
 		t.Fatalf("conectar ao banco de teste: %v", err)
 	}
 	t.Cleanup(func() { DB.Close() })
+}
+
+// assertNoForeignKeyViolations roda PRAGMA foreign_key_check depois de
+// uma migração: nenhuma linha pode apontar para registro inexistente.
+func assertNoForeignKeyViolations(t *testing.T) {
+	t.Helper()
+	violations, err := ForeignKeyViolations()
+	if err != nil {
+		t.Fatalf("foreign_key_check: %v", err)
+	}
+	for _, v := range violations {
+		t.Errorf("chave estrangeira quebrada: %s, linha %d, aponta para %s inexistente", v.Table, v.RowID, v.Parent)
+	}
 }
 
 func columnExists(t *testing.T, table, column string) bool {
@@ -34,15 +51,29 @@ func TestCreateTablesIsIdempotent(t *testing.T) {
 			t.Fatalf("execução %d falhou: %v", run, err)
 		}
 	}
+	assertNoForeignKeyViolations(t)
 
 	for _, c := range []struct{ table, column string }{
 		{"produtos", "unidade"},
 		{"produtos", "limite_minimo"},
 		{"movimentacoes", "observacao"},
+		{"movimentacoes", "obra_id"},
+		{"sessoes", "obra_id"},
+		{"saldos", "quantidade"},
+		{"usuario_obras", "obra_id"},
 	} {
 		if !columnExists(t, c.table, c.column) {
 			t.Errorf("coluna %s.%s não foi criada", c.table, c.column)
 		}
+	}
+
+	// Rodou duas vezes, mas o almoxarifado central só pode existir uma.
+	var centrals int
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM obras WHERE tipo = 'CENTRAL'`).Scan(&centrals); err != nil {
+		t.Fatalf("contar almoxarifado central: %v", err)
+	}
+	if centrals != 1 {
+		t.Errorf("almoxarifados centrais = %d, esperado 1", centrals)
 	}
 }
 
@@ -90,6 +121,7 @@ func TestCreateTablesMigratesOldSchema(t *testing.T) {
 	if err := CreateTables(); err != nil {
 		t.Fatalf("migração falhou: %v", err)
 	}
+	assertNoForeignKeyViolations(t)
 
 	var salesTables int
 	if err := DB.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'vendas'`).Scan(&salesTables); err != nil {
@@ -128,4 +160,740 @@ func TestCreateTablesMigratesOldSchema(t *testing.T) {
 	if adminRole != "admin" {
 		t.Errorf("admin@gmail.com ficou com o cargo %q, esperado admin", adminRole)
 	}
+}
+
+// TestCreateTablesMigratesOldRoles confere que gerente vira gestor e
+// basico vira solicitante, uma vez só, e que um superadmin falso (email
+// que não é o reservado) cai para solicitante, e não para o cargo antigo.
+func TestCreateTablesMigratesOldRoles(t *testing.T) {
+	openTestDB(t)
+	if err := CreateTables(); err != nil {
+		t.Fatalf("criar tabelas: %v", err)
+	}
+	if _, err := DB.Exec(`
+		INSERT INTO usuarios (nome, email, senha, role) VALUES
+			('Gerente', 'gerente@gmail.com', 'x', 'gerente'),
+			('Básico', 'basico@gmail.com', 'x', ' Basico '),
+			('Falso', 'falso@gmail.com', 'x', 'superadmin'),
+			('Chefe', 'chefe@gmail.com', 'x', 'admin'),
+			('Almoxarife', 'almox@gmail.com', 'x', 'almoxarife')
+	`); err != nil {
+		t.Fatalf("inserir usuários antigos: %v", err)
+	}
+
+	for run := 1; run <= 2; run++ {
+		if err := CreateTables(); err != nil {
+			t.Fatalf("execução %d falhou: %v", run, err)
+		}
+	}
+	assertNoForeignKeyViolations(t)
+
+	want := map[string]string{
+		"gerente@gmail.com": "gestor",
+		"basico@gmail.com":  "solicitante",
+		"falso@gmail.com":   "solicitante",
+		"chefe@gmail.com":   "admin",
+		"almox@gmail.com":   "almoxarife",
+	}
+	for email, role := range want {
+		var got string
+		if err := DB.QueryRow(`SELECT role FROM usuarios WHERE email = ?`, email).Scan(&got); err != nil {
+			t.Fatalf("ler cargo de %s: %v", email, err)
+		}
+		if got != role {
+			t.Errorf("%s ficou com o cargo %q, esperado %q", email, got, role)
+		}
+	}
+}
+
+// TestMigrateStockToSites simula um banco de antes das obras, com estoque
+// e histórico, e confere que tudo vai para o almoxarifado central uma
+// vez só, mesmo com várias inicializações.
+func TestMigrateStockToSites(t *testing.T) {
+	openTestDB(t)
+	if _, err := DB.Exec(`
+		CREATE TABLE produtos (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			nome TEXT NOT NULL,
+			quantidade INTEGER NOT NULL,
+			ativo INTEGER NOT NULL DEFAULT 1
+		);
+		CREATE TABLE movimentacoes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			produto_id INTEGER NOT NULL,
+			usuario_id INTEGER NOT NULL,
+			tipo TEXT NOT NULL,
+			quantidade INTEGER NOT NULL,
+			data DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+		INSERT INTO produtos (nome, quantidade) VALUES ('Cimento', 40), ('Areia', 2.5), ('Brita', 0);
+		INSERT INTO movimentacoes (produto_id, usuario_id, tipo, quantidade) VALUES
+			(1, 1, 'ENTRADA', 50), (1, 1, 'SAIDA', 10), (2, 1, 'ATUALIZACAO', 0);
+	`); err != nil {
+		t.Fatalf("montar banco antigo: %v", err)
+	}
+
+	for run := 1; run <= 3; run++ {
+		if err := CreateTables(); err != nil {
+			t.Fatalf("execução %d falhou: %v", run, err)
+		}
+	}
+	assertNoForeignKeyViolations(t)
+
+	var centralID int
+	if err := DB.QueryRow(`SELECT id FROM obras WHERE tipo = 'CENTRAL'`).Scan(&centralID); err != nil {
+		t.Fatalf("ler central: %v", err)
+	}
+
+	rows, err := DB.Query(`SELECT p.nome, s.obra_id, s.quantidade FROM saldos s JOIN produtos p ON p.id = s.produto_id ORDER BY p.id`)
+	if err != nil {
+		t.Fatalf("ler saldos: %v", err)
+	}
+	defer rows.Close()
+
+	want := map[string]float64{"Cimento": 40, "Areia": 2.5, "Brita": 0}
+	found := 0
+	for rows.Next() {
+		var name string
+		var siteID int
+		var quantity float64
+		if err := rows.Scan(&name, &siteID, &quantity); err != nil {
+			t.Fatal(err)
+		}
+		found++
+		if siteID != centralID || quantity != want[name] {
+			t.Errorf("saldo de %s = %v na obra %d, esperado %v no central (%d)", name, quantity, siteID, want[name], centralID)
+		}
+	}
+	if found != len(want) {
+		t.Errorf("%d saldos criados, esperado %d (a cópia não pode repetir)", found, len(want))
+	}
+
+	var withSite, withoutSite int
+	if err := DB.QueryRow(`
+		SELECT
+			COALESCE(SUM(CASE WHEN obra_id = ? THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN obra_id IS NULL THEN 1 ELSE 0 END), 0)
+		FROM movimentacoes
+	`, centralID).Scan(&withSite, &withoutSite); err != nil {
+		t.Fatalf("ler movimentações: %v", err)
+	}
+	if withSite != 2 || withoutSite != 1 {
+		t.Errorf("movimentações no central = %d e sem obra = %d, esperado 2 e 1", withSite, withoutSite)
+	}
+}
+
+// dumpDatabase copia, como texto, a estrutura (sqlite_master) e todas as
+// linhas de todas as tabelas. Dois dumps iguais = banco igual.
+func dumpDatabase(t *testing.T) string {
+	t.Helper()
+	var out strings.Builder
+	var tables []string
+
+	rows, err := DB.Query(`SELECT type, name, COALESCE(sql, '') FROM sqlite_master ORDER BY type, name`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var kind, name, definition string
+		if err := rows.Scan(&kind, &name, &definition); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprintln(&out, kind, name, definition)
+		if kind == "table" {
+			tables = append(tables, name)
+		}
+	}
+	rows.Close()
+
+	for _, table := range tables {
+		data, err := DB.Query(`SELECT * FROM "` + table + `" ORDER BY rowid`)
+		if err != nil {
+			t.Fatalf("ler %s: %v", table, err)
+		}
+		columns, _ := data.Columns()
+		for data.Next() {
+			values := make([]any, len(columns))
+			pointers := make([]any, len(columns))
+			for i := range values {
+				pointers[i] = &values[i]
+			}
+			if err := data.Scan(pointers...); err != nil {
+				t.Fatal(err)
+			}
+			fmt.Fprintln(&out, table, values)
+		}
+		data.Close()
+	}
+	return out.String()
+}
+
+// TestCreateTablesRollsBackOnFailure simula uma falha em dois pontos da
+// migração de um banco antigo e confere que o banco fica exatamente como
+// antes — sem tabela nova, sem coluna nova, sem saldo copiado pela metade.
+// A falha vem de um trigger que aborta o passo, então o código da
+// migração roda sem nenhum desvio de teste. Depois, sem o trigger, a
+// migração roda do zero e dá certo.
+func TestCreateTablesRollsBackOnFailure(t *testing.T) {
+	cases := []struct {
+		name    string
+		trigger string
+	}{
+		{
+			// A migração de email mexe em usuarios depois de criar as
+			// tabelas de obras e as colunas novas.
+			"no meio, ao atualizar usuários",
+			`CREATE TRIGGER falha BEFORE UPDATE ON usuarios BEGIN SELECT RAISE(ABORT, 'falha simulada'); END;`,
+		},
+		{
+			// Ligar as movimentações antigas ao central é o último passo:
+			// saldos já foram copiados e a coluna obra_id já existe.
+			"no fim, ao ligar as movimentações ao central",
+			`CREATE TRIGGER falha BEFORE UPDATE ON movimentacoes BEGIN SELECT RAISE(ABORT, 'falha simulada'); END;`,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			openTestDB(t)
+			if _, err := DB.Exec(oldSchema); err != nil {
+				t.Fatalf("montar banco antigo: %v", err)
+			}
+			if _, err := DB.Exec(`
+				CREATE TABLE movimentacoes (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					produto_id INTEGER NOT NULL,
+					usuario_id INTEGER NOT NULL,
+					tipo TEXT NOT NULL,
+					quantidade INTEGER NOT NULL,
+					data DATETIME DEFAULT CURRENT_TIMESTAMP
+				);
+				INSERT INTO movimentacoes (produto_id, usuario_id, tipo, quantidade) VALUES (1, 1, 'SAIDA', 2);
+			`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := DB.Exec(c.trigger); err != nil {
+				t.Fatal(err)
+			}
+
+			before := dumpDatabase(t)
+			err := CreateTables()
+			if err == nil || !strings.Contains(err.Error(), "falha simulada") {
+				t.Fatalf("CreateTables deveria falhar com a falha simulada, veio %v", err)
+			}
+			if after := dumpDatabase(t); after != before {
+				t.Errorf("o banco mudou depois da falha.\nantes:\n%s\ndepois:\n%s", before, after)
+			}
+
+			// Sem o trigger, a próxima inicialização migra do zero.
+			if _, err := DB.Exec(`DROP TRIGGER falha`); err != nil {
+				t.Fatal(err)
+			}
+			if err := CreateTables(); err != nil {
+				t.Fatalf("migração depois de tirar a falha: %v", err)
+			}
+			assertNoForeignKeyViolations(t)
+			var balance float64
+			var linked int
+			if err := DB.QueryRow(`SELECT quantidade FROM saldos WHERE produto_id = 1`).Scan(&balance); err != nil {
+				t.Fatalf("ler saldo migrado: %v", err)
+			}
+			if err := DB.QueryRow(`SELECT COUNT(*) FROM movimentacoes WHERE obra_id IS NOT NULL`).Scan(&linked); err != nil {
+				t.Fatal(err)
+			}
+			if balance != 40 || linked != 1 {
+				t.Errorf("depois de migrar de novo: saldo %v e %d movimentação ligada, esperado 40 e 1", balance, linked)
+			}
+		})
+	}
+}
+
+// TestEveryConnectionHasForeignKeys abre uma segunda conexão ao mesmo banco
+// (o sistema usa uma só, mas o database/sql pode trocá-la) e confere que
+// as duas estão com chave estrangeira ligada — e que ela é de fato
+// aplicada, recusando um saldo de material que não existe.
+func TestEveryConnectionHasForeignKeys(t *testing.T) {
+	openTestDB(t)
+	if err := CreateTables(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Libera uma segunda conexão só neste teste.
+	DB.SetMaxOpenConns(2)
+	t.Cleanup(func() { DB.SetMaxOpenConns(1) })
+
+	ctx := context.Background()
+	first, err := DB.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	second, err := DB.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+
+	for name, conn := range map[string]*sql.Conn{"primeira": first, "segunda": second} {
+		var enabled int
+		if err := conn.QueryRowContext(ctx, `PRAGMA foreign_keys`).Scan(&enabled); err != nil {
+			t.Fatal(err)
+		}
+		if enabled != 1 {
+			t.Errorf("%s conexão com foreign_keys = %d, esperado 1", name, enabled)
+		}
+	}
+
+	_, err = second.ExecContext(ctx, `INSERT INTO saldos (produto_id, obra_id, quantidade) VALUES (999, 999, 1)`)
+	if err == nil || !strings.Contains(strings.ToUpper(err.Error()), "FOREIGN KEY") {
+		t.Errorf("saldo de material inexistente na segunda conexão: erro = %v, esperado FOREIGN KEY", err)
+	}
+}
+
+// TestForeignKeyViolationsFindsOrphans garante que a checagem não passa
+// por acaso: um saldo gravado com as chaves desligadas, apontando para
+// material e obra que não existem, aparece duas vezes (uma por chave).
+func TestForeignKeyViolationsFindsOrphans(t *testing.T) {
+	openTestDB(t)
+	if err := CreateTables(); err != nil {
+		t.Fatal(err)
+	}
+	assertNoForeignKeyViolations(t)
+
+	// A conexão é uma só, então o OFF e o ON valem para o INSERT do meio.
+	if _, err := DB.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DB.Exec(`INSERT INTO saldos (produto_id, obra_id, quantidade) VALUES (999, 888, 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DB.Exec(`PRAGMA foreign_keys = ON`); err != nil {
+		t.Fatal(err)
+	}
+
+	violations, err := ForeignKeyViolations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parents := map[string]bool{}
+	for _, v := range violations {
+		if v.Table != "saldos" || v.RowID == 0 {
+			t.Errorf("violação inesperada: %+v", v)
+		}
+		parents[v.Parent] = true
+	}
+	if len(violations) != 2 || !parents["produtos"] || !parents["obras"] {
+		t.Errorf("violações = %+v, esperado saldos -> produtos e saldos -> obras", violations)
+	}
+}
+
+// phase1Schema é o schema de um banco da fase 1 (obras, saldo por obra e
+// cargos novos, sem solicitação), copiado de um banco real que rodou aquela
+// versão, com alguns dados: central, uma obra, um usuário, um material com
+// saldo e uma saída.
+const phase1Schema = `
+CREATE TABLE produtos (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	nome TEXT NOT NULL,
+	quantidade INTEGER NOT NULL,
+	ativo INTEGER NOT NULL DEFAULT 1
+, unidade TEXT NOT NULL DEFAULT 'un', limite_minimo INTEGER NOT NULL DEFAULT 10);
+CREATE TABLE usuarios (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	nome TEXT NOT NULL,
+	email TEXT UNIQUE NOT NULL,
+	senha TEXT NOT NULL,
+	role TEXT NOT NULL DEFAULT 'basico',
+	ativo INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE obras (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	nome TEXT NOT NULL,
+	tipo TEXT NOT NULL DEFAULT 'OBRA',
+	cidade TEXT NOT NULL DEFAULT '',
+	responsavel TEXT NOT NULL DEFAULT '',
+	situacao TEXT NOT NULL DEFAULT 'ANDAMENTO',
+	ativo INTEGER NOT NULL DEFAULT 1,
+	criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE movimentacoes (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	produto_id INTEGER NOT NULL,
+	usuario_id INTEGER NOT NULL,
+	tipo TEXT NOT NULL,
+	quantidade INTEGER NOT NULL,
+	data DATETIME DEFAULT CURRENT_TIMESTAMP, observacao TEXT NOT NULL DEFAULT '', obra_id INTEGER REFERENCES obras(id),
+	FOREIGN KEY (produto_id) REFERENCES produtos(id),
+	FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+);
+CREATE TABLE sessoes (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	usuario_id INTEGER NOT NULL,
+	token_hash TEXT NOT NULL UNIQUE,
+	expira_em DATETIME NOT NULL,
+	criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, obra_id INTEGER REFERENCES obras(id),
+	FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+);
+CREATE TABLE saldos (
+	produto_id INTEGER NOT NULL REFERENCES produtos(id),
+	obra_id INTEGER NOT NULL REFERENCES obras(id),
+	quantidade REAL NOT NULL DEFAULT 0,
+	PRIMARY KEY (produto_id, obra_id)
+);
+CREATE TABLE usuario_obras (
+	usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+	obra_id INTEGER NOT NULL REFERENCES obras(id),
+	PRIMARY KEY (usuario_id, obra_id)
+);
+INSERT INTO obras (nome, tipo) VALUES ('Almoxarifado central', 'CENTRAL'), ('Residencial Sol', 'OBRA');
+INSERT INTO usuarios (nome, email, senha, role) VALUES ('Gestor', 'gestor@empresa.com', 'x', 'gestor');
+INSERT INTO usuario_obras (usuario_id, obra_id) VALUES (1, 2);
+INSERT INTO produtos (nome, quantidade, unidade) VALUES ('Cimento', 0, 'saco');
+INSERT INTO saldos (produto_id, obra_id, quantidade) VALUES (1, 1, 30), (1, 2, 12.5);
+INSERT INTO movimentacoes (produto_id, usuario_id, tipo, quantidade, obra_id) VALUES (1, 1, 'SAIDA', 2, 2);
+`
+
+// TestCreateTablesMigratesPhase1 roda a migração num banco da fase 1: as
+// tabelas de solicitação, os índices e a coluna movimentacoes.solicitacao_id
+// aparecem, os dados continuam iguais, rodar de novo não muda nada e as
+// chaves estrangeiras novas funcionam.
+func TestCreateTablesMigratesPhase1(t *testing.T) {
+	openTestDB(t)
+	if _, err := DB.Exec(phase1Schema); err != nil {
+		t.Fatalf("montar banco da fase 1: %v", err)
+	}
+
+	for run := 1; run <= 3; run++ {
+		if err := CreateTables(); err != nil {
+			t.Fatalf("execução %d falhou: %v", run, err)
+		}
+		if run == 1 {
+			assertNoForeignKeyViolations(t)
+		}
+	}
+	afterSecondRuns := dumpDatabase(t)
+	if err := CreateTables(); err != nil {
+		t.Fatal(err)
+	}
+	if dumpDatabase(t) != afterSecondRuns {
+		t.Error("rodar a migração de novo mudou o banco")
+	}
+	assertNoForeignKeyViolations(t)
+
+	for _, c := range []struct{ table, column string }{
+		{"solicitacoes", "obra_id"},
+		{"solicitacoes", "motivo_rejeicao"},
+		{"solicitacoes", "atualizado_em"},
+		{"solicitacao_itens", "quantidade_atendida"},
+		{"solicitacao_eventos", "acao"},
+		{"movimentacoes", "solicitacao_id"},
+	} {
+		if !columnExists(t, c.table, c.column) {
+			t.Errorf("coluna %s.%s não foi criada", c.table, c.column)
+		}
+	}
+
+	var indexes int
+	if err := DB.QueryRow(`
+		SELECT COUNT(*) FROM sqlite_master
+		WHERE type = 'index' AND name IN ('idx_solicitacoes_obra_status', 'idx_solicitacoes_solicitante', 'idx_solicitacao_itens_solicitacao')
+	`).Scan(&indexes); err != nil {
+		t.Fatal(err)
+	}
+	if indexes != 3 {
+		t.Errorf("%d índice(s) de solicitação, esperado 3", indexes)
+	}
+
+	// Os dados da fase 1 continuam lá.
+	var balances int
+	var total float64
+	if err := DB.QueryRow(`SELECT COUNT(*), SUM(quantidade) FROM saldos`).Scan(&balances, &total); err != nil {
+		t.Fatal(err)
+	}
+	if balances != 2 || total != 42.5 {
+		t.Errorf("saldos depois da migração: %d linhas somando %v, esperado 2 e 42,5", balances, total)
+	}
+
+	// Chaves novas valendo: solicitação de verdade entra; item de material
+	// inexistente e unidade repetida são recusados.
+	if _, err := DB.Exec(`
+		INSERT INTO solicitacoes (obra_id, solicitante_id) VALUES (2, 1);
+		INSERT INTO solicitacao_itens (solicitacao_id, produto_id, quantidade_solicitada) VALUES (1, 1, 5);
+		INSERT INTO solicitacao_eventos (solicitacao_id, usuario_id, acao) VALUES (1, 1, 'CRIADA');
+		UPDATE movimentacoes SET solicitacao_id = 1 WHERE id = 1;
+	`); err != nil {
+		t.Fatalf("gravar solicitação válida: %v", err)
+	}
+	if _, err := DB.Exec(`INSERT INTO solicitacao_itens (solicitacao_id, produto_id, quantidade_solicitada) VALUES (1, 999, 1)`); err == nil {
+		t.Error("item de material inexistente deveria ser recusado pela chave estrangeira")
+	}
+	if _, err := DB.Exec(`INSERT INTO solicitacao_itens (solicitacao_id, produto_id, quantidade_solicitada) VALUES (1, 1, 2)`); err == nil {
+		t.Error("o mesmo material duas vezes na solicitação deveria ser recusado (UNIQUE)")
+	}
+	if _, err := DB.Exec(`UPDATE movimentacoes SET solicitacao_id = 999 WHERE id = 1`); err == nil {
+		t.Error("movimentação ligada a solicitação inexistente deveria ser recusada")
+	}
+	assertNoForeignKeyViolations(t)
+}
+
+// TestCreateTablesPhase1RollsBackOnFailure: numa falha depois de criar as
+// tabelas de solicitação e a coluna solicitacao_id, nada disso fica no banco.
+func TestCreateTablesPhase1RollsBackOnFailure(t *testing.T) {
+	openTestDB(t)
+	if _, err := DB.Exec(phase1Schema); err != nil {
+		t.Fatal(err)
+	}
+	// A correção do cargo superadmin faz UPDATE em todos os usuários, e
+	// roda depois do CREATE das tabelas novas e das colunas novas.
+	if _, err := DB.Exec(`CREATE TRIGGER falha BEFORE UPDATE ON usuarios BEGIN SELECT RAISE(ABORT, 'falha simulada'); END;`); err != nil {
+		t.Fatal(err)
+	}
+
+	before := dumpDatabase(t)
+	if err := CreateTables(); err == nil || !strings.Contains(err.Error(), "falha simulada") {
+		t.Fatalf("CreateTables deveria falhar com a falha simulada, veio %v", err)
+	}
+	if after := dumpDatabase(t); after != before {
+		t.Errorf("o banco mudou depois da falha.\nantes:\n%s\ndepois:\n%s", before, after)
+	}
+	if columnExists(t, "movimentacoes", "solicitacao_id") {
+		t.Error("a coluna solicitacao_id ficou no banco depois do rollback")
+	}
+
+	if _, err := DB.Exec(`DROP TRIGGER falha`); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateTables(); err != nil {
+		t.Fatalf("migração depois de tirar a falha: %v", err)
+	}
+	if !columnExists(t, "solicitacoes", "status") {
+		t.Error("depois de migrar de novo, a tabela solicitacoes deveria existir")
+	}
+	assertNoForeignKeyViolations(t)
+}
+
+func TestTablesWithForeignKeysIncludesRequests(t *testing.T) {
+	openTestDB(t)
+	if err := CreateTables(); err != nil {
+		t.Fatal(err)
+	}
+	tables, err := TablesWithForeignKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(tables, ",")
+	want := "inventario_itens,inventarios,movimentacoes,saldos,sessoes,solicitacao_eventos,solicitacao_itens,solicitacoes,usuario_obras"
+	if got != want {
+		t.Errorf("tabelas com chave estrangeira = %s, esperado %s", got, want)
+	}
+}
+
+// TestInvalidUTF8Texts grava, por baixo, textos em Latin-1 (como um
+// programa do Windows faria) e confere que só eles aparecem, com o palpite
+// do texto certo. Acentos em UTF-8 de verdade não são acusados.
+func TestInvalidUTF8Texts(t *testing.T) {
+	openTestDB(t)
+	if err := CreateTables(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DB.Exec(`
+		INSERT INTO produtos (nome, quantidade, unidade) VALUES
+			('Bloco cerâmico', 0, 'un'),
+			(CAST(X'56657267616c68e36f' AS TEXT), 0, 'un');
+		INSERT INTO obras (nome, cidade) VALUES ('Obra Uchôa', CAST(X'4d616365696f' AS TEXT));
+		INSERT INTO obras (nome, responsavel) VALUES ('Obra B', CAST(X'4d61636569f3' AS TEXT));
+		INSERT INTO usuarios (nome, email, senha, role) VALUES
+			(CAST(X'4a6fe36f' AS TEXT), 'joao@empresa.com', 'x', 'solicitante'),
+			('Conceição', 'conceicao@empresa.com', 'x', 'solicitante');
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	texts, err := InvalidUTF8Texts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, text := range texts {
+		got = append(got, fmt.Sprintf("%s.%s=%s", text.Table, text.Column, text.Latin1()))
+	}
+	want := "produtos.nome=Vergalhão,obras.responsavel=Maceió,usuarios.nome=João"
+	if strings.Join(got, ",") != want {
+		t.Errorf("textos inválidos = %q, esperado %q", strings.Join(got, ","), want)
+	}
+	if len(texts) > 0 && texts[0].RowID != 2 {
+		t.Errorf("ID do material = %d, esperado 2", texts[0].RowID)
+	}
+}
+
+// Banco antigo, sem a tabela obras: a conferência pula a tabela.
+func TestInvalidUTF8TextsSkipsMissingTables(t *testing.T) {
+	openTestDB(t)
+	if _, err := DB.Exec(`CREATE TABLE produtos (id INTEGER PRIMARY KEY, nome TEXT, unidade TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	if texts, err := InvalidUTF8Texts(); err != nil || len(texts) != 0 {
+		t.Errorf("banco antigo: %v, %v", texts, err)
+	}
+}
+
+// requestSchema é o schema de um banco já na fase das requisições: as
+// tabelas com o nome antigo, os índices antigos, a coluna
+// movimentacoes.requisicao_id e uma saída de estoque gerada por
+// atendimento, com a observação "Requisição #1" que o sistema gravava.
+// É o estado do banco de produção antes da renomeação para solicitação.
+const requestSchema = phase1Schema + `
+ALTER TABLE movimentacoes ADD COLUMN requisicao_id INTEGER REFERENCES requisicoes(id);
+CREATE TABLE requisicoes (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	obra_id INTEGER NOT NULL REFERENCES obras(id),
+	solicitante_id INTEGER NOT NULL REFERENCES usuarios(id),
+	status TEXT NOT NULL DEFAULT 'PENDENTE',
+	observacao TEXT NOT NULL DEFAULT '',
+	aprovado_por INTEGER REFERENCES usuarios(id),
+	aprovado_em DATETIME,
+	motivo_rejeicao TEXT NOT NULL DEFAULT '',
+	criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+	atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE requisicao_itens (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	requisicao_id INTEGER NOT NULL REFERENCES requisicoes(id),
+	produto_id INTEGER NOT NULL REFERENCES produtos(id),
+	quantidade_solicitada REAL NOT NULL,
+	quantidade_atendida REAL NOT NULL DEFAULT 0,
+	UNIQUE (requisicao_id, produto_id)
+);
+CREATE TABLE requisicao_eventos (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	requisicao_id INTEGER NOT NULL REFERENCES requisicoes(id),
+	usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+	acao TEXT NOT NULL,
+	detalhe TEXT NOT NULL DEFAULT '',
+	criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_requisicoes_obra_status ON requisicoes (obra_id, status);
+CREATE INDEX idx_requisicoes_solicitante ON requisicoes (solicitante_id);
+CREATE INDEX idx_requisicao_itens_requisicao ON requisicao_itens (requisicao_id);
+INSERT INTO requisicoes (obra_id, solicitante_id, status, observacao) VALUES (2, 1, 'PARCIAL', 'para a laje');
+INSERT INTO requisicao_itens (requisicao_id, produto_id, quantidade_solicitada, quantidade_atendida) VALUES (1, 1, 5, 2);
+INSERT INTO requisicao_eventos (requisicao_id, usuario_id, acao, detalhe) VALUES (1, 1, 'CRIADA', '');
+UPDATE movimentacoes SET requisicao_id = 1, observacao = 'Requisição #1' WHERE id = 1;
+INSERT INTO movimentacoes (produto_id, usuario_id, tipo, quantidade, obra_id, observacao)
+	VALUES (1, 1, 'SAIDA', 1, 2, 'Requisição #1 anotada à mão');
+`
+
+// TestRenameRequestTablesKeepsData roda a renomeação num banco que ainda
+// usa os nomes de requisição: as tabelas, a coluna e os índices passam a
+// ter o nome novo, nenhuma linha se perde e o histórico já gravado em
+// movimentacoes.observacao acompanha a troca. Rodar de novo não muda mais
+// nada, que é o que acontece a cada inicialização do servidor.
+func TestRenameRequestTablesKeepsData(t *testing.T) {
+	openTestDB(t)
+	if _, err := DB.Exec(requestSchema); err != nil {
+		t.Fatalf("montar banco com os nomes antigos: %v", err)
+	}
+
+	var afterFirst string
+	for run := 1; run <= 3; run++ {
+		if err := CreateTables(); err != nil {
+			t.Fatalf("execução %d falhou: %v", run, err)
+		}
+		if run == 1 {
+			afterFirst = dumpDatabase(t)
+			continue
+		}
+		if again := dumpDatabase(t); again != afterFirst {
+			t.Errorf("a execução %d mudou o banco.\ndepois da 1ª:\n%s\nagora:\n%s", run, afterFirst, again)
+		}
+	}
+
+	// As tabelas velhas somem e as novas ficam com as linhas de antes.
+	for _, table := range []string{"requisicoes", "requisicao_itens", "requisicao_eventos"} {
+		var count int
+		if err := DB.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count > 0 {
+			t.Errorf("a tabela %s continua no banco depois da renomeação", table)
+		}
+	}
+
+	var status, note string
+	if err := DB.QueryRow(`SELECT status, observacao FROM solicitacoes WHERE id = 1`).Scan(&status, &note); err != nil {
+		t.Fatalf("ler a solicitação migrada: %v", err)
+	}
+	if status != "PARCIAL" || note != "para a laje" {
+		t.Errorf("solicitação migrada = %q/%q, esperado PARCIAL/para a laje", status, note)
+	}
+
+	var requested, fulfilled float64
+	if err := DB.QueryRow(`SELECT quantidade_solicitada, quantidade_atendida FROM solicitacao_itens WHERE solicitacao_id = 1`).Scan(&requested, &fulfilled); err != nil {
+		t.Fatalf("ler o item migrado: %v", err)
+	}
+	if requested != 5 || fulfilled != 2 {
+		t.Errorf("item migrado = %v/%v, esperado 5/2", requested, fulfilled)
+	}
+
+	var action string
+	if err := DB.QueryRow(`SELECT acao FROM solicitacao_eventos WHERE solicitacao_id = 1`).Scan(&action); err != nil {
+		t.Fatalf("ler o evento migrado: %v", err)
+	}
+	if action != "CRIADA" {
+		t.Errorf("evento migrado = %q, esperado CRIADA", action)
+	}
+
+	// A coluna mudou de nome levando o valor, e a observação escrita pelo
+	// sistema acompanhou a troca de palavra.
+	if columnExists(t, "movimentacoes", "requisicao_id") {
+		t.Error("movimentacoes ainda tem a coluna requisicao_id")
+	}
+	var linked int
+	if err := DB.QueryRow(`SELECT solicitacao_id FROM movimentacoes WHERE id = 1`).Scan(&linked); err != nil {
+		t.Fatalf("ler o vínculo migrado: %v", err)
+	}
+	if linked != 1 {
+		t.Errorf("movimentacoes.solicitacao_id = %d, esperado 1", linked)
+	}
+	var movementNote string
+	if err := DB.QueryRow(`SELECT observacao FROM movimentacoes WHERE id = 1`).Scan(&movementNote); err != nil {
+		t.Fatal(err)
+	}
+	if movementNote != "Solicitação #1" {
+		t.Errorf("observação migrada = %q, esperado %q", movementNote, "Solicitação #1")
+	}
+
+	// Observação sem vínculo com solicitação é texto de quem digitou: a
+	// migração não mexe nela.
+	if err := DB.QueryRow(`SELECT observacao FROM movimentacoes WHERE id = 2`).Scan(&movementNote); err != nil {
+		t.Fatal(err)
+	}
+	if movementNote != "Requisição #1 anotada à mão" {
+		t.Errorf("observação digitada = %q, esperado intacta", movementNote)
+	}
+
+	// Os índices passam a ter o nome novo, sem sobrar nenhum com o antigo.
+	for _, index := range []string{"idx_solicitacoes_obra_status", "idx_solicitacoes_solicitante", "idx_solicitacao_itens_solicitacao"} {
+		var count int
+		if err := DB.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?`, index).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count == 0 {
+			t.Errorf("o índice %s não foi criado", index)
+		}
+	}
+	var oldIndexes int
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_requisica%'`).Scan(&oldIndexes); err != nil {
+		t.Fatal(err)
+	}
+	if oldIndexes > 0 {
+		t.Errorf("sobraram %d índices com o nome antigo", oldIndexes)
+	}
+
+	// A chave estrangeira precisa ter acompanhado o rename: gravar item
+	// apontando para solicitação inexistente tem que ser recusado.
+	if _, err := DB.Exec(`INSERT INTO solicitacao_itens (solicitacao_id, produto_id, quantidade_solicitada) VALUES (999, 1, 1)`); err == nil {
+		t.Error("item apontando para solicitação inexistente deveria ser recusado pela chave estrangeira")
+	}
+	assertNoForeignKeyViolations(t)
 }

@@ -132,6 +132,33 @@ body.mobile-menu-open .sidebar {
     transform: translateX(-120%);
 }
 
+/* Contadores do item "Solicitações": o primeiro vai para a direita, e o
+   segundo (quem aprova e atende vê os dois) fica ao lado dele. */
+.nav-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--space-5);
+    padding: 0 var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+    border-radius: var(--radius-full);
+}
+
+.nav-badge:first-of-type {
+    margin-left: auto;
+}
+
+.nav-badge-pending {
+    color: var(--color-warning-text);
+    background: var(--color-warning-tint);
+}
+
+.nav-badge-serve {
+    color: var(--color-info-text);
+    background: var(--color-info-tint);
+}
+
 .sidebar nav a:hover {
     color: var(--color-text-invert);
     background: var(--color-sidebar-hover);
@@ -283,6 +310,7 @@ body.mobile-menu-open {
     top: 0;
     z-index: var(--z-sticky);
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--space-3);
     min-height: var(--topbar-height);
@@ -379,6 +407,50 @@ body.mobile-menu-open {
     background: var(--color-surface-alt);
 }
 
+.user-role-storekeeper {
+    color: var(--color-success-text);
+    background: var(--color-success-tint);
+}
+
+.user-role-auditor {
+    color: var(--color-brand-light);
+    background: var(--color-surface-alt);
+}
+
+/* ---------- Seletor de obra ----------
+   No celular não cabe na mesma linha do título e do usuário: a topbar
+   quebra e o seletor ocupa uma linha inteira embaixo. Do tablet em
+   diante ele volta para o lado do usuário. */
+
+.site-switcher {
+    order: 3;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1 0 100%;
+    min-width: 0;
+}
+
+.site-switcher-label {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+}
+
+.site-switcher select,
+.site-switcher .gs-combobox {
+    flex: 1;
+    min-width: 0;
+}
+
+.site-switcher select,
+.site-switcher .gs-combobox-button {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+}
+
 /* ---------- Área de conteúdo ---------- */
 
 .content {
@@ -465,6 +537,28 @@ body.mobile-menu-open {
         text-align: left;
     }
 
+    /* "Último a mexer" traz duas informações, uma embaixo da outra:
+       quem mexeu e quando. Como a célula virou flex, os dois <span>
+       passavam a ser itens lado a lado, e a linha ficava mais larga que
+       o cartão — o valor empurrava o rótulo para fora e ele aparecia
+       cortado ("IO A MEXER"). Em grade eles voltam a empilhar: rótulo na
+       primeira coluna, as duas linhas do valor na segunda. */
+    .content tbody td.last-handler {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        column-gap: var(--space-2);
+    }
+
+    .content tbody td.last-handler > * {
+        grid-column: 2;
+    }
+
+    .content tbody td.last-handler::before {
+        margin-right: 0;
+        padding-right: 0;
+    }
+
     /* Célula de "nenhum registro": ocupa a linha inteira, sem rótulo. */
     .content tbody td[colspan] {
         display: block;
@@ -508,8 +602,14 @@ body.mobile-menu-open {
     }
 
     .topbar {
+        flex-wrap: nowrap;
         min-height: 70px;
         padding: var(--space-3) var(--space-6);
+    }
+
+    .site-switcher {
+        order: 0;
+        flex: 0 1 300px;
     }
 
     /* O título grande agora é o do .page-hero; a topbar só situa. */

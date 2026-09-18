@@ -1,6 +1,9 @@
 package utils
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseQuantity(t *testing.T) {
 	cases := []struct {
@@ -82,6 +85,43 @@ func TestValidateDate(t *testing.T) {
 	for _, text := range []string{"", "15/09/2026", "2026-13-01", "2026-02-30"} {
 		if ValidateDate(text) {
 			t.Errorf("ValidateDate(%q) deveria ser inválida", text)
+		}
+	}
+}
+
+func TestValidateEmail(t *testing.T) {
+	cases := map[string]bool{
+		"ana@gmail.com":             true,
+		"joao.silva@empresa.com.br": true,
+		"obra+almox@uchoa.eng.br":   true,
+		"  ana@empresa.com  ":       true,
+		"":                          false,
+		"sem-arroba.com":            false,
+		"@empresa.com":              false,
+		"ana@":                      false,
+		"ana@@empresa.com":          false,
+		"ana@empresacom":            false,
+		"ana@empresa.":              false,
+		"ana@.empresa.com":          false,
+		"ana silva@empresa.com":     false,
+		"Ana <ana@empresa.com>":     false,
+	}
+	for email, want := range cases {
+		if got := ValidateEmail(email); got != want {
+			t.Errorf("ValidateEmail(%q) = %v, esperado %v", email, got, want)
+		}
+	}
+}
+
+func TestFormatQuantityInputRoundTrips(t *testing.T) {
+	for _, value := range []float64{0, 2.5, 1200, 1250.125, 0.001} {
+		text := FormatQuantityInput(value)
+		if strings.Contains(text, ".") {
+			t.Errorf("FormatQuantityInput(%v) = %q: não pode ter ponto", value, text)
+		}
+		parsed, err := ParseQuantity(text)
+		if err != nil || parsed != value {
+			t.Errorf("ParseQuantity(FormatQuantityInput(%v)) = %v, %v", value, parsed, err)
 		}
 	}
 }

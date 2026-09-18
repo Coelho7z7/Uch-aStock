@@ -10,6 +10,55 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// ResetUserPasswordWeb troca a senha de um usuário ativo a partir do id,
+// para a tela de usuários. Recebe id, e não email, porque é o que a
+// tabela tem em mãos; o ResetPassword por email continua servindo à
+// linha de comando.
+//
+// requesterID é quem está pedindo a troca, e existe por causa da
+// identidade reservada: o SuperAdmin só pode ter a senha trocada por ele
+// mesmo. Deixar um admin redefini-la permitiria que ele agisse como
+// SuperAdmin, e o histórico de movimentações, que é registrado por
+// usuário, atribuiria a ele o que outra pessoa fez.
+func ResetUserPasswordWeb(targetID, requesterID int, password string) error {
+	if !utils.ValidatePassword(password) {
+		return errors.New("a senha deve ter no mínimo 6 caracteres e 1 caractere especial")
+	}
+
+	var role string
+	if err := database.DB.QueryRow(`
+		SELECT role FROM usuarios WHERE id = ? AND ativo = 1
+	`, targetID).Scan(&role); err != nil {
+		return errors.New("nenhum usuário ativo encontrado")
+	}
+
+	if role == "superadmin" && targetID != requesterID {
+		return errors.New("a senha do SuperAdmin só pode ser trocada por ele mesmo")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.New("erro ao proteger a senha")
+	}
+
+	result, err := database.DB.Exec(`
+		UPDATE usuarios SET senha = ? WHERE id = ? AND ativo = 1
+	`, string(hash), targetID)
+	if err != nil {
+		return errors.New("erro ao atualizar a senha")
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return errors.New("erro ao atualizar a senha")
+	}
+	if rows == 0 {
+		return errors.New("nenhum usuário ativo encontrado")
+	}
+
+	return nil
+}
+
 // ResetPassword troca a senha de uma conta ativa já existente, pelo email.
 // Usado pelo comando de linha de comando "reset-password": ainda não existe
 // uma tela no painel para trocar a senha de um usuário já criado (só na

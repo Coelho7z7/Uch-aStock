@@ -93,9 +93,13 @@ Cada comando executa e encerra o processo, sem subir o servidor web:
 
 ```bash
 go run ./backend/cmd reset-password <email> <nova-senha>
-go run ./backend/cmd create-user "<nome>" <email> "<senha>" <admin|gerente|basico>
+go run ./backend/cmd create-user "<nome>" <email> "<senha>" <admin|gestor|almoxarife|solicitante|auditor>
 go run ./backend/cmd rename-user <email> "<novo-nome>"
 go run ./backend/cmd change-email <email-atual> <novo-email>
+
+# Confere a migração de saldos. Sem flag não altera o banco (banco não migrado = erro).
+# --migrate tira um retrato, migra e confere contra ele: ALTERA o banco, use numa cópia via DB_PATH.
+go run ./backend/cmd verify-stock [--migrate]
 ```
 
 `create-user` não aceita o cargo `superadmin` — ver seção 5.
@@ -150,6 +154,8 @@ O código é em inglês, **mas o banco, as rotas e o JSON são em português**. 
 
 ⚠️ A tabela continua se chamando **`produtos`** no banco, mesmo o sistema falando de "materiais" — renomear tabela é mudança de schema e cai na regra 1.2. No código Go o tipo é `Material`; só o SQL mantém o nome antigo.
 
+⚠️ "Requisição" virou **"solicitação"** em todo o sistema (tela, rota, tabela e coluna), com autorização explícita do Coelho. No código Go os identificadores continuam `Request`, `RequestItem`, `requestListHandler`, `request_handler.go` — *request* já é a tradução de "solicitação" em inglês, e a regra 1.1 pede inglês. A rota antiga `/requisicoes` responde 301 para `/solicitacoes` (`redirectToRequests`, em `request_handler.go`) para não quebrar link já salvo; **não apague esse redirect.** A renomeação das tabelas vive em `renameRequestTablesTx`, que roda **antes** dos `CREATE TABLE` de `createTablesTx` — a ordem é obrigatória, ver o comentário da função.
+
 Renomear qualquer item marcado como **congelado** é uma mudança de banco → cai na regra 1.2 e precisa de permissão.
 
 Comentários: os novos ficam em português. Os arquivos antigos em `services/` têm comentários em inglês — **não reescreva em massa**, só siga o idioma do arquivo que estiver editando quando a mudança for pequena.
@@ -158,22 +164,26 @@ Comentários: os novos ficam em português. Os arquivos antigos em `services/` t
 
 ## 5. Permissões e cargos
 
-Hierarquia, do maior para o menor:
+O acesso é **por ação**, não por nome de cargo. A fonte única da verdade é o map `rolePermissions` em `backend/cmd/permissions.go`, e toda checagem passa por `can(usuario, permissao)`. **Nunca** escreva `if user.Role == "admin"` num handler: use a permissão da ação. A matriz completa está em `INFORMACOES.MD`, seção PERMISSÕES; o fluxo e as regras da solicitação de material, na seção SOLICITAÇÕES. Ninguém aprova a própria solicitação: a exceção do superadmin é a permissão `solicitacao.aprovar_propria`, que nenhum cargo recebe — **não** troque por um `if role == "superadmin"`.
 
 | Cargo | Pode |
 |---|---|
-| `superadmin` | tudo que o admin pode; identidade **reservada** a `superadmin@gmail.com` |
-| `admin` | tudo: criar/remover usuários, alterar cargos, todas as telas |
-| `gerente` | ver a aba de usuários e cadastrar usuário `basico`; **não** remove usuário nem altera cargo |
-| `basico` | operação normal do sistema |
+| `superadmin` | tudo (`can` sempre true); identidade **reservada** a `superadmin@gmail.com` |
+| `admin` | todas as permissões, inclusive `obras.todas` (age em qualquer obra e usa "Todas as obras") e o catálogo de materiais (criar, editar, remover, limite mínimo), que é exclusivo dele |
+| `gestor` | movimenta estoque e gerencia **só a obra vinculada a ele**; aprova, rejeita, cancela e atende solicitações dessa obra; em usuários, só cria e edita almoxarife e solicitante da própria obra; **não** mexe no catálogo de materiais |
+| `almoxarife` | movimenta estoque da própria obra e atende as solicitações dela (não aprova); vê e exporta todas as movimentações; **não** mexe no catálogo de materiais |
+| `solicitante` | pede material (solicitação) na própria obra e vê **só as próprias** solicitações e movimentações |
+| `auditor` | só leitura: vê as solicitações da própria obra e vê e exporta todas as movimentações |
+
+A permissão diz **o que** a pessoa faz; a obra diz **onde**. Cada usuário que não é admin tem **uma** obra (tabela `usuario_obras`; a regra de uma só é garantida em `services.setUserSiteTx`) e entra no sistema por ela. As regras que juntam as duas coisas moram em `backend/cmd/authorization.go` (`canMoveStockAt`, `canEditSite`) e as da gestão de usuários em `permissions.go` (`canManageUser`, `canAssignRole`, `canAssignSite`).
+
+Os cargos antigos `gerente` e `basico` são migrados na inicialização para `gestor` e `solicitante`. Todo `INSERT` em `usuarios` informa o `role`: o DEFAULT da coluna ainda é `'basico'`.
 
 Regras que o código garante e que **não devem ser afrouxadas**:
 
 - Só `superadmin@gmail.com` pode ter o cargo `superadmin`. `database.CreateTables()` corrige isso a cada inicialização, mesmo que alguém mexa direto no banco.
 - `create-user` não aceita `superadmin` como cargo.
-- Autorização é sempre checada **no servidor** (`requireAdmin`, `requireAdminOrManager`), nunca só escondendo botão no HTML.
-
-**A conta `basico` enxerga formulários de admin que não consegue enviar. Isso é proposital** — é a conta de demonstração do sistema. Não é bug, não "conserte".
+- Autorização é sempre checada **no servidor** (`requirePermission`, `can`, `canMoveStockAt`, `canEditSite`, `canManageUser`). Os templates escondem botões e abas por flags de permissão (`CanManageUsers`, `CanEditMaterial`...), mas isso é só UX: o POST confere de novo.
 
 ---
 
@@ -216,8 +226,9 @@ Regras:
 
 O `app.js` e os templates dependem delas pelo nome. Renomear quebra em runtime, **sem erro de compilação**:
 
-- Montadas pelo template: `.activity-ENTRADA` / `.activity-SAIDA` / `.activity-ATUALIZACAO` (de `activity-{{ .Type }}`) e `.stock-quantity.empty` / `.low` / `.normal` (de `{{ .StockStatus }}`).
-- Consultadas pelo JS: `.sidebar` · `.content table` · `.cards .card` · `.mobile-menu-button` · `.mobile-sidebar-overlay` · `.login-card` · `.form-success` · `.form-error` · `[data-confirm]` · `[data-open]`.
+- Montadas pelo template: `.activity-ENTRADA` / `.activity-SAIDA` / `.activity-ATUALIZACAO` / `.activity-AJUSTE` (de `activity-{{ .Type }}`) `.inventory-status-EM_CONTAGEM` / `AGUARDANDO_APROVACAO` / `APROVADO` / `CANCELADO` (de `inventory-status-{{ .Status }}`) `.stock-quantity.empty` / `.low` / `.normal` (de `{{ .StockStatus }}`) e `.site-status-ANDAMENTO` / `.site-status-PARALISADA` / `.site-status-CONCLUIDA` (de `site-status-{{ .Status }}`) e `.request-status-PENDENTE` / `APROVADA` / `PARCIAL` / `ATENDIDA` / `REJEITADA` / `CANCELADA` (de `request-status-{{ .Status }}`) e `.request-event-CRIADA` / `APROVADA` / `ATENDIMENTO` / `REJEITADA` (de `request-event-{{ .Action }}`).
+- Consultadas pelo JS: `.sidebar` · `.content table` · `.cards .card` · `.mobile-menu-button` · `.mobile-sidebar-overlay` · `.login-card` · `.form-success` · `.form-error` · `[data-confirm]` · `[data-confirm-optional]` · `[data-autosubmit]` · `[data-live-search]` · `[data-live-region]` · `[data-searchable]` · `[data-site-field]` · `[data-open]` · `[data-request-items]` · `[data-request-item]` · `[data-add-item]` · `[data-remove-item]` · `[data-item-unit]` · `#request-item-template` · `[data-open-reject]`.
+- **Busca em tempo real:** todo formulário de filtro com `data-live-search` busca enquanto se digita, trocando só os elementos `data-live-region` (tabela, paginação, contadores) pelos da resposta do servidor. Por isso, **botão dentro de uma região nunca recebe ouvinte direto** (`querySelectorAll(...).forEach(addEventListener)`): use delegação no `document`, senão o botão para de funcionar depois da primeira busca.
 - Aplicadas pelo JS: todas as `gs-*` · `.modal-closing` · `.mobile-menu-open`.
 - Os modais abrem pelo atributo **`hidden`**, não por classe. Por isso existe a regra `.modal-create[hidden] { display: none }` — sem ela os modais nascem abertos.
 
@@ -229,7 +240,8 @@ Antes de renomear qualquer classe, confira se ela aparece em `frontend/js/app.js
 
 Entradas e saídas mexem em dados que não podem ficar inconsistentes.
 
-- **Sempre em transação.** Alterar a quantidade e registrar a movimentação acontecem dentro de um único `tx`, com `defer tx.Rollback()`. Ver `AddStockWeb` e `RegisterStockExitWeb` em `backend/services/stock_service.go` como referência.
+- **Saldo é por obra.** A quantidade mora em `saldos` (material + obra), não em `produtos.quantidade` — essa coluna é do tempo de um estoque só e não deve ser lida nem gravada. Toda entrada e saída acontece numa obra específica e grava `movimentacoes.obra_id`. Obra concluída não aceita movimentação.
+- **Sempre em transação.** Alterar o saldo e registrar a movimentação acontecem dentro de um único `tx`, com `defer tx.Rollback()`. Ver `AddStockWeb` e `RegisterStockExitWeb` em `backend/services/stock_service.go` como referência.
 - **Estoque nunca fica negativo.** Validar a quantidade disponível antes de debitar.
 - **Quantidade sempre maior que zero** em entrada e saída.
 - **Toda mudança de quantidade gera movimentação.** Saída sem registro em `movimentacoes` é bug.

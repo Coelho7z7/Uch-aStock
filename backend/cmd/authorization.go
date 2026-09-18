@@ -2,8 +2,8 @@ package main
 
 import (
 	"html/template"
+	"log"
 	"net/http"
-	"strings"
 
 	"uchoastock/backend/models"
 	"uchoastock/backend/services"
@@ -24,74 +24,121 @@ func loggedUser(r *http.Request) (*models.User, bool) {
 	return user, true
 }
 
-// isAdmin indica se o usuário logado tem poderes de administrador.
-// O SuperAdmin (reservado a superadmin@gmail.com) também conta como admin aqui — ele
-// fica acima do administrador na hierarquia, então tudo que um admin pode
-// fazer o SuperAdmin também pode.
-func isAdmin(r *http.Request) bool {
-	userID, authenticated := userFromSession(r)
-	if !authenticated {
-		return false
-	}
+// authenticatedHandler é um handler que já recebe o usuário logado.
+type authenticatedHandler func(w http.ResponseWriter, r *http.Request, user *models.User)
 
-	user, err := services.GetUserByID(userID)
-	if err != nil {
-		return false
+// withUser é o "middleware" das telas internas: uma função que envolve o
+// handler e roda antes dele. Carrega o usuário da sessão uma vez só por
+// requisição e o entrega pronto; sem sessão, volta para o login e o
+// handler nem é chamado.
+func withUser(next authenticatedHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, authenticated := loggedUser(r)
+		if !authenticated {
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+		next(w, r, user)
 	}
-	role := strings.ToLower(strings.TrimSpace(user.Role))
-	return role == "admin" || role == "superadmin"
 }
 
-// isManager indica se o usuário logado tem a permissão "gerente".
-// Um gerente pode cadastrar novos usuários (com permissão básica), mas não
-// pode remover usuários nem alterar permissões — isso continua exclusivo
-// do administrador.
-func isManager(r *http.Request) bool {
-	userID, authenticated := userFromSession(r)
-	if !authenticated {
-		return false
-	}
-
-	user, err := services.GetUserByID(userID)
-	return err == nil && strings.EqualFold(strings.TrimSpace(user.Role), "gerente")
-}
-
-// canViewUsersTab indica se o usuário logado pode acessar a aba de
-// administração de usuários (administradores e gerentes).
-func canViewUsersTab(r *http.Request) bool {
-	return isAdmin(r) || isManager(r)
-}
-
-func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
-	if isAdmin(r) {
+// requirePermission deixa passar quem tem a permissão p e responde
+// "Acesso negado" para o resto. Devolve false quando já respondeu.
+func requirePermission(w http.ResponseWriter, user *models.User, p Permission) bool {
+	if can(user, p) {
 		return true
 	}
-	tmpl, err := template.ParseFiles("frontend/html/access_denied.html")
-	if err != nil {
-		http.Error(w, "Acesso negado", http.StatusForbidden)
-		return false
-	}
-	w.WriteHeader(http.StatusForbidden)
-	if err := tmpl.Execute(w, nil); err != nil {
-		return false
-	}
+	renderAccessDenied(w)
 	return false
 }
 
-// requireAdminOrManager bloqueia o acesso de quem não é administrador nem
-// gerente — usado na tela de usuários, que gerentes também podem abrir.
-func requireAdminOrManager(w http.ResponseWriter, r *http.Request) bool {
-	if canViewUsersTab(r) {
-		return true
+// canActOnSite indica se a obra siteID está ao alcance do usuário: todas,
+// para quem tem PermAllSites; senão, só a obra vinculada a ele. siteID 0
+// ("Todas as obras") nunca é uma obra em que se possa agir.
+//
+// Não diz O QUE a pessoa pode fazer ali: isso é can(). As funções abaixo
+// juntam as duas perguntas.
+func canActOnSite(user *models.User, siteID int) bool {
+	if siteID <= 0 || user == nil {
+		return false
 	}
+	return can(user, PermAllSites) || user.SiteID == siteID
+}
+
+// canMoveStockAt indica se o usuário pode registrar entrada e saída na
+// obra siteID.
+func canMoveStockAt(user *models.User, siteID int) bool {
+	return can(user, PermMoveStock) && canActOnSite(user, siteID)
+}
+
+// canEditSite indica se o usuário pode editar os dados e mudar a situação
+// da obra siteID.
+func canEditSite(user *models.User, siteID int) bool {
+	return can(user, PermManageSites) && canActOnSite(user, siteID)
+}
+
+// requestActor traduz as permissões do usuário para o service de
+// solicitações. O service confere as regras (obra, autor, própria
+// solicitação) só com essas flags, sem saber nome de cargo.
+func requestActor(user *models.User) services.RequestActor {
+	return services.RequestActor{
+		UserID:     user.ID,
+		SiteID:     user.SiteID,
+		AllSites:   can(user, PermAllSites),
+		ViewAll:    can(user, PermViewAllRequests),
+		CanCreate:  can(user, PermCreateRequest),
+		CanApprove: can(user, PermApproveRequest),
+		CanServe:   can(user, PermServeRequest),
+		ApproveOwn: can(user, PermApproveOwnRequest),
+	}
+}
+
+// inventoryActor monta o InventoryActor do usuário, com as permissões já
+// resolvidas, como requestActor.
+func inventoryActor(user *models.User) services.InventoryActor {
+	return services.InventoryActor{
+		UserID:     user.ID,
+		SiteID:     user.SiteID,
+		AllSites:   can(user, PermAllSites),
+		CanView:    can(user, PermViewInventory),
+		CanCount:   can(user, PermCountInventory),
+		CanApprove: can(user, PermApproveInventory),
+		ApproveOwn: can(user, PermApproveOwnInventory),
+	}
+}
+
+// renderNotFound responde 404 com a página "não encontrada" no visual do
+// sistema. É a mesma resposta para um endereço que não existe e para uma
+// solicitação fora do alcance: quem pede não fica sabendo se ela existe.
+// Com user nil (sem sessão), a página mostra só o cartão, sem a barra
+// lateral.
+func renderNotFound(w http.ResponseWriter, r *http.Request, user *models.User) {
+	data := struct {
+		User           *models.User
+		Scope          siteScope
+		Nav            navData
+		CanManageUsers bool
+	}{User: user}
+
+	if user != nil {
+		scope, err := resolveSiteScope(r, user)
+		if err != nil {
+			log.Println("erro ao descobrir a obra da sessão na página 404:", err)
+		}
+		data.Scope = scope
+		data.Nav = buildNav(user, scope)
+		data.CanManageUsers = can(user, PermManageUsers)
+	}
+	renderPage(w, http.StatusNotFound, "frontend/html/not_found.html", data)
+}
+
+// renderAccessDenied responde 403 com a tela de acesso negado.
+func renderAccessDenied(w http.ResponseWriter) {
 	tmpl, err := template.ParseFiles("frontend/html/access_denied.html")
 	if err != nil {
 		http.Error(w, "Acesso negado", http.StatusForbidden)
-		return false
+		return
 	}
 	w.WriteHeader(http.StatusForbidden)
-	if err := tmpl.Execute(w, nil); err != nil {
-		return false
-	}
-	return false
+	_ = tmpl.Execute(w, nil)
 }

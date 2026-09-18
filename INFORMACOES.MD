@@ -9,37 +9,47 @@ cmd/
 - main.go — servidor
 - project.go — projeto
 - auth_handler.go — login
-- authorization.go — permissões
+- authorization.go — middleware withUser, acesso negado e regras por obra
+- permissions.go — permissões por ação: o que cada cargo pode fazer
 - session.go — sessões
 - dashboard_handler.go — dashboard
+- site_handler.go — obras
+- site_scope.go — obra selecionada no topo (seletor e troca de obra)
 - material_handler.go — materiais
 - stock_handler.go — estoque
 - movement_handler.go — movimentações
+- report_handler.go — relatórios: período na URL, atalhos de 7/30/90 dias
+- request_handler.go — solicitações (lista, nova, detalhe e ações) e contadores da barra lateral
 - user_handler.go — usuários
-- cli.go — terminal
 
 services/
 - material_create.go — cadastro de materiais
 - material_query.go — consultas de materiais e alerta de estoque baixo
 - stock_service.go — entradas e saídas
 - movement_service.go — movimentações
-- user_create.go — cadastro de usuários
+- report_query.go — relatórios: resumo do período, consumo por material e comparativo entre obras
 - user_auth.go — autenticação
 - user_query.go — consultas de usuários
 - user_management.go — gerenciamento de usuários
 - user_seed.go — usuários iniciais
 - password_reset.go — troca de senha, nome e email pelo CLI
+- site_create.go — cadastro e edição de obras
+- site_query.go — consultas de obras
+- session_site.go — obra guardada na sessão
+- request_service.go — solicitações: criar, aprovar, rejeitar, cancelar, atender, transições
+- request_query.go — solicitações: lista, contadores, detalhe com itens e histórico
 
 models/
 - material.go
 - movement.go
+- request.go
+- site.go
 - user.go
 
 database/
 - database.go
 
 utils/
-- input.go
 - validation.go
 
 
@@ -48,12 +58,19 @@ FRONTEND
 html/
 - index.html — login
 - dashboard.html — dashboard
+- sites.html — obras
+- site_switcher.html — seletor de obra da topbar e contadores de solicitação da barra lateral (incluído pelas telas internas)
 - materials.html — materiais
 - edit_material.html — editar material
 - stock.html — estoque
 - movements.html — movimentações
+- reports.html — relatórios (consumo por material e comparativo entre obras)
+- requests.html — lista de solicitações
+- request_new.html — nova solicitação
+- request_detail.html — detalhe da solicitação (aprovar, rejeitar, atender, cancelar)
 - users.html — usuários
 - access_denied.html — acesso negado
+- not_found.html — página 404 (com sessão, no layout do sistema; sem sessão, só o cartão). Também é a resposta para solicitação fora do alcance
 
 css/  (design system — a ordem dos <link> importa, é cascata)
 - tokens.css — :root: cores, espaçamento, tipografia, raios, sombras
@@ -86,6 +103,275 @@ SQLite.
 A tabela continua se chamando "produtos" (renomear exige migração).
 No código Go o tipo é Material.
 
+A coluna usuarios.role tem DEFAULT 'basico', um cargo que não existe mais
+(virou 'solicitante'). O SQLite não troca o DEFAULT de uma coluna sem
+recriar a tabela, então a regra é: todo INSERT em usuarios informa o role
+explicitamente. Nunca conte com o DEFAULT.
+
+A tabela "obras" guarda o almoxarifado central (tipo CENTRAL) e as obras
+(tipo OBRA). No código Go o tipo é Site.
+
+O catálogo (produtos) é um só; o saldo é por obra, na tabela "saldos"
+(produto_id + obra_id). produtos.quantidade é do tempo de um estoque só:
+foi copiada para o central na migração e não é mais lida nem gravada.
+Toda entrada e saída grava movimentacoes.obra_id; atualização de cadastro
+fica sem obra (NULL).
+
+
+PERMISSÕES
+
+O acesso é por ação, não por nome de cargo. backend/cmd/permissions.go tem
+a lista de permissões e o map rolePermissions (cargo -> permissões), que é
+a fonte única da verdade. Toda checagem passa por can(usuario, permissao).
+Criar um cargo = uma linha nesse map + o cargo em services.validRoles.
+
+Cargos (valor gravado no banco entre parênteses):
+
+| Permissão               | Admin | Gestor | Almoxarife | Solicitante | Auditor |
+|-------------------------|:-----:|:------:|:----------:|:-----------:|:-------:|
+| material.editar         |   x   |        |            |             |         |
+| material.remover        |   x   |        |            |             |         |
+| estoque.movimentar      |   x   |   x    |     x      |             |         |
+| solicitacao.criar       |   x   |   x    |     x      |      x      |         |
+| solicitacao.aprovar     |   x   |   x    |            |             |         |
+| solicitacao.atender     |   x   |   x    |     x      |             |         |
+| solicitacao.ver_todas   |   x   |   x    |     x      |             |    x    |
+| solicitacao.aprovar_propria |       |        |            |             |         |
+| movimentacoes.ver_todas |   x   |   x    |     x      |             |    x    |
+| movimentacoes.exportar  |   x   |   x    |     x      |             |    x    |
+| usuarios.gerenciar      |   x   |   x    |            |             |         |
+| obras.gerenciar         |   x   |   x    |            |             |         |
+| obras.reabrir           |   x   |        |            |             |         |
+| obras.todas             |   x   |        |            |             |         |
+| fornecedores.gerenciar  |   x   |        |            |             |         |
+| inventario.ver          |   x   |   x    |     x      |             |    x    |
+| inventario.contar       |   x   |   x    |     x      |             |         |
+| inventario.aprovar      |   x   |   x    |            |             |         |
+| inventario.aprovar_propria |    |        |            |             |         |
+
+Administrador (admin), Gestor (gestor), Almoxarife (almoxarife),
+Solicitante (solicitante), Auditor (auditor).
+
+- superadmin pode tudo (can() devolve true) e continua reservado a
+  superadmin@gmail.com: não aparece no dropdown e não pode ser alterado,
+  removido nem ter a senha trocada por outra pessoa.
+- Todo cargo vê dashboard, materiais, estoque e fornecedores.
+- O cadastro de fornecedores (/fornecedores) é um só para a empresa, como
+  o catálogo de materiais: fornecedores.gerenciar (só admin) cadastra,
+  edita, desativa e reativa. Fornecedor não é apagado, só desativado
+  (fornecedores.ativo = 0), e nome e CNPJ não se repetem nem com um
+  desativado. O CNPJ é opcional, gravado sem pontuação, e aceita o formato
+  alfanumérico da Receita (desde julho de 2026).
+- A aba Relatórios usa movimentacoes.ver_todas: o relatório é a soma do que
+  a obra inteira movimentou, então quem só vê as próprias movimentações
+  (solicitante) não recebe a aba nem a rota /relatorios.
+- solicitacao.aprovar_propria não é de nenhum cargo: só o superadmin (can()
+  libera tudo para ele) aprova ou rejeita a própria solicitação. Assim a
+  exceção existe sem checar nome de cargo.
+- Sem solicitacao.ver_todas (o solicitante), a pessoa vê só as solicitações
+  que criou. Ver SOLICITAÇÕES.
+- O catálogo de materiais é da empresa toda e é exclusivo do admin (e do
+  superadmin): material.editar cadastra e edita nome, unidade e limite
+  mínimo; material.remover remove. Gestor e almoxarife só movimentam o
+  estoque (entrada e saída) na própria obra.
+- Material com saldo > 0 em qualquer obra, ou que esteja numa solicitação
+  em aberto (pendente, aprovada ou parcial), não pode ser removido, nem
+  pelo admin: a mensagem diz em quantas obras há saldo e em quantas
+  solicitações ele está.
+- O limite mínimo (produtos.limite_minimo) é um campo único do material,
+  igual para todas as obras. Por isso também fica só com o admin. Se um
+  dia precisar ser por obra, é mudança de schema (coluna em saldos).
+- Sem movimentacoes.ver_todas (o solicitante), o histórico, a exportação e
+  a atividade recente do dashboard mostram só o que a pessoa registrou.
+- Sem movimentacoes.exportar, /movimentacoes/exportar responde 403.
+
+Obra: a permissão diz O QUE a pessoa faz; a obra diz ONDE.
+- obras.todas (só admin) age em qualquer obra e usa "Todas as obras".
+- Sem ela, estoque.movimentar e obras.gerenciar valem só na obra vinculada
+  ao usuário (canMoveStockAt, canEditSite em authorization.go).
+- Cadastrar obra exige obras.gerenciar + obras.todas (admin).
+
+Gestão de usuários (usuarios.gerenciar), regras em permissions.go:
+- O gestor só cria e edita Almoxarife e Solicitante (manageableRoles).
+- O gestor não altera, não remove e não troca a senha de admin, de outro
+  gestor, de auditor nem de ninguém de outra obra; e só vincula à própria
+  obra (canManageUser, canAssignRole, canAssignSite).
+- Qualquer um troca a própria senha.
+
+A tela esconde botões e abas pelas flags de permissão (CanManageUsers,
+CanEditMaterial, CanRemoveMaterial, CanExport, CanManageSites...). Isso é
+só UX: o backend confere a permissão em todo POST.
+
+Migração: na inicialização, gerente vira gestor e basico vira solicitante
+(idempotente, em database.CreateTables).
+
+
+OBRAS
+
+/obras?busca=texto&situacao=ANDAMENTO|PARALISADA|CONCLUIDA
+Cadastrar: admin. Editar, paralisar, retomar e encerrar: quem tem
+obras.gerenciar, na obra ao seu alcance (ver PERMISSÕES). Obra não é
+apagada: vira CONCLUIDA.
+
+Situação (regras em services/site_create.go, checkSiteStatusChange):
+- ANDAMENTO  -> PARALISADA | CONCLUIDA
+- PARALISADA -> ANDAMENTO | CONCLUIDA
+- CONCLUIDA  -> ANDAMENTO (reabrir: só com obras.reabrir, ou seja, admin)
+- Qualquer outra é recusada. Pelos botões, pedir a situação atual também
+  ("a obra já está paralisada"); na edição, manter a situação é normal.
+- Encerrar exige saldo zero em todos os materiais ativos da obra e nenhuma
+  solicitação em aberto (pendente, aprovada ou parcial). A mensagem diz
+  quantos materiais têm saldo e quantas solicitações estão em aberto.
+  Material removido não conta.
+- Paralisar, Retomar, Reabrir e Encerrar pedem confirmação na tela.
+O almoxarifado central é criado pela migração, é único e fica sempre em
+andamento. Nome não pode repetir (sem diferenciar maiúsculas).
+Obra concluída é só consulta: não aceita entrada nem saída.
+
+
+SOLICITAÇÕES
+
+Pedido de material de uma obra. Quem está na obra pede, o gestor aprova e o
+almoxarife atende; o atendimento gera as saídas de estoque.
+
+Rotas:
+- /solicitacoes — lista (filtro por situação, busca por número com ou sem
+  "#", solicitante ou observação; paginação)
+- /solicitacoes/nova — formulário (material + quantidade por linha, até 30,
+  e observação). O JS do app.js só acrescenta e remove linhas; toda
+  validação é no servidor. Com erro, a tela volta preenchida.
+- /solicitacoes/{id} — detalhe: itens (solicitado, atendido, falta, saldo
+  atual na obra), histórico e os botões Aprovar, Rejeitar (modal com
+  motivo), Atender (quantidade por item, já preenchida com o que falta
+  limitado pelo saldo) e Cancelar. Todas as ações pedem confirmação.
+  Solicitação fora do alcance responde 404, igual a uma que não existe.
+
+Situações e transições (services.canTransition):
+- PENDENTE  -> APROVADA | REJEITADA | CANCELADA
+- APROVADA  -> PARCIAL | ATENDIDA | CANCELADA
+- PARCIAL   -> ATENDIDA | CANCELADA
+- REJEITADA, ATENDIDA e CANCELADA são finais.
+Qualquer outra é recusada, inclusive ir para a mesma situação. Um
+atendimento parcial de uma solicitação que já estava PARCIAL não muda a
+situação, então não passa por canTransition.
+
+Regras (conferidas no service, não só na tela):
+- A obra é a do usuário (admin: a do seletor), nunca o almoxarifado
+  central. Obra paralisada ou concluída não aceita solicitação nova,
+  aprovação nem atendimento; rejeitar e cancelar continuam possíveis.
+- Escopo: quem não tem obras.todas só vê e age em solicitações da própria
+  obra, mesmo escolhendo outra no seletor. Sem solicitacao.ver_todas, só as
+  próprias. Obra, solicitação e item vindos do formulário são sempre
+  conferidos no banco.
+- Criação: 1 a 30 itens, quantidade > 0, sem material repetido (a
+  mensagem pede para juntar numa linha), material ativo. Solicitação, itens
+  e evento CRIADA numa transação.
+- Ninguém aprova nem rejeita a própria solicitação (exceto o superadmin).
+  Rejeitar exige motivo.
+- A aprovação NÃO reserva estoque: a tela só mostra o saldo atual de cada
+  item, com destaque quando ele não cobre o que falta.
+- Cancelar: PENDENTE, o autor ou quem aprova; APROVADA/PARCIAL, só quem
+  aprova. Cancelar uma PARCIAL não desfaz as saídas já feitas.
+- Atendimento, numa transação só: relê a solicitação (APROVADA ou PARCIAL,
+  obra em andamento); para cada item com quantidade > 0 confere que é da
+  solicitação, que o material está ativo e que não passa do que falta; faz a
+  saída pela mesma regra da tela de estoque (stock_service.registerExitTx),
+  com solicitacao_id e observação "Solicitação #N"; soma o atendido; calcula
+  a nova situação (ATENDIDA se todos completaram, senão PARCIAL) e grava o
+  evento ATENDIMENTO com o resumo. Qualquer falha (saldo insuficiente num
+  item, por exemplo) desfaz tudo.
+- Material em solicitação em aberto não pode ser removido do catálogo. Se
+  um item ficar com material removido (dado antigo, ou removido direto no
+  banco), a solicitação continua visível, mas aquele item não é atendido.
+- Corrida: aprovar, rejeitar, cancelar e atender mudam a situação com
+  UPDATE ... WHERE id = ? AND status IN (...) e conferem RowsAffected. Se
+  outra pessoa mudou antes, a ação é recusada ("a solicitação mudou
+  enquanto você agia"). Com uma conexão só, o SQLite já enfileira as
+  transações; a condição no WHERE é a segunda barreira.
+
+Tabelas:
+- solicitacoes: obra_id, solicitante_id, status, observacao, aprovado_por,
+  aprovado_em (só na aprovação), motivo_rejeicao, criado_em, atualizado_em
+- solicitacao_itens: solicitacao_id, produto_id, quantidade_solicitada,
+  quantidade_atendida (UNIQUE solicitacao_id + produto_id; REAL)
+- solicitacao_eventos: solicitacao_id, usuario_id, acao (CRIADA, APROVADA,
+  REJEITADA, ATENDIMENTO, CANCELADA), detalhe, criado_em
+- movimentacoes.solicitacao_id: a solicitação que originou a saída (NULL nas
+  avulsas)
+Índices: solicitacoes(obra_id, status), solicitacoes(solicitante_id),
+solicitacao_itens(solicitacao_id). Datas em UTC; na tela, com 'localtime'.
+
+Barra lateral: o item Solicitações mostra quantas estão PENDENTE (para quem
+tem solicitacao.aprovar) e quantas APROVADA+PARCIAL (para quem tem
+solicitacao.atender), só da obra do usuário (admin: a do seletor).
+Dashboard: cartão "Solicitações em aberto" com as 5 mais antigas visíveis.
+Movimentações: saídas de solicitação mostram "Req. #N", que vira link só
+para quem pode abrir a solicitação; o CSV ganhou a coluna Solicitação.
+
+
+INVENTÁRIOS
+
+/inventarios (lista, busca por número/obra/contador, filtro por situação)
+/inventarios/{id} (contagem e ações) · /inventarios/{id}/exportar (CSV)
+
+Fluxo: EM_CONTAGEM -> AGUARDANDO_APROVACAO -> APROVADO; rejeitar volta para
+EM_CONTAGEM (com motivo); cancelar (em contagem ou aguardando) -> CANCELADO.
+- Iniciar congela o saldo de cada material ativo com saldo <> 0 na obra
+  (inventario_itens.saldo_esperado). Material achado sem estar na lista é
+  acrescentado com o saldo atual (congelado) como esperado.
+- Enquanto há inventário EM_CONTAGEM ou AGUARDANDO_APROVACAO na obra, ela
+  não aceita entrada, saída, atendimento de solicitação nem material novo
+  com saldo inicial: o bloqueio está em requireOperableSiteTx, por onde
+  toda movimentação passa (ErrSiteInInventory). Um índice único parcial
+  garante no máximo um inventário aberto por obra.
+- Obra com inventário aberto não pode ser encerrada; material que está
+  numa contagem aberta não pode ser removido.
+- Enviar exige todos os itens contados e justificativa em toda diferença.
+  Se o envio falhar, nada é gravado (a tela volta com o que foi digitado).
+- Aprovar: cada diferença vira uma movimentação tipo AJUSTE, com sinal
+  (+ sobrou, - faltou), observação "Inventário INV-0007" e
+  movimentacoes.inventario_id; o saldo passa a ser o contado. Os Relatórios
+  só somam ENTRADA e SAIDA, então ajuste não conta como consumo.
+- Ninguém aprova a contagem da qual participou (quem abriu, quem enviou ou
+  quem registrou algum número: inventario_itens.contado_por). A exceção é
+  inventario.aprovar_propria, que só o superadmin tem.
+- Rejeitar não mexe no estoque, por isso quem contou pode rejeitar a
+  própria contagem (é o jeito de reabri-la para corrigir).
+- Cancelar: quem aprova, ou quem abriu enquanto ainda está em contagem.
+
+Permissões: inventario.ver (admin, gestor, almoxarife, auditor),
+inventario.contar (admin, gestor, almoxarife), inventario.aprovar (admin,
+gestor). O solicitante não vê a aba. Sem obras.todas, tudo vale só na obra
+vinculada ao usuário. Barra lateral: Inventários mostra quantos aguardam
+aprovação, para quem aprova.
+
+
+OBRA SELECIONADA
+
+O seletor do topo (POST /obra-atual) guarda a obra em sessoes.obra_id.
+Ele tem busca (sem acento e sem diferenciar maiúsculas), montada pelo
+app.js em cima do <select data-searchable>.
+Dashboard, materiais, estoque e movimentações mostram só essa obra.
+"Todas as obras" (NULL) é só para quem tem obras.todas (admin e
+superadmin); os outros caem na obra deles ou, sem vínculo, no almoxarifado
+central. Entrada e saída exigem uma obra específica, e o
+formulário leva obra_id para conferir que a obra não mudou em outra aba.
+
+
+OBRA DO USUÁRIO
+
+usuario_obras liga cada usuário (que não é admin) a uma obra. É definida
+no cadastro e na edição do usuário (o gestor só vincula à obra dele).
+Quem não é admin entra no sistema pela obra dele. Gestor e almoxarife
+movimentam só essa obra; solicitante e auditor consultam. A aba Obras
+mostra a equipe de cada obra.
+
+
+BUSCA EM TEMPO REAL
+
+Todo filtro com data-live-search busca enquanto se digita e troca só os
+elementos data-live-region (tabela, paginação, contadores).
+
 
 ESTOQUE BAIXO
 
@@ -107,6 +393,70 @@ FILTRO DE MOVIMENTAÇÕES
 
 /movimentacoes?tipo=ENTRADA|SAIDA|ATUALIZACAO
 Tipo vazio ou desconhecido devolve o histórico completo.
+MovementFilter.UserID > 0 limita ao que esse usuário registrou (usado para
+quem não tem movimentacoes.ver_todas).
+
+
+VERIFICAÇÃO DA MIGRAÇÃO DE SALDOS
+
+go run ./backend/cmd verify-stock            (não altera o banco)
+go run ./backend/cmd verify-stock --migrate  (ALTERA: só numa CÓPIA)
+
+Sem flag: não roda migração nenhuma. Banco não migrado -> erro, código 1.
+Banco migrado -> conferência simples: produtos.quantidade x soma dos
+saldos. Ela vale pouco: a migração só LÊ produtos.quantidade para montar
+os saldos, então logo depois de migrar as duas batem por construção. Só
+pega banco migrado pela metade ou mexido depois (e num banco em uso a
+divergência é esperada).
+
+--migrate num banco não migrado (a verificação que vale):
+1. mostra um aviso grande de que o banco vai ser alterado;
+2. tira um retrato ANTES (quantidade de cada material e quantas
+   movimentações de cada tipo) e salva em <banco>.antes-da-migracao.csv;
+3. roda as migrações;
+4. confere contra o retrato: saldo de cada material igual ao de antes e
+   todo no central, produtos.quantidade intacta, nenhum material a mais ou
+   a menos, mesmo número de movimentações, entradas e saídas ligadas ao
+   central e atualizações sem obra;
+5. roda PRAGMA foreign_key_check: linha antiga apontando para registro que
+   não existe (a migração não pega isso, porque o UPDATE só confere as
+   chaves das colunas que muda).
+Código 1 se houver qualquer problema. --migrate num banco já migrado faz a
+conferência simples e também o foreign_key_check.
+
+Nos dois modos, no fim, confere a codificação dos textos (só lê): lista
+nome e unidade de produtos, nome, cidade e responsável de obras, e nome e
+email de usuarios que não são UTF-8 válido, com o texto provável lido como
+Latin-1 (ex.: "Vergalh\xe3o" -> "Vergalhão"). Texto fora de UTF-8 também
+dá código 1. Nada é corrigido automaticamente.
+
+Como corrigir um texto fora de UTF-8 (sempre digitando o texto certo):
+- material: Materiais > Alterar material > Editar, e salvar o nome
+  (só admin; grava uma ATUALIZACAO no histórico);
+- obra: Obras > Editar;
+- nome de usuário: go run ./backend/cmd rename-user <email> "Nome certo";
+- email: go run ./backend/cmd change-email <email-atual> <email-certo>.
+Os comandos de linha são seguros para acento: no Windows o Go recebe os
+argumentos já em UTF-8. O que não é seguro é mandar texto por um programa
+que use Latin-1/Windows-1252 (ex.: Invoke-WebRequest do PowerShell 5.1 com
+corpo em texto) ou digitar num programa que leia o console sem converter,
+como o menu de terminal antigo fazia.
+
+Uso numa cópia da produção (PowerShell):
+$env:DB_PATH="C:\caminho\copia.db"; go run ./backend/cmd verify-stock --migrate
+
+MIGRAÇÕES
+
+database.CreateTables roda tudo (tabelas, colunas, cargos, obras, cópia do
+estoque) numa transação só. Se qualquer passo falhar, nada é gravado e a
+próxima inicialização tenta de novo do zero. Dentro dela, use sempre tx,
+nunca DB: a conexão é uma só (SetMaxOpenConns(1)).
+
+Chaves estrangeiras: ligadas pela string de conexão
+(?_pragma=foreign_keys(1), em database.dsn), então valem para toda conexão
+que o database/sql abrir, não só a primeira. A migração não recria tabelas
+nem desliga as chaves. Os testes de migração rodam foreign_key_check
+depois de migrar (database.ForeignKeyViolations).
 
 
 RODAR

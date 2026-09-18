@@ -43,8 +43,11 @@ As contas padrão são criadas automaticamente na primeira execução, pelo seed
 | Conta | Email | Role | Variável de ambiente da senha |
 |---|---|---|---|
 | SuperAdmin | `superadmin@gmail.com` | `superadmin` | `SEED_SUPERADMIN_PASSWORD` |
-| Gerente | `gerente@gmail.com` | `gerente` | `SEED_GERENTE_PASSWORD` |
-| Usuário | `usuario@gmail.com` | `basico` | `SEED_USUARIO_PASSWORD` |
+| Administrador | `admin@gmail.com` | `admin` | `SEED_ADMIN_PASSWORD` |
+| Gestor | `gerente@gmail.com` | `gestor` | `SEED_GERENTE_PASSWORD` |
+| Solicitante | `usuario@gmail.com` | `solicitante` | `SEED_USUARIO_PASSWORD` |
+
+Os cargos disponíveis são Administrador (`admin`), Gestor (`gestor`), Almoxarife (`almoxarife`), Solicitante (`solicitante`) e Auditor (`auditor`). O que cada um pode fazer está em `backend/cmd/permissions.go` e no `INFORMACOES.MD`. Bancos antigos são migrados sozinhos na inicialização: `gerente` vira `gestor` e `basico` vira `solicitante`.
 
 Se a variável não estiver definida, o seed gera uma senha aleatória e a imprime **uma única vez** no log de inicialização.
 
@@ -82,7 +85,17 @@ No Railway, a aplicação utiliza automaticamente a porta fornecida pela variáv
 
 * `/estoque` — Entradas e saídas de estoque
 
+* `/fornecedores` — Cadastro de fornecedores
+
+* `/inventarios` — Inventário: contagem física, diferenças e ajuste aprovado
+
 * `/movimentacoes` — Histórico de movimentações
+
+* `/solicitacoes` — Solicitações de material: lista com filtro e busca
+
+* `/solicitacoes/nova` — Nova solicitação (materiais e quantidades)
+
+* `/solicitacoes/{id}` — Detalhe da solicitação: aprovar, rejeitar, atender e cancelar
 
 * `/usuarios` — Administração de usuários
 
