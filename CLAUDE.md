@@ -3,7 +3,7 @@
 Instruções para o Claude Code trabalhar neste repositório. **Leia antes de qualquer alteração.**
 
 Projeto de estudo de Go (backend em Go puro + frontend HTML/CSS/JS + SQLite). Autor: Coelho.
-Repositório: <https://github.com/Coelho7z7/GoStock>
+Repositório: <https://github.com/Coelho7z7/Uch-aStock>
 
 **Domínio:** sistema de controle de estoque **de materiais de obra** — cadastrar materiais, acompanhar quantidade, registrar entradas e saídas, e avisar o que está prestes a acabar. **Não é um sistema de vendas:** não existe preço, venda, faturamento nem PDV. Se uma tarefa parecer pedir isso de volta, confirme antes.
 
@@ -288,7 +288,7 @@ Este é um projeto de **estudo**. O Coelho começou em Go há pouco tempo. O obj
 
 ## 10. Git
 
-Repositório: <https://github.com/Coelho7z7/GoStock> (remoto `origin`), branch principal `main`.
+Repositório: <https://github.com/Coelho7z7/Uch-aStock> (remoto `origin`), branch principal `main`.
 
 **Antes de começar qualquer tarefa**, consultar o estado do repositório:
 
