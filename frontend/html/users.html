@@ -70,6 +70,8 @@
                     <span class="user-role user-role-storekeeper">Almoxarife</span>
                     {{ else if eq .User.Role "auditor" }}
                     <span class="user-role user-role-auditor">Auditor</span>
+                    {{ else if eq .User.Role "basico" }}
+                    <span class="user-role user-role-user">Usuário</span>
                     {{ else }}
                     <span class="user-role user-role-user">Solicitante</span>
                     {{ end }}
@@ -152,6 +154,8 @@
                                     <span class="role-badge role-badge-storekeeper">Almoxarife</span>
                                     {{ else if eq .Role "auditor" }}
                                     <span class="role-badge role-badge-auditor">Auditor</span>
+                                    {{ else if eq .Role "basico" }}
+                                    <span class="role-badge role-badge-basic">Usuário</span>
                                     {{ else }}
                                     <span class="role-badge role-badge-basic">Solicitante</span>
                                     {{ end }}

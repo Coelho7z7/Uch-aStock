@@ -565,10 +565,22 @@ func createTablesTx(tx *sql.Tx) error {
 	// Com as permissões por ação, "gerente" virou "gestor" e "basico"
 	// virou "solicitante". Idempotente: depois da primeira vez não sobra
 	// ninguém com o nome antigo para converter.
+	//
+	// Exceção: usuario@gmail.com é mantido em "basico" de propósito. Esse
+	// cargo não tem permissão nenhuma (não está em rolePermissions), então
+	// a conta serve de demonstração somente-leitura — vê as telas sem
+	// poder alterar nada nem criar solicitação. Sem esta carve-out a
+	// conta viraria um solicitante comum a cada inicialização. As demais
+	// contas basico (sobras da migração antiga) continuam virando
+	// solicitante.
 	if _, err = tx.Exec(`UPDATE usuarios SET role = 'gestor' WHERE LOWER(TRIM(role)) = 'gerente'`); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(`UPDATE usuarios SET role = 'solicitante' WHERE LOWER(TRIM(role)) = 'basico'`); err != nil {
+	if _, err = tx.Exec(`
+		UPDATE usuarios SET role = 'solicitante'
+		WHERE LOWER(TRIM(role)) = 'basico'
+		  AND LOWER(TRIM(email)) != 'usuario@gmail.com'
+	`); err != nil {
 		return err
 	}
 

@@ -148,13 +148,22 @@ func assignableRoles(actor *models.User) []struct{ Value, Label string } {
 }
 
 // canAssignRole indica se actor pode dar o cargo role a alguém, no
-// cadastro ou na edição. SuperAdmin nunca é dado pela tela.
+// cadastro ou na edição. SuperAdmin e basico nunca são dados pela tela:
+// são identidades reservadas.
+//
+// O basico entra aqui por causa de um acidente possível: ele não aparece
+// no dropdown de cargos, então, ao abrir o modal de permissão de uma
+// conta basico, nenhuma opção ficaria marcada e o navegador escolheria a
+// primeira — "Administrador". Salvar sem tocar no campo promoveria a
+// conta de demonstração a admin, em silêncio. Recusando o cargo aqui,
+// canManageUser passa a devolver false para essas contas: os botões
+// somem da tela e o POST é barrado.
 func canAssignRole(actor *models.User, role string) bool {
 	if !can(actor, PermManageUsers) {
 		return false
 	}
 	role = strings.ToLower(strings.TrimSpace(role))
-	if role == services.RoleSuperadmin {
+	if role == services.RoleSuperadmin || role == services.RoleBasic {
 		return false
 	}
 	allowed, limited := manageableRoles[normalizedRole(actor)]

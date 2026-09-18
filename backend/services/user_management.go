@@ -21,6 +21,15 @@ const (
 	RoleStorekeeper = "almoxarife"
 	RoleRequester   = "solicitante"
 	RoleAuditor     = "auditor"
+	// RoleBasic é a conta de demonstração somente-leitura: não aparece em
+	// rolePermissions, então can() nega toda ação (nem cria solicitação).
+	// Serve para alguém ver as telas do sistema sem poder alterar nada.
+	// Fica de fora de validRoles e RoleLabels de propósito, como o
+	// SuperAdmin: é uma identidade reservada, não um cargo oferecido na
+	// tela. A migração em database.CreateTables preserva a conta
+	// usuario@gmail.com com esse cargo; as demais contas basico antigas
+	// continuam sendo convertidas em solicitante.
+	RoleBasic = "basico"
 )
 
 // RoleLabels liga cada cargo ao texto da tela, na ordem do dropdown. O
@@ -203,6 +212,12 @@ func UpdateUserAccessWeb(targetID int, newRole string, siteID int) error {
 	}
 	if isSuperAdmin(target) {
 		return errors.New("O cargo SuperAdmin é protegido e não pode ser alterado.")
+	}
+	// A conta de demonstração é reservada como o SuperAdmin. A tela já
+	// esconde o botão (ver canAssignRole), mas a checagem vale no servidor:
+	// sem ela, um POST montado à mão trocaria o cargo dela.
+	if strings.EqualFold(strings.TrimSpace(target.Role), RoleBasic) {
+		return errors.New("A conta somente-leitura tem cargo reservado e não pode ser alterada.")
 	}
 
 	tx, err := database.DB.Begin()

@@ -112,17 +112,32 @@ func resetSuperadminPassword() error {
 // cargos igualmente. O que a identidade reservada tem a mais é não poder
 // ser rebaixada nem removida pela tela de usuários.
 func SeedDefaultUsers() error {
+	// Cada cargo tem uma conta padrão, além de usuario@gmail.com, que é a
+	// conta de demonstração somente-leitura (RoleBasic). bindSite diz se a
+	// conta é vinculada ao "Almoxarifado central": admin e superadmin não
+	// têm obra (agem em todas), os demais precisam de uma para operar.
 	users := []struct {
-		name   string
-		email  string
-		role   string
-		envVar string
-		label  string
+		name     string
+		email    string
+		role     string
+		envVar   string
+		label    string
+		bindSite bool
 	}{
-		{name: "Gestor", email: "gerente@gmail.com", role: RoleManager, envVar: "SEED_GERENTE_PASSWORD", label: "Gestor"},
-		{name: "SuperAdmin", email: "superadmin@gmail.com", role: RoleSuperadmin, envVar: "SEED_SUPERADMIN_PASSWORD", label: "SuperAdmin"},
-		{name: "Admin", email: "admin@gmail.com", role: RoleAdmin, envVar: "SEED_ADMIN_PASSWORD", label: "Admin"},
-		{name: "Solicitante", email: "usuario@gmail.com", role: RoleRequester, envVar: "SEED_USUARIO_PASSWORD", label: "Solicitante"},
+		{name: "SuperAdmin", email: "superadmin@gmail.com", role: RoleSuperadmin, envVar: "SEED_SUPERADMIN_PASSWORD", label: "SuperAdmin", bindSite: false},
+		{name: "Admin", email: "admin@gmail.com", role: RoleAdmin, envVar: "SEED_ADMIN_PASSWORD", label: "Admin", bindSite: false},
+		{name: "Gestor", email: "gerente@gmail.com", role: RoleManager, envVar: "SEED_GESTOR_PASSWORD", label: "Gestor", bindSite: true},
+		{name: "Almoxarife", email: "almoxarife@gmail.com", role: RoleStorekeeper, envVar: "SEED_ALMOXARIFE_PASSWORD", label: "Almoxarife", bindSite: true},
+		{name: "Solicitante", email: "solicitante@gmail.com", role: RoleRequester, envVar: "SEED_SOLICITANTE_PASSWORD", label: "Solicitante", bindSite: true},
+		{name: "Auditor", email: "auditor@gmail.com", role: RoleAuditor, envVar: "SEED_AUDITOR_PASSWORD", label: "Auditor", bindSite: true},
+		{name: "Usuario", email: "usuario@gmail.com", role: RoleBasic, envVar: "SEED_USUARIO_PASSWORD", label: "Usuário (somente leitura)", bindSite: true},
+	}
+
+	// A obra central é procurada uma vez. Ela é criada em
+	// database.CreateTables, que roda antes do seed, então já existe aqui.
+	var centralID int
+	if err := database.DB.QueryRow(`SELECT id FROM obras WHERE tipo = 'CENTRAL'`).Scan(&centralID); err != nil {
+		return fmt.Errorf("localizar o almoxarifado central: %w", err)
 	}
 
 	for _, user := range users {
@@ -158,10 +173,11 @@ func SeedDefaultUsers() error {
 			return fmt.Errorf("gerar senha de %s: %w", user.email, err)
 		}
 
-		if _, err := database.DB.Exec(`
-			INSERT INTO usuarios (nome, email, senha, role)
-			VALUES (?, ?, ?, ?)
-		`, user.name, user.email, string(hash), user.role); err != nil {
+		siteID := 0
+		if user.bindSite {
+			siteID = centralID
+		}
+		if err := createSeedUser(user.name, user.email, user.role, string(hash), siteID); err != nil {
 			return fmt.Errorf("inserir usuário %s: %w", user.email, err)
 		}
 
@@ -171,4 +187,36 @@ func SeedDefaultUsers() error {
 	}
 
 	return resetSuperadminPassword()
+}
+
+// createSeedUser insere a conta e vincula a obra dentro de uma única
+// transação: ou os dois passos entram, ou nenhum. Assim uma conta
+// vinculada a uma obra nunca fica pela metade (usuário sem obra ou obra
+// apontando para um usuário que não gravou). setUserSiteTx ignora a obra
+// quando o cargo é admin ou quando siteID é 0.
+func createSeedUser(name, email, role, hash string, siteID int) error {
+	tx, err := database.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(`
+		INSERT INTO usuarios (nome, email, senha, role)
+		VALUES (?, ?, ?, ?)
+	`, name, email, hash, role)
+	if err != nil {
+		return err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+
+	if err := setUserSiteTx(tx, int(id), role, siteID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
