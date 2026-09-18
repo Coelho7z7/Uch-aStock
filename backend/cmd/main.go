@@ -183,10 +183,16 @@ func registerRoutes() {
 
 	http.HandleFunc("/estoque", withUser(stockHandler))
 
+	http.HandleFunc("/fornecedores", withUser(supplierHandler))
+
 	http.HandleFunc("/movimentacoes", withUser(movementHandler))
 	http.HandleFunc("/movimentacoes/exportar", withUser(movementExportHandler))
 
 	http.HandleFunc("/relatorios", withUser(reportHandler))
+
+	http.HandleFunc("/inventarios", withUser(inventoryListHandler))
+	http.HandleFunc("/inventarios/{id}", withUser(inventoryDetailHandler))
+	http.HandleFunc("/inventarios/{id}/exportar", withUser(inventoryExportHandler))
 
 	// "/solicitacoes/nova" é mais específica que "/solicitacoes/{id}": o
 	// roteador do Go escolhe a mais específica, então "nova" nunca vira ID.

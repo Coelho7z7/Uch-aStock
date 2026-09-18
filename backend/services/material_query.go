@@ -182,9 +182,10 @@ func GetLowStockMaterials(limit, siteID int) ([]models.LowStockMaterial, error) 
 		}
 
 		material.FormattedType = map[string]string{
-			"ENTRADA":     "Entrada",
-			"SAIDA":       "Saída",
-			"ATUALIZACAO": "Atualização",
+			"ENTRADA":          "Entrada",
+			"SAIDA":            "Saída",
+			"ATUALIZACAO":      "Atualização",
+			MovementAdjustment: "Ajuste",
 		}[material.FormattedType]
 
 		materials = append(materials, material)
@@ -299,6 +300,17 @@ func DeleteMaterialWeb(materialID int) error {
 	`, materialID, RequestPending, RequestApproved, RequestPartial).Scan(&openRequests); err != nil {
 		return err
 	}
+	// Material que está numa contagem aberta também fica: a aprovação ainda
+	// pode ajustar o saldo dele.
+	var openInventories int
+	if err := tx.QueryRow(`
+		SELECT COUNT(DISTINCT v.id)
+		FROM inventario_itens i
+		JOIN inventarios v ON v.id = i.inventario_id
+		WHERE i.produto_id = ? AND v.status IN (?, ?)
+	`, materialID, InventoryCounting, InventoryAwaitingApproval).Scan(&openInventories); err != nil {
+		return err
+	}
 
 	var blockers []string
 	if sites == 1 {
@@ -312,6 +324,9 @@ func DeleteMaterialWeb(materialID int) error {
 	}
 	if openRequests > 1 {
 		blockers = append(blockers, fmt.Sprintf("o material está em %d solicitações em aberto (pendentes, aprovadas ou parciais). Atenda, rejeite ou cancele antes de remover.", openRequests))
+	}
+	if openInventories > 0 {
+		blockers = append(blockers, "o material está num inventário aberto. Aprove ou cancele o inventário antes de remover.")
 	}
 	// O return antes do Commit desfaz o UPDATE acima (defer tx.Rollback).
 	if len(blockers) > 0 {

@@ -173,6 +173,7 @@ label {
 
 input[type="text"],
 input[type="email"],
+input[type="tel"],
 input[type="password"],
 input[type="number"],
 input[type="search"],
@@ -944,6 +945,13 @@ input.form-error:focus {
     color: var(--color-info-text);
     background: var(--color-info-tint);
     border-color: var(--color-brand-soft);
+}
+
+/* Ajuste de inventário: nem entrada nem saída comum, por isso o dourado. */
+.activity-AJUSTE {
+    color: var(--color-gold);
+    background: var(--color-gold-tint);
+    border-color: var(--color-gold-border);
 }
 
 /* ---------- Status de estoque ----------

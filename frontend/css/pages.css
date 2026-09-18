@@ -251,6 +251,18 @@
     border-color: var(--color-border-strong);
 }
 
+/* Fornecedores: o selo "Desativado" segue o tom neutro da obra concluída,
+   e o CNPJ não quebra no meio. */
+.supplier-inactive {
+    color: var(--color-text-muted);
+    background: var(--color-surface-alt);
+    border-color: var(--color-border-strong);
+}
+
+.supplier-cnpj {
+    white-space: nowrap;
+}
+
 /* Botões "Abrir", "Paralisar", "Retomar" e "Encerrar" da linha: cada um
    é um <form> e fica em linha com o link "Editar". */
 .site-open-form,
@@ -822,4 +834,134 @@
 
 .report-balance-down {
     color: var(--color-warning-text);
+}
+
+/* ---------- Inventários ----------
+   inventory-status-{{ .Status }} vem do template: os nomes são os valores
+   de inventarios.status. Não renomear. */
+
+.inventory-status-EM_CONTAGEM {
+    color: var(--color-warning-text);
+    background: var(--color-warning-tint);
+    border-color: var(--color-warning);
+}
+
+.inventory-status-AGUARDANDO_APROVACAO {
+    color: var(--color-info-text);
+    background: var(--color-info-tint);
+    border-color: var(--color-brand-soft);
+}
+
+.inventory-status-APROVADO {
+    color: var(--color-success-text);
+    background: var(--color-success-tint);
+    border-color: var(--color-success);
+}
+
+.inventory-status-CANCELADO {
+    color: var(--color-text-muted);
+    background: var(--color-surface-alt);
+    border-color: var(--color-border-strong);
+}
+
+.inventory-how-section,
+.inventory-items-section {
+    margin-top: var(--space-5);
+}
+
+/* "Como funciona": passos numerados pelo próprio CSS (counter). */
+.inventory-steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: inventory-step;
+}
+
+.inventory-steps li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--space-3);
+    row-gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface-alt);
+    border-radius: var(--radius-md);
+    counter-increment: inventory-step;
+}
+
+.inventory-steps li::before {
+    content: counter(inventory-step);
+    grid-row: span 2;
+    font-weight: var(--weight-semibold);
+    color: var(--color-brand-light);
+}
+
+.inventory-steps strong {
+    font-weight: var(--weight-medium);
+    color: var(--color-text);
+}
+
+.inventory-steps span {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+/* Contagem: o campo de quantidade é estreito (a unidade fica ao lado) e o
+   da justificativa ocupa o resto. */
+.inventory-count-table .inventory-qty-input {
+    width: 7rem;
+    margin-right: var(--space-1);
+}
+
+.inventory-count-table .inventory-note-input {
+    min-width: 14rem;
+}
+
+.inventory-diff {
+    font-weight: var(--weight-semibold);
+    white-space: nowrap;
+}
+
+.inventory-diff-up {
+    color: var(--color-success-text);
+}
+
+.inventory-diff-down {
+    color: var(--color-danger-text);
+}
+
+.inventory-count-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.inventory-add-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.inventory-add-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+    .inventory-add-row {
+        flex-direction: row;
+        align-items: center;
+    }
+
+    .inventory-add-row select {
+        flex: 1;
+    }
 }

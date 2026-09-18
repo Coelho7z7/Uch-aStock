@@ -46,6 +46,23 @@ const (
 	// seletor. Sem ela, as ações que dependem de obra (movimentar estoque,
 	// editar obra) valem só na obra vinculada ao usuário.
 	PermAllSites Permission = "obras.todas"
+	// PermManageSuppliers é cadastrar, editar, desativar e reativar
+	// fornecedor. O cadastro é um só para a empresa, como o catálogo de
+	// materiais, por isso só o administrador tem. Ver a lista não é
+	// permissão: todo cargo vê.
+	PermManageSuppliers Permission = "fornecedores.gerenciar"
+
+	// PermViewInventory é ver a aba Inventários e as contagens da obra.
+	PermViewInventory Permission = "inventario.ver"
+	// PermCountInventory é iniciar inventário, acrescentar material e
+	// registrar a contagem, na obra ao alcance (ver InventoryActor).
+	PermCountInventory Permission = "inventario.contar"
+	// PermApproveInventory é aprovar o ajuste, rejeitar e cancelar.
+	PermApproveInventory Permission = "inventario.aprovar"
+	// PermApproveOwnInventory é aprovar o ajuste de uma contagem da qual a
+	// pessoa participou. Nenhum cargo recebe: só o superadmin, como
+	// PermApproveOwnRequest.
+	PermApproveOwnInventory Permission = "inventario.aprovar_propria"
 )
 
 // rolePermissions é a fonte única da verdade sobre o que cada cargo pode
@@ -60,6 +77,8 @@ var rolePermissions = map[string][]Permission{
 		PermCreateRequest, PermApproveRequest, PermServeRequest, PermViewAllRequests,
 		PermViewAllMovements, PermExportMovements,
 		PermManageUsers, PermManageSites, PermReopenSite, PermAllSites,
+		PermManageSuppliers,
+		PermViewInventory, PermCountInventory, PermApproveInventory,
 	},
 	// O gestor age na obra dele (sem PermAllSites) e não mexe no catálogo
 	// de materiais, que é da empresa toda. Na gestão de usuários há mais
@@ -69,16 +88,20 @@ var rolePermissions = map[string][]Permission{
 		PermCreateRequest, PermApproveRequest, PermServeRequest, PermViewAllRequests,
 		PermViewAllMovements, PermExportMovements,
 		PermManageUsers, PermManageSites,
+		PermViewInventory, PermCountInventory, PermApproveInventory,
 	},
+	// O almoxarife conta o inventário, mas quem aprova o ajuste é o gestor.
 	services.RoleStorekeeper: {
 		PermMoveStock,
 		PermCreateRequest, PermServeRequest, PermViewAllRequests,
 		PermViewAllMovements, PermExportMovements,
+		PermViewInventory, PermCountInventory,
 	},
 	// Sem PermViewAllMovements e PermViewAllRequests, o solicitante vê só
-	// as movimentações que registrou e as solicitações que criou.
+	// as movimentações que registrou e as solicitações que criou. Também não
+	// vê inventários.
 	services.RoleRequester: {PermCreateRequest},
-	services.RoleAuditor:   {PermViewAllRequests, PermViewAllMovements, PermExportMovements},
+	services.RoleAuditor:   {PermViewAllRequests, PermViewAllMovements, PermExportMovements, PermViewInventory},
 }
 
 // manageableRoles limita quais cargos quem gerencia usuários pode dar e

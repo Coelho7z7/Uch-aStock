@@ -682,7 +682,7 @@ func TestTablesWithForeignKeysIncludesRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := strings.Join(tables, ",")
-	want := "movimentacoes,saldos,sessoes,solicitacao_eventos,solicitacao_itens,solicitacoes,usuario_obras"
+	want := "inventario_itens,inventarios,movimentacoes,saldos,sessoes,solicitacao_eventos,solicitacao_itens,solicitacoes,usuario_obras"
 	if got != want {
 		t.Errorf("tabelas com chave estrangeira = %s, esperado %s", got, want)
 	}

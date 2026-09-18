@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UchôaStock - Fornecedores</title>
+    <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/tokens.css?v=10">
+    <link rel="stylesheet" href="/css/base.css?v=9">
+    <link rel="stylesheet" href="/css/components.css?v=17">
+    <link rel="stylesheet" href="/css/layout.css?v=15">
+    <link rel="stylesheet" href="/css/pages.css?v=19">
+</head>
+
+<body class="suppliers-page">
+
+    <div class="dashboard">
+
+        <aside class="sidebar">
+
+            <h1 class="logo">
+                <img class="logo-image" src="/images/uchoa-logo.png" alt="">
+                <span class="logo-text">
+                    <strong>Uchôa Stock</strong>
+                    <small>Controle de estoque</small>
+                </span>
+            </h1>
+
+            <nav>
+                <a href="/dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>Dashboard</a>
+                <a href="/obras"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4v18M12 9h7v12M8 9h1M8 13h1M8 17h1M15 13h1M15 17h1"></path></svg>Obras</a>
+                <a href="/materiais"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>Materiais</a>
+                <a class="tab-active" href="/fornecedores"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v10H3z"></path><path d="M14 10h4l3 3v3h-7"></path><circle cx="7" cy="17.5" r="1.5"></circle><circle cx="17" cy="17.5" r="1.5"></circle></svg>Fornecedores</a>
+                <a href="/movimentacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7a6 6 0 0 1 0 10M6 17A6 6 0 0 1 6 7"></path></svg>Movimentações</a>
+                {{ if .Nav.CanViewInventory }}<a href="/inventarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17"></path><path d="M11 6h9M11 12h9M11 18h9"></path></svg>Inventários{{ if .Nav.InventoryPending }}<span class="nav-badge nav-badge-pending" title="Inventários aguardando aprovação" aria-label="{{ .Nav.InventoryPending }} aguardando aprovação">{{ .Nav.InventoryPending }}</span>{{ end }}</a>{{ end }}
+                <a href="/solicitacoes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"></path><path d="M9 5H6v16h12V5h-3"></path><path d="M9 12h6M9 16h4"></path></svg>Solicitações{{ template "nav-request-badges" .Nav }}</a>
+                {{ if .Nav.CanViewReports }}<a href="/relatorios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16h16"></path><path d="M8 17v-5M13 17V8M18 17v-8"></path></svg>Relatórios</a>{{ end }}
+                {{ if .CanManageUsers }}<a href="/usuarios"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuários</a>{{ end }}
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="/logout" class="sidebar-logout"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg>Sair</a>
+            </div>
+
+        </aside>
+        <div class="mobile-sidebar-overlay" aria-hidden="true"></div>
+
+        <main class="main-content">
+
+            <header class="topbar">
+                <button class="mobile-menu-button" type="button" aria-label="Abrir menu" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+                <h2>Fornecedores</h2>
+
+                {{ template "site-switcher" .Scope }}
+
+                <div class="user">
+                    <span class="user-name">{{ .User.Name }}</span>
+                    {{ if eq .User.Role "superadmin" }}
+                    <span class="user-role user-role-superadmin">SuperAdmin</span>
+                    {{ else if eq .User.Role "admin" }}
+                    <span class="user-role user-role-admin">Administrador</span>
+                    {{ else if eq .User.Role "gestor" }}
+                    <span class="user-role user-role-manager">Gestor</span>
+                    {{ else if eq .User.Role "almoxarife" }}
+                    <span class="user-role user-role-storekeeper">Almoxarife</span>
+                    {{ else if eq .User.Role "auditor" }}
+                    <span class="user-role user-role-auditor">Auditor</span>
+                    {{ else }}
+                    <span class="user-role user-role-user">Solicitante</span>
+                    {{ end }}
+                </div>
+            </header>
+
+            <section class="content">
+
+                <header class="page-hero">
+                    <div class="page-hero-text">
+                        <span class="eyebrow">Compras</span>
+                        <h3>Fornecedores</h3>
+                        <p>Quem vende material para a empresa. O cadastro é um só para todas as obras. Fornecedor não é apagado: é desativado e continua na lista.</p>
+                        <span class="page-hero-meta" data-live-region="contagem">{{ .Total }} fornecedor(es)</span>
+                        {{ if .CanManageSuppliers }}
+                        <div class="page-hero-actions">
+                            <button class="new-material-button" type="button" id="open-create-supplier">
+                                Novo fornecedor
+                            </button>
+                        </div>
+                        {{ end }}
+                    </div>
+                </header>
+
+                <form class="materials-filter" method="GET" action="/fornecedores" data-live-search>
+                    <input type="search" name="busca" value="{{ .Search }}" placeholder="Buscar por nome, CNPJ, contato, cidade ou email" aria-label="Buscar fornecedor">
+                    <select name="situacao" aria-label="Filtrar por situação">
+                        <option value="">Ativos e desativados</option>
+                        {{ range .Statuses }}<option value="{{ .Value }}"{{ if eq .Value $.Status }} selected{{ end }}>{{ .Label }}</option>{{ end }}
+                    </select>
+                    <button type="submit">Filtrar</button>
+                </form>
+
+                {{ if .Message }}
+                <p class="form-success" role="status">
+                    {{ .Message }}
+                </p>
+                {{ end }}
+
+                {{ if and .FormError (not .Form) }}
+                <p class="form-error" role="alert">
+                    {{ .FormError }}
+                </p>
+                {{ end }}
+
+                <div class="materials-table page-table suppliers-table" data-live-region="tabela">
+
+                    <table>
+
+                        <thead>
+                            <tr>
+                                <th>Fornecedor</th>
+                                <th>CNPJ</th>
+                                <th>Contato</th>
+                                <th>Cidade</th>
+                                {{ if .CanManageSuppliers }}<th>Ações</th>{{ end }}
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {{ range .Suppliers }}
+
+                            <tr>
+                                <td>
+                                    <span class="site-name">{{ .Name }}</span>
+                                    {{ if not .Active }}<span class="badge supplier-inactive">Desativado</span>{{ end }}
+                                    {{ if .Note }}<span class="row-site-name">{{ .Note }}</span>{{ end }}
+                                </td>
+                                <td class="supplier-cnpj">{{ if .FormattedCNPJ }}{{ .FormattedCNPJ }}{{ else }}<span class="muted-dash">—</span>{{ end }}</td>
+                                <td>
+                                    {{ if or .Contact .Phone .Email }}
+                                    {{ if .Contact }}<span>{{ .Contact }}</span>{{ end }}
+                                    {{ if .Phone }}<span class="row-site-name">{{ .Phone }}</span>{{ end }}
+                                    {{ if .Email }}<span class="row-site-name"><a href="mailto:{{ .Email }}">{{ .Email }}</a></span>{{ end }}
+                                    {{ else }}
+                                    <span class="muted-dash">—</span>
+                                    {{ end }}
+                                </td>
+                                <td>{{ if .City }}{{ .City }}{{ else }}<span class="muted-dash">—</span>{{ end }}</td>
+                                {{ if $.CanManageSuppliers }}
+                                <td class="material-actions">
+                                    <a
+                                        class="edit-material-link"
+                                        href="/fornecedores?editar={{ .ID }}"
+                                        aria-label="Editar {{ .Name }}"
+                                        data-id="{{ .ID }}"
+                                        data-name="{{ .Name }}"
+                                        data-cnpj="{{ .FormattedCNPJ }}"
+                                        data-contact="{{ .Contact }}"
+                                        data-phone="{{ .Phone }}"
+                                        data-email="{{ .Email }}"
+                                        data-city="{{ .City }}"
+                                        data-note="{{ .Note }}">Editar</a>
+                                    <form class="site-status-form" method="POST" action="/fornecedores">
+                                        <input type="hidden" name="fornecedor_id" value="{{ .ID }}">
+                                        {{ if .Active }}
+                                        <input type="hidden" name="acao" value="desativar">
+                                        <button class="edit-material-link" type="submit" aria-label="Desativar {{ .Name }}"
+                                            data-confirm="Desativar o fornecedor &quot;{{ .Name }}&quot;? Ele continua na lista, marcado como desativado, e pode ser reativado depois."
+                                            data-confirm-title="Desativar fornecedor" data-confirm-ok="Desativar" data-confirm-tone="warning">Desativar</button>
+                                        {{ else }}
+                                        <input type="hidden" name="acao" value="reativar">
+                                        <button class="edit-material-link" type="submit" aria-label="Reativar {{ .Name }}">Reativar</button>
+                                        {{ end }}
+                                    </form>
+                                </td>
+                                {{ end }}
+                            </tr>
+
+                            {{ else }}
+
+                            <tr>
+                                <td colspan="{{ if .CanManageSuppliers }}5{{ else }}4{{ end }}">
+                                    <div class="empty-table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v10H3z"></path><path d="M14 10h4l3 3v3h-7"></path><circle cx="7" cy="17.5" r="1.5"></circle><circle cx="17" cy="17.5" r="1.5"></circle></svg><span>{{ if or .Search .Status }}Nenhum fornecedor com esses filtros.{{ else }}Nenhum fornecedor cadastrado ainda.{{ end }}</span></div>
+                                </td>
+                            </tr>
+
+                            {{ end }}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+                <div data-live-region="paginacao">
+                {{ if gt .TotalPages 1 }}
+
+                <div class="pagination">
+
+                    {{ if gt .Page 1 }}
+                    <a href="/fornecedores?pagina={{ .PreviousPage }}{{ if .Search }}&busca={{ .Search }}{{ end }}{{ if .Status }}&situacao={{ .Status }}{{ end }}">« Anterior</a>
+                    {{ end }}
+
+                    <span>Página {{ .Page }} de {{ .TotalPages }}</span>
+
+                    {{ if lt .Page .TotalPages }}
+                    <a href="/fornecedores?pagina={{ .NextPage }}{{ if .Search }}&busca={{ .Search }}{{ end }}{{ if .Status }}&situacao={{ .Status }}{{ end }}">Próxima »</a>
+                    {{ end }}
+
+                </div>
+
+                {{ end }}
+                </div>
+
+                {{ if .CanManageSuppliers }}
+                <!-- Um modal só para cadastrar e editar. O servidor o manda
+                     aberto (sem hidden) com ?editar=ID ou quando o envio deu
+                     erro; sem JS, o link "Editar" continua funcionando. -->
+                <div class="modal-edit" id="supplier-modal" {{ if not .Form }}hidden{{ end }}>
+                    <div class="modal-edit-content" role="dialog" aria-modal="true" aria-labelledby="supplier-modal-title">
+                        <div class="modal-create-header">
+                            <div>
+                                <span class="edit-kicker">Compras</span>
+                                <h3 id="supplier-modal-title">{{ if and .Form .Form.ID }}Editar fornecedor{{ else }}Novo fornecedor{{ end }}</h3>
+                            </div>
+                            <button class="close-modal-button" type="button" id="close-supplier-modal" aria-label="Fechar">&times;</button>
+                        </div>
+
+                        {{ if and .FormError .Form }}
+                        <p class="form-error" role="alert">{{ .FormError }}</p>
+                        {{ end }}
+
+                        <form class="create-form" action="/fornecedores" method="POST">
+                            <input type="hidden" name="acao" id="supplier-action" value="{{ if and .Form .Form.ID }}atualizar{{ else }}cadastrar{{ end }}">
+                            <input type="hidden" name="fornecedor_id" id="supplier-id" value="{{ with .Form }}{{ .ID }}{{ end }}">
+
+                            <label for="supplier-name">Nome do fornecedor</label>
+                            <input id="supplier-name" type="text" name="nome" maxlength="100" value="{{ with .Form }}{{ .Name }}{{ end }}" placeholder="Ex.: Casa do Construtor Maceió" required>
+
+                            <div class="form-row">
+                                <div>
+                                    <label for="supplier-cnpj">CNPJ <small>(opcional)</small></label>
+                                    <input id="supplier-cnpj" type="text" name="cnpj" maxlength="18" autocapitalize="characters" value="{{ with .Form }}{{ if .FormattedCNPJ }}{{ .FormattedCNPJ }}{{ else }}{{ .CNPJ }}{{ end }}{{ end }}" placeholder="Ex.: 12.345.678/0001-90">
+                                </div>
+                                <div>
+                                    <label for="supplier-city">Cidade</label>
+                                    <input id="supplier-city" type="text" name="cidade" maxlength="80" value="{{ with .Form }}{{ .City }}{{ end }}" placeholder="Ex.: Maceió · AL">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div>
+                                    <label for="supplier-contact">Contato</label>
+                                    <input id="supplier-contact" type="text" name="contato" maxlength="80" value="{{ with .Form }}{{ .Contact }}{{ end }}" placeholder="Ex.: Joana (vendas)">
+                                </div>
+                                <div>
+                                    <label for="supplier-phone">Telefone</label>
+                                    <input id="supplier-phone" type="tel" name="telefone" maxlength="20" value="{{ with .Form }}{{ .Phone }}{{ end }}" placeholder="Ex.: (82) 99999-0000">
+                                </div>
+                            </div>
+
+                            <label for="supplier-email">Email</label>
+                            <input id="supplier-email" type="email" name="email" maxlength="120" value="{{ with .Form }}{{ .Email }}{{ end }}" placeholder="Ex.: vendas@fornecedor.com.br">
+
+                            <label for="supplier-note">Observação</label>
+                            <textarea id="supplier-note" name="observacao" maxlength="300" rows="3" placeholder="Ex.: entrega em até 2 dias, pedido mínimo de 50 sacos">{{ with .Form }}{{ .Note }}{{ end }}</textarea>
+
+                            <button class="save-button" type="submit" id="supplier-submit">{{ if and .Form .Form.ID }}Salvar alterações{{ else }}Cadastrar fornecedor{{ end }}</button>
+                        </form>
+                    </div>
+                </div>
+                {{ end }}
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <script src="/js/app.js?v=17"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // O modal só existe para quem pode cadastrar e editar.
+            const modal = document.getElementById('supplier-modal');
+            if (!modal) return;
+
+            const title = document.getElementById('supplier-modal-title');
+            const action = document.getElementById('supplier-action');
+            const submit = document.getElementById('supplier-submit');
+            const fields = {
+                id: document.getElementById('supplier-id'),
+                name: document.getElementById('supplier-name'),
+                cnpj: document.getElementById('supplier-cnpj'),
+                contact: document.getElementById('supplier-contact'),
+                phone: document.getElementById('supplier-phone'),
+                email: document.getElementById('supplier-email'),
+                city: document.getElementById('supplier-city'),
+                note: document.getElementById('supplier-note')
+            };
+
+            // Preenche o modal e abre. supplier é null no cadastro; na
+            // edição, são os data-* do link "Editar".
+            const openModal = function (supplier) {
+                const editing = supplier !== null;
+
+                // Um erro de envio anterior não deve aparecer no próximo.
+                const oldError = modal.querySelector('.form-error');
+                if (oldError) oldError.remove();
+
+                title.textContent = editing ? 'Editar fornecedor' : 'Novo fornecedor';
+                action.value = editing ? 'atualizar' : 'cadastrar';
+                submit.textContent = editing ? 'Salvar alterações' : 'Cadastrar fornecedor';
+                Object.keys(fields).forEach(function (key) {
+                    fields[key].value = editing ? (supplier[key] || '') : '';
+                });
+
+                modal.hidden = false;
+                fields.name.focus();
+            };
+
+            document.getElementById('open-create-supplier').addEventListener('click', function () {
+                openModal(null);
+            });
+
+            // Com JS o "Editar" abre o modal na hora, sem recarregar a página.
+            // O clique é ouvido no document ("delegação"): a busca em tempo
+            // real troca a tabela, e os links novos não teriam ouvinte próprio.
+            document.addEventListener('click', function (event) {
+                const link = event.target.closest('.suppliers-table a[data-id]');
+                if (!link) return;
+                event.preventDefault();
+                openModal(link.dataset);
+            });
+
+            // Aberto pelo servidor (?editar=ID ou erro): foco no nome.
+            if (!modal.hidden) fields.name.focus();
+
+            const closeModal = function () {
+                modal.hidden = true;
+                // Tira o ?editar da URL, para um F5 não reabrir o modal.
+                if (location.search.indexOf('editar=') !== -1) {
+                    history.replaceState(null, '', location.pathname);
+                }
+            };
+            document.getElementById('close-supplier-modal').addEventListener('click', closeModal);
+            modal.addEventListener('click', function (event) {
+                if (event.target === modal) closeModal();
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && !modal.hidden) closeModal();
+            });
+        });
+    </script>
+
+</body>
+
+</html>

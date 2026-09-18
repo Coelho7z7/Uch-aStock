@@ -142,7 +142,9 @@ func activeMaterialUnitTx(tx *sql.Tx, materialID int) (string, error) {
 }
 
 // requireOperableSiteTx confere que a obra existe e aceita movimentação.
-// Paralisada aceita (dá para devolver ou retirar material); concluída não.
+// Paralisada aceita (dá para devolver ou retirar material); concluída não,
+// e obra com inventário aberto também não. Toda entrada e saída passa por
+// aqui, então este é o único lugar que precisa conhecer esse bloqueio.
 func requireOperableSiteTx(tx *sql.Tx, siteID int) error {
 	var status string
 	err := tx.QueryRow(`SELECT situacao FROM obras WHERE id = ? AND ativo = 1`, siteID).Scan(&status)
@@ -154,6 +156,13 @@ func requireOperableSiteTx(tx *sql.Tx, siteID int) error {
 	}
 	if status == SiteStatusFinished {
 		return ErrSiteFinished
+	}
+	inventoryID, err := openInventoryTx(tx, siteID)
+	if err != nil {
+		return err
+	}
+	if inventoryID > 0 {
+		return fmt.Errorf("%w (%s)", ErrSiteInInventory, InventoryCode(inventoryID))
 	}
 	return nil
 }
@@ -201,6 +210,18 @@ func registerMovementTx(tx *sql.Tx, materialID, siteID, userID int, movementType
 		(produto_id, obra_id, usuario_id, tipo, quantidade, observacao, solicitacao_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, materialID, site, userID, movementType, quantity, note, request)
+	return err
+}
+
+// registerAdjustmentTx grava o ajuste de inventário no histórico. quantity
+// tem sinal (positivo sobrou, negativo faltou) e a linha aponta para o
+// inventário que a gerou.
+func registerAdjustmentTx(tx *sql.Tx, materialID, siteID, userID int, quantity float64, note string, inventoryID int) error {
+	_, err := tx.Exec(`
+		INSERT INTO movimentacoes
+		(produto_id, obra_id, usuario_id, tipo, quantidade, observacao, inventario_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, materialID, siteID, userID, MovementAdjustment, quantity, note, inventoryID)
 	return err
 }
 

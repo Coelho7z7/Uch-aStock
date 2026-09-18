@@ -15,6 +15,8 @@ var allPermissions = []Permission{
 	PermCreateRequest, PermApproveRequest, PermServeRequest, PermViewAllRequests, PermApproveOwnRequest,
 	PermViewAllMovements, PermExportMovements,
 	PermManageUsers, PermManageSites, PermReopenSite, PermAllSites,
+	PermManageSuppliers,
+	PermViewInventory, PermCountInventory, PermApproveInventory, PermApproveOwnInventory,
 }
 
 // adminPermissions é tudo menos aprovar a própria solicitação, que fica só
@@ -24,6 +26,8 @@ var adminPermissions = []Permission{
 	PermCreateRequest, PermApproveRequest, PermServeRequest, PermViewAllRequests,
 	PermViewAllMovements, PermExportMovements,
 	PermManageUsers, PermManageSites, PermReopenSite, PermAllSites,
+	PermManageSuppliers,
+	PermViewInventory, PermCountInventory, PermApproveInventory,
 }
 
 func TestCanEveryRoleEveryPermission(t *testing.T) {
@@ -40,14 +44,16 @@ func TestCanEveryRoleEveryPermission(t *testing.T) {
 			PermCreateRequest, PermApproveRequest, PermServeRequest, PermViewAllRequests,
 			PermViewAllMovements, PermExportMovements,
 			PermManageUsers, PermManageSites,
+			PermViewInventory, PermCountInventory, PermApproveInventory,
 		}},
 		{services.RoleStorekeeper, []Permission{
 			PermMoveStock,
 			PermCreateRequest, PermServeRequest, PermViewAllRequests,
 			PermViewAllMovements, PermExportMovements,
+			PermViewInventory, PermCountInventory,
 		}},
 		{services.RoleRequester, []Permission{PermCreateRequest}},
-		{services.RoleAuditor, []Permission{PermViewAllRequests, PermViewAllMovements, PermExportMovements}},
+		{services.RoleAuditor, []Permission{PermViewAllRequests, PermViewAllMovements, PermExportMovements, PermViewInventory}},
 		// Cargos antigos e desconhecidos não podem nada: se a migração não
 		// rodasse, ninguém ganharia acesso por engano.
 		{"gerente", nil},

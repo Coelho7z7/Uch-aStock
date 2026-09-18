@@ -235,6 +235,10 @@ func checkSiteStatusChange(tx *sql.Tx, id int, status string, allowReopen bool) 
 		if err != nil {
 			return current, err
 		}
+		openInventory, err := openInventoryTx(tx, id)
+		if err != nil {
+			return current, err
+		}
 
 		var blockers []string
 		if stocked == 1 {
@@ -248,6 +252,9 @@ func checkSiteStatusChange(tx *sql.Tx, id int, status string, allowReopen bool) 
 		}
 		if openRequests > 1 {
 			blockers = append(blockers, fmt.Sprintf("%d solicitações ainda estão em aberto (pendentes, aprovadas ou parciais). Atenda, rejeite ou cancele antes de encerrar.", openRequests))
+		}
+		if openInventory > 0 {
+			blockers = append(blockers, fmt.Sprintf("o inventário %s ainda está aberto. Aprove ou cancele antes de encerrar.", InventoryCode(openInventory)))
 		}
 		if len(blockers) > 0 {
 			return current, SiteInputError{"não é possível encerrar: " + strings.Join(blockers, " ")}

@@ -143,6 +143,11 @@ Cargos (valor gravado no banco entre parênteses):
 | obras.gerenciar         |   x   |   x    |            |             |         |
 | obras.reabrir           |   x   |        |            |             |         |
 | obras.todas             |   x   |        |            |             |         |
+| fornecedores.gerenciar  |   x   |        |            |             |         |
+| inventario.ver          |   x   |   x    |     x      |             |    x    |
+| inventario.contar       |   x   |   x    |     x      |             |         |
+| inventario.aprovar      |   x   |   x    |            |             |         |
+| inventario.aprovar_propria |    |        |            |             |         |
 
 Administrador (admin), Gestor (gestor), Almoxarife (almoxarife),
 Solicitante (solicitante), Auditor (auditor).
@@ -150,7 +155,13 @@ Solicitante (solicitante), Auditor (auditor).
 - superadmin pode tudo (can() devolve true) e continua reservado a
   superadmin@gmail.com: não aparece no dropdown e não pode ser alterado,
   removido nem ter a senha trocada por outra pessoa.
-- Todo cargo vê dashboard, materiais e estoque.
+- Todo cargo vê dashboard, materiais, estoque e fornecedores.
+- O cadastro de fornecedores (/fornecedores) é um só para a empresa, como
+  o catálogo de materiais: fornecedores.gerenciar (só admin) cadastra,
+  edita, desativa e reativa. Fornecedor não é apagado, só desativado
+  (fornecedores.ativo = 0), e nome e CNPJ não se repetem nem com um
+  desativado. O CNPJ é opcional, gravado sem pontuação, e aceita o formato
+  alfanumérico da Receita (desde julho de 2026).
 - A aba Relatórios usa movimentacoes.ver_todas: o relatório é a soma do que
   a obra inteira movimentou, então quem só vê as próprias movimentações
   (solicitante) não recebe a aba nem a rota /relatorios.
@@ -296,6 +307,43 @@ solicitacao.atender), só da obra do usuário (admin: a do seletor).
 Dashboard: cartão "Solicitações em aberto" com as 5 mais antigas visíveis.
 Movimentações: saídas de solicitação mostram "Req. #N", que vira link só
 para quem pode abrir a solicitação; o CSV ganhou a coluna Solicitação.
+
+
+INVENTÁRIOS
+
+/inventarios (lista, busca por número/obra/contador, filtro por situação)
+/inventarios/{id} (contagem e ações) · /inventarios/{id}/exportar (CSV)
+
+Fluxo: EM_CONTAGEM -> AGUARDANDO_APROVACAO -> APROVADO; rejeitar volta para
+EM_CONTAGEM (com motivo); cancelar (em contagem ou aguardando) -> CANCELADO.
+- Iniciar congela o saldo de cada material ativo com saldo <> 0 na obra
+  (inventario_itens.saldo_esperado). Material achado sem estar na lista é
+  acrescentado com o saldo atual (congelado) como esperado.
+- Enquanto há inventário EM_CONTAGEM ou AGUARDANDO_APROVACAO na obra, ela
+  não aceita entrada, saída, atendimento de solicitação nem material novo
+  com saldo inicial: o bloqueio está em requireOperableSiteTx, por onde
+  toda movimentação passa (ErrSiteInInventory). Um índice único parcial
+  garante no máximo um inventário aberto por obra.
+- Obra com inventário aberto não pode ser encerrada; material que está
+  numa contagem aberta não pode ser removido.
+- Enviar exige todos os itens contados e justificativa em toda diferença.
+  Se o envio falhar, nada é gravado (a tela volta com o que foi digitado).
+- Aprovar: cada diferença vira uma movimentação tipo AJUSTE, com sinal
+  (+ sobrou, - faltou), observação "Inventário INV-0007" e
+  movimentacoes.inventario_id; o saldo passa a ser o contado. Os Relatórios
+  só somam ENTRADA e SAIDA, então ajuste não conta como consumo.
+- Ninguém aprova a contagem da qual participou (quem abriu, quem enviou ou
+  quem registrou algum número: inventario_itens.contado_por). A exceção é
+  inventario.aprovar_propria, que só o superadmin tem.
+- Rejeitar não mexe no estoque, por isso quem contou pode rejeitar a
+  própria contagem (é o jeito de reabri-la para corrigir).
+- Cancelar: quem aprova, ou quem abriu enquanto ainda está em contagem.
+
+Permissões: inventario.ver (admin, gestor, almoxarife, auditor),
+inventario.contar (admin, gestor, almoxarife), inventario.aprovar (admin,
+gestor). O solicitante não vê a aba. Sem obras.todas, tudo vale só na obra
+vinculada ao usuário. Barra lateral: Inventários mostra quantos aguardam
+aprovação, para quem aprova.
 
 
 OBRA SELECIONADA

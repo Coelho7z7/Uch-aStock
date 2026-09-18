@@ -477,6 +477,9 @@ func ServeRequest(actor RequestActor, requestID int, deliveries []RequestDeliver
 			if errors.Is(err, ErrInsufficientStock) {
 				return "", RequestInputError{fmt.Sprintf("%s: %v", item.Name, err)}
 			}
+			if errors.Is(err, ErrSiteInInventory) {
+				return "", RequestInputError{err.Error()}
+			}
 			return "", err
 		}
 		if _, err := tx.Exec(`

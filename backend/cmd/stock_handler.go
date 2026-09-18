@@ -38,6 +38,10 @@ func stockHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		Nav navData
 		// CanEditMaterial mostra a aba Alterar material.
 		CanEditMaterial bool
+		// OpenInventoryID é o inventário aberto da obra escolhida (0 se não
+		// houver), para o aviso de que entrada e saída estão bloqueadas.
+		OpenInventoryID   int
+		OpenInventoryCode string
 	}{
 		User:            user,
 		Scope:           scope,
@@ -118,6 +122,14 @@ func stockHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 
 	data.Materials = materials
 	data.Page = page
+
+	if scope.Current != nil {
+		if data.OpenInventoryID, err = services.OpenInventoryAt(scope.Current.ID); err != nil {
+			log.Println("erro em OpenInventoryAt:", err)
+		} else if data.OpenInventoryID > 0 {
+			data.OpenInventoryCode = services.InventoryCode(data.OpenInventoryID)
+		}
+	}
 
 	data.TotalPages = (total + materialsPerPage - 1) / materialsPerPage
 	if data.TotalPages < 1 {

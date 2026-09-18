@@ -375,6 +375,64 @@ func createTablesTx(tx *sql.Tx) error {
 		criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
+	-- Fornecedores de material da empresa (um cadastro só, para todas as
+	-- obras). cnpj fica só com os 14 caracteres, sem pontuação, ou vazio.
+	-- Fornecedor nunca é apagado, só desativado (ativo = 0): se um dia uma
+	-- entrada apontar para ele, o histórico não perde a referência.
+	CREATE TABLE IF NOT EXISTS fornecedores (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		nome TEXT NOT NULL,
+		cnpj TEXT NOT NULL DEFAULT '',
+		contato TEXT NOT NULL DEFAULT '',
+		telefone TEXT NOT NULL DEFAULT '',
+		email TEXT NOT NULL DEFAULT '',
+		cidade TEXT NOT NULL DEFAULT '',
+		observacao TEXT NOT NULL DEFAULT '',
+		ativo INTEGER NOT NULL DEFAULT 1,
+		criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	-- Inventário: a contagem física de uma obra, comparada com o saldo.
+	-- status é 'EM_CONTAGEM', 'AGUARDANDO_APROVACAO', 'APROVADO' ou
+	-- 'CANCELADO'; enquanto está em contagem ou aguardando aprovação, a
+	-- obra não aceita entrada nem saída. Rejeitar devolve para contagem,
+	-- com o motivo em motivo_rejeicao. Datas em UTC, como o resto do banco.
+	CREATE TABLE IF NOT EXISTS inventarios (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		obra_id INTEGER NOT NULL REFERENCES obras(id),
+		status TEXT NOT NULL DEFAULT 'EM_CONTAGEM',
+		aberto_por INTEGER NOT NULL REFERENCES usuarios(id),
+		aberto_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+		enviado_por INTEGER REFERENCES usuarios(id),
+		enviado_em DATETIME,
+		decidido_por INTEGER REFERENCES usuarios(id),
+		decidido_em DATETIME,
+		motivo_rejeicao TEXT NOT NULL DEFAULT '',
+		atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	-- Itens do inventário. saldo_esperado é o saldo congelado no início
+	-- (ou quando o material foi acrescentado). quantidade_contada NULL é
+	-- item ainda não contado. contado_por é quem registrou a contagem: essa
+	-- pessoa não aprova o ajuste. REAL, como o saldo.
+	CREATE TABLE IF NOT EXISTS inventario_itens (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		inventario_id INTEGER NOT NULL REFERENCES inventarios(id),
+		produto_id INTEGER NOT NULL REFERENCES produtos(id),
+		saldo_esperado REAL NOT NULL,
+		quantidade_contada REAL,
+		justificativa TEXT NOT NULL DEFAULT '',
+		contado_por INTEGER REFERENCES usuarios(id),
+		UNIQUE (inventario_id, produto_id)
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_inventarios_obra_status ON inventarios (obra_id, status);
+	CREATE INDEX IF NOT EXISTS idx_inventario_itens_inventario ON inventario_itens (inventario_id);
+	-- No máximo um inventário aberto por obra. Índice parcial: só as linhas
+	-- em aberto entram nele, então o histórico pode ter vários da mesma obra.
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_inventarios_um_aberto_por_obra
+		ON inventarios (obra_id) WHERE status IN ('EM_CONTAGEM', 'AGUARDANDO_APROVACAO');
+
 	CREATE INDEX IF NOT EXISTS idx_solicitacoes_obra_status ON solicitacoes (obra_id, status);
 	CREATE INDEX IF NOT EXISTS idx_solicitacoes_solicitante ON solicitacoes (solicitante_id);
 	CREATE INDEX IF NOT EXISTS idx_solicitacao_itens_solicitacao ON solicitacao_itens (solicitacao_id);
@@ -448,6 +506,8 @@ func createTablesTx(tx *sql.Tx) error {
 		// Solicitação que originou a saída. NULL para entrada, saída avulsa
 		// e atualização de cadastro.
 		{"movimentacoes", "solicitacao_id", "INTEGER REFERENCES solicitacoes(id)"},
+		// Inventário que originou o ajuste (tipo AJUSTE). NULL para o resto.
+		{"movimentacoes", "inventario_id", "INTEGER REFERENCES inventarios(id)"},
 	}
 	for _, c := range newColumns {
 		if err = addColumnIfMissing(tx, c.table, c.column, c.definition); err != nil {

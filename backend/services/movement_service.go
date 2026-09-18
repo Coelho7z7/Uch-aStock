@@ -10,7 +10,7 @@ import (
 )
 
 // validMovementTypes são os valores aceitos em movimentacoes.tipo.
-var validMovementTypes = map[string]bool{"ENTRADA": true, "SAIDA": true, "ATUALIZACAO": true}
+var validMovementTypes = map[string]bool{"ENTRADA": true, "SAIDA": true, "ATUALIZACAO": true, MovementAdjustment: true}
 
 // IsValidMovementType indica se o texto é um tipo de movimentação
 // conhecido. O handler usa para ignorar um ?tipo= inventado na URL.
@@ -138,10 +138,15 @@ func GetMovementsFilteredWeb(filter MovementFilter) ([]models.Movement, error) {
 		movement.FormattedDate = formattedDate.Local().Format("02/01/2006")
 		movement.FormattedTime = formattedDate.Local().Format("15:04")
 		movement.FormattedQuantity = utils.FormatQuantity(movement.Quantity)
+		// O ajuste tem sinal: "+3" quando sobrou, "-2" quando faltou.
+		if movement.Type == MovementAdjustment && movement.Quantity > 0 {
+			movement.FormattedQuantity = "+" + movement.FormattedQuantity
+		}
 		movement.FormattedType = map[string]string{
-			"ENTRADA":     "Entrada",
-			"SAIDA":       "Saída",
-			"ATUALIZACAO": "Atualização",
+			"ENTRADA":          "Entrada",
+			"SAIDA":            "Saída",
+			"ATUALIZACAO":      "Atualização",
+			MovementAdjustment: "Ajuste",
 		}[movement.Type]
 		if movement.FormattedType == "" {
 			movement.FormattedType = movement.Type

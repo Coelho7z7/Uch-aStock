@@ -85,6 +85,10 @@ No Railway, a aplicação utiliza automaticamente a porta fornecida pela variáv
 
 * `/estoque` — Entradas e saídas de estoque
 
+* `/fornecedores` — Cadastro de fornecedores
+
+* `/inventarios` — Inventário: contagem física, diferenças e ajuste aprovado
+
 * `/movimentacoes` — Histórico de movimentações
 
 * `/solicitacoes` — Solicitações de material: lista com filtro e busca

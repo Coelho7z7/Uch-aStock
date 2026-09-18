@@ -43,6 +43,10 @@ type navData struct {
 	// templates internos: assim a aba nova não precisou de um campo novo
 	// em cada handler.
 	CanViewReports bool
+	// CanViewInventory mostra a aba Inventários; InventoryPending conta os
+	// que aguardam aprovação, para quem aprova.
+	CanViewInventory bool
+	InventoryPending int
 }
 
 // buildNav calcula os contadores da barra lateral. Erro no banco não
@@ -65,6 +69,16 @@ func buildNav(user *models.User, scope siteScope) navData {
 		filter.Statuses = []string{services.RequestApproved, services.RequestPartial}
 		if nav.ToServe, err = services.CountRequests(filter); err != nil {
 			log.Println("erro ao contar solicitações para atender:", err)
+		}
+	}
+
+	inventory := inventoryActor(user)
+	nav.CanViewInventory = inventory.CanView
+	if inventory.CanApprove {
+		filter := inventory.VisibleFilter(scope.SiteID())
+		filter.Status = services.InventoryAwaitingApproval
+		if nav.InventoryPending, err = services.CountInventories(filter); err != nil {
+			log.Println("erro ao contar inventários aguardando aprovação:", err)
 		}
 	}
 	return nav

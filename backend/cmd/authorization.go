@@ -93,6 +93,20 @@ func requestActor(user *models.User) services.RequestActor {
 	}
 }
 
+// inventoryActor monta o InventoryActor do usuário, com as permissões já
+// resolvidas, como requestActor.
+func inventoryActor(user *models.User) services.InventoryActor {
+	return services.InventoryActor{
+		UserID:     user.ID,
+		SiteID:     user.SiteID,
+		AllSites:   can(user, PermAllSites),
+		CanView:    can(user, PermViewInventory),
+		CanCount:   can(user, PermCountInventory),
+		CanApprove: can(user, PermApproveInventory),
+		ApproveOwn: can(user, PermApproveOwnInventory),
+	}
+}
+
 // renderNotFound responde 404 com a página "não encontrada" no visual do
 // sistema. É a mesma resposta para um endereço que não existe e para uma
 // solicitação fora do alcance: quem pede não fica sabendo se ela existe.

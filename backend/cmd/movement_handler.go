@@ -192,6 +192,11 @@ func movementExportHandler(w http.ResponseWriter, r *http.Request, user *models.
 		if movement.Type == "ATUALIZACAO" {
 			quantity, unit = "", ""
 		}
+		// No CSV o ajuste sai sem o "+": célula começando com "+" é lida
+		// como fórmula pelo Excel. O "-" de quando faltou fica: é número.
+		if movement.Type == services.MovementAdjustment {
+			quantity = utils.FormatQuantity(movement.Quantity)
+		}
 		_ = writer.Write([]string{
 			movement.FormattedDate,
 			movement.FormattedTime,
