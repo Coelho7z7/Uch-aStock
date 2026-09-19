@@ -1,16 +1,12 @@
-/* ============================================================
-   UchôaStock — Tela de login
-   Layout próprio: hero de apresentação + cartão de acesso.
-   As animações de entrada foram preservadas (manchas flutuantes,
-   gráfico que se desenha, respiração e entrada em cascata). O cartão
-   ganhou as faixas da logo da Uchôa, que se desenham ao abrir.
+/* Tela de login. Tem layout próprio: um painel de apresentação (hero) e
+   o cartão com o formulário. Só esta tela carrega este arquivo.
 
-   No hero, a apresentação dura ~2,2s: a logo se desenha barra por
-   barra, o título e o subtítulo entram atrás dela, e aí tudo fica
-   parado. O gráfico do rodapé continua vivo em ritmo lento — pontos
-   nos vértices e um ponto que atravessa a linha a cada 14s, com a
-   mancha de luz de fundo acompanhando o mesmo ciclo.
-   ============================================================ */
+   A apresentação do hero leva uns 2 segundos: a logo se desenha barra
+   por barra, o título e o subtítulo entram logo depois, e aí tudo para.
+   Só o gráfico do rodapé continua se mexendo, devagar: os pontos nos
+   vértices respiram e um ponto atravessa a linha a cada 14s, com a
+   mancha de luz do fundo acompanhando. O cartão tem as faixas da logo,
+   que se desenham quando a página abre. */
 
 .login-page {
     display: flex;
@@ -18,9 +14,7 @@
     min-height: 100dvh;
 }
 
-/* ============================================================
-   Hero
-   ============================================================ */
+/* Painel de apresentação (hero) */
 
 .login-hero {
     position: relative;
@@ -31,17 +25,18 @@
     padding: var(--space-6) var(--space-5) var(--space-7);
     overflow: hidden;
     color: var(--color-text-invert);
-    /* Malha de pontos sobre o fundo escuro — a textura do login. O
-       primeiro gradiente desenha o ponto, o background-size define o
-       passo da grade (28px). */
+    /* Malha de pontos por cima do fundo escuro. O primeiro gradiente
+       desenha o ponto e o background-size define a distância entre eles
+       (28px). */
     background:
         radial-gradient(circle, var(--color-hero-dots) 1px, transparent 1px),
         var(--color-hero-gradient);
     background-size: 28px 28px, auto;
 }
 
-/* Manchas de luz ao fundo. Elas ficam atrás de tudo; o seletor
-   abaixo levanta o conteúdo real para z-index 1. */
+/* Manchas de luz no fundo. Elas ficam atrás de tudo, e o seletor
+   .login-hero > :not(.hero-chart), mais abaixo, põe o conteúdo por cima
+   delas. */
 .login-hero::before,
 .login-hero::after {
     content: "";
@@ -68,10 +63,10 @@
     bottom: -100px;
     right: 10%;
     background: radial-gradient(circle, var(--color-brand-soft) 0%, transparent 70%);
-    /* Mesmo ciclo e mesmo atraso do ponto que percorre o gráfico, e o
-       ponto mais à direita no mesmo instante (66%): a luz de fundo
-       parece seguir o dado. backwards segura a posição inicial durante
-       o atraso, senão a mancha daria um salto ao começar. */
+    /* Mesmo ciclo e mesmo atraso do ponto que percorre o gráfico, e a
+       mancha chega no ponto mais à direita junto com ele (66%). Assim a
+       luz parece seguir o ponto. O backwards segura a posição inicial
+       durante o atraso; sem ele a mancha daria um pulo ao começar. */
     animation: acompanharMancha 14s ease-in-out 2.6s infinite backwards;
 }
 
@@ -104,11 +99,12 @@
     z-index: 1;
 }
 
-/* ---------- Marca: logo + título + subtítulo ----------
-   Uma linha só: a logo à esquerda e, ao lado, o título com o
-   subtítulo embaixo. O bloco inteiro fica centralizado no hero pelo
-   align-items do .login-hero. Logo e título crescem juntos nos
-   breakpoints (ver no fim do arquivo) para manterem a proporção. */
+/* Logo, título e subtítulo
+
+   Ficam numa linha só: a logo à esquerda e o título ao lado, com o
+   subtítulo embaixo. O align-items do .login-hero centraliza o bloco. A
+   logo e o título crescem juntos nos breakpoints do fim do arquivo, para
+   manter a proporção entre os dois. */
 
 .login-brand {
     display: flex;
@@ -116,11 +112,10 @@
     gap: var(--space-4);
 }
 
-/* A logo é mais alta que larga, então o tamanho é travado pela
-   altura, que cresce com a largura da tela (clamp, igual ao título).
-   flex-shrink: 0 impede que o texto a esmague em tela estreita. O
-   aspect-ratio é o do arquivo (419x477) e substitui a largura que o
-   <img> calculava sozinho — o desenho fica do mesmo tamanho de antes. */
+/* A logo é mais alta que larga, então quem manda no tamanho é a altura,
+   que cresce com a largura da tela (clamp, como no título). O
+   flex-shrink: 0 impede o texto de esmagar a logo em tela estreita, e o
+   aspect-ratio é o do próprio arquivo (419x477). */
 .login-logo {
     position: relative;
     flex-shrink: 0;
@@ -128,27 +123,27 @@
     aspect-ratio: 419 / 477;
 }
 
-/* ---------- Entrada da logo: uma barra de cada vez ----------
-   As seis cópias da imagem são idênticas e ficam empilhadas no bloco
-   inteiro. Quem separa uma da outra é o clip-path, que deixa visível só
-   a fatia de cada barra. Como todas desenham a MESMA imagem no MESMO
-   lugar, o resultado somado é a logo original pixel a pixel — o recorte
-   não redimensiona nada.
+/* Entrada da logo, uma barra de cada vez
 
-   De onde vêm as porcentagens: no arquivo de 477px de altura as barras
-   ocupam 34-102, 109-170, 184-238, 258-306, 333-374 e 408-442. Os
-   cortes foram postos no MEIO dos vazios entre elas (105,5 / 177 / 248
-   / 319,5 / 391), então nenhuma barra é partida e qualquer sobra de
-   arredondamento cai em cima de pixel transparente.
+   São seis cópias iguais da imagem, uma em cima da outra. O clip-path de
+   cada cópia deixa aparecer só a fatia de uma barra. Como todas desenham
+   a mesma imagem no mesmo lugar, somadas elas formam a logo original
+   sem nenhuma diferença; o recorte não redimensiona nada.
+
+   De onde vêm as porcentagens: no arquivo, que tem 477px de altura, as
+   barras ocupam 34-102, 109-170, 184-238, 258-306, 333-374 e 408-442.
+   Os cortes ficam no meio dos espaços vazios entre elas (105,5 / 177 /
+   248 / 319,5 / 391). Assim nenhuma barra é cortada, e qualquer sobra
+   de arredondamento cai num pixel transparente.
 
    O inset() do clip-path recebe (topo, direita, base, esquerda). Topo e
-   base são a fatia, fixos por faixa. A direita é a animação: sai de
-   100% (nada aparece) e vai a 0%, descobrindo a barra da esquerda para
-   a direita, como uma linha sendo desenhada.
+   base definem a fatia e são fixos para cada barra. A direita é o que
+   anima: vai de 100% (nada aparece) até 0%, revelando a barra da
+   esquerda para a direita, como uma linha sendo desenhada.
 
-   O @property existe porque o navegador só sabe interpolar uma variável
-   CSS se ela tiver um tipo declarado; sem isso a barra apareceria de
-   uma vez, sem o traçado. */
+   O @property é necessário porque o navegador só consegue animar uma
+   variável CSS se ela tiver um tipo declarado. Sem ele a barra
+   apareceria de uma vez, sem o efeito de desenho. */
 
 @property --logo-wipe {
     syntax: "<percentage>";
@@ -163,8 +158,8 @@
     height: 100%;
     object-fit: contain;
     clip-path: inset(var(--band-top) var(--logo-wipe) var(--band-bottom) 0);
-    /* both segura o recorte inicial durante o atraso; sem isso a barra
-       apareceria inteira e só então sumiria para se desenhar. */
+    /* O both segura o recorte inicial durante o atraso. Sem ele a barra
+       apareceria inteira, sumiria e só então se desenharia. */
     animation: desenharLogoLinha 0.65s var(--ease-out) both;
 }
 
@@ -214,17 +209,17 @@
     animation-delay: 0.60s;
 }
 
-/* min-width: 0 deixa o bloco de texto encolher e quebrar linha em
-   vez de empurrar a página para os lados. */
+/* O min-width: 0 deixa o texto encolher e quebrar linha, em vez de
+   empurrar a página para os lados. */
 .login-brand-text {
     min-width: 0;
 }
 
 /* O texto entra na sequência da logo: o título logo depois da quarta
-   barra, o subtítulo em seguida e mais devagar que ele. A última barra
-   termina em 1,25s, o título em 1,70s e o subtítulo em 2,15s.
-   animation-fill-mode: both segura o estado inicial durante o atraso,
-   senão o texto apareceria antes da hora e só então sumiria. */
+   barra e o subtítulo em seguida, um pouco mais devagar. A última barra
+   termina em 1,25s, o título em 1,70s e o subtítulo em 2,15s. O both
+   segura o estado inicial durante o atraso, senão o texto apareceria
+   antes da hora e depois sumiria. */
 .login-hero h1 {
     margin-bottom: var(--space-2);
     font-size: var(--text-display-sm);
@@ -253,7 +248,7 @@
     }
 }
 
-/* ---------- Gráfico decorativo ---------- */
+/* Gráfico decorativo no rodapé do hero */
 
 .hero-chart {
     position: absolute;
@@ -266,7 +261,8 @@
     animation: respirarGrafico 4s ease-in-out 2.2s infinite;
 }
 
-/* A linha se desenha: o traço começa todo "fora" e entra. */
+/* A linha se desenha: o traço começa todo deslocado para fora e vai
+   entrando. */
 .hero-chart polyline:first-child {
     stroke-dasharray: 700;
     stroke-dashoffset: 700;
@@ -302,12 +298,13 @@
     }
 }
 
-/* ---------- Pontos do gráfico ----------
-   Marcadores nos vértices da linha. Acendem uma vez, depois que a linha
-   termina de se desenhar, e a partir daí ficam respirando devagar. São
-   duas animações na mesma regra: a segunda começa exatamente onde a
-   primeira parou (0.45), então a emenda não aparece. Quando duas
-   animações mexem na mesma propriedade, vale a última da lista. */
+/* Pontos nos vértices do gráfico
+
+   Eles acendem uma vez, depois que a linha termina de se desenhar, e
+   dali em diante ficam respirando devagar. São duas animações na mesma
+   regra, e a segunda começa exatamente na opacidade em que a primeira
+   termina (0.45), então não dá para ver a emenda. Quando duas animações
+   mexem na mesma propriedade, vale a última da lista. */
 
 .hero-chart-nodes path {
     fill: none;
@@ -320,8 +317,8 @@
         respirarPonto 5s ease-in-out 2.8s infinite;
 }
 
-/* Durações de respiro diferentes deixam os pontos fora de compasso, o
-   que parece mais natural que os três piscando juntos. */
+/* Cada ponto respira num ritmo diferente. Os três piscando juntos
+   pareceria mecânico. */
 .hero-chart-nodes path:nth-child(2) {
     animation-duration: 0.9s, 6.5s;
 }
@@ -348,23 +345,24 @@
     }
 }
 
-/* ---------- Ponto que percorre o gráfico ----------
-   O grupo ganha um offset-path com o mesmo traçado da linha e passa a
-   andar por ele: offset-distance vai de 0% (ponta esquerda) a 100%
-   (ponta direita). Como o deslocamento é um transform, o navegador
-   consegue animar sem repintar o gráfico a cada quadro, e o ponto
-   continua redondo mesmo com o SVG esticado.
+/* Ponto que percorre o gráfico
 
-   offset-rotate: 0deg desliga o giro que o offset-path aplica por
-   padrão — um ponto não precisa se orientar pela curva.
+   O grupo recebe um offset-path com o mesmo traçado da linha e anda por
+   ele: o offset-distance vai de 0% (ponta esquerda) a 100% (ponta
+   direita). Como isso é um transform, o navegador anima sem repintar o
+   gráfico a cada quadro, e o ponto continua redondo mesmo com o SVG
+   esticado.
 
-   Ele leva ~9s para atravessar e fica apagado no resto do ciclo, então
-   a tela passa a maior parte do tempo parada. A opacidade é do grupo,
-   para as duas cópias (brilho e miolo) acenderem e apagarem juntas.
+   O offset-rotate: 0deg desliga o giro que o offset-path aplica por
+   padrão; um ponto não precisa acompanhar a inclinação da curva.
 
-   O @supports é o plano B: onde offset-path não existir, o grupo fica
-   no opacity: 0 abaixo e simplesmente não aparece, em vez de largar um
-   ponto parado no canto do gráfico. */
+   Ele leva uns 9s para atravessar e fica apagado no resto do ciclo, então
+   a tela passa a maior parte do tempo parada. A opacidade fica no grupo
+   para as duas partes (brilho e miolo) acenderem e apagarem juntas.
+
+   O @supports protege os navegadores sem offset-path: neles o grupo fica
+   com opacity: 0 e não aparece, em vez de deixar um ponto parado no
+   canto do gráfico. */
 
 .hero-chart-pulse {
     opacity: 0;
@@ -426,9 +424,7 @@
     }
 }
 
-/* ============================================================
-   Formulário
-   ============================================================ */
+/* Formulário */
 
 .login-form-side {
     display: flex;
@@ -439,9 +435,9 @@
     background: var(--color-bg-gradient);
 }
 
-/* O cartão guarda o próprio padding numa variável local porque as
-   faixas do topo usam o mesmo valor em negativo para encostar nas
-   bordas do cartão. Assim, mudar o padding não desalinha as faixas. */
+/* O cartão guarda o padding numa variável porque as faixas do topo usam
+   o mesmo valor em negativo para encostar nas bordas. Assim, mudar o
+   padding não desalinha as faixas. */
 .login-card {
     --card-padding: var(--space-5);
 
@@ -469,11 +465,12 @@
     }
 }
 
-/* ---------- Faixas da marca ----------
-   Repetem o desenho da logo: faixas horizontais que sobem num degrau
-   em curva. Ficam no topo do cartão, encostadas na borda direita, e
-   somem suavemente para a esquerda — é o degradê do stroke que faz
-   isso, não uma máscara. São só decoração (aria-hidden no HTML). */
+/* Faixas da marca no topo do cartão
+
+   Repetem o desenho da logo: faixas horizontais que sobem num degrau em
+   curva. Ficam encostadas na borda direita e somem aos poucos para a
+   esquerda; quem faz isso é o degradê do stroke, não uma máscara. São só
+   enfeite, por isso têm aria-hidden no HTML. */
 
 .login-card-waves {
     height: 88px;
@@ -502,9 +499,9 @@
     stop-opacity: 1;
 }
 
-/* pathLength="1" no HTML normaliza o tamanho de cada faixa para 1,
-   então dasharray/dashoffset 1 valem para todas, seja qual for o
-   comprimento real da curva. */
+/* O pathLength="1" no HTML faz cada faixa medir 1, então dasharray e
+   dashoffset 1 servem para todas, qualquer que seja o comprimento real
+   da curva. */
 .wave {
     stroke: url(#waveFade);
     stroke-width: 10;
@@ -514,7 +511,7 @@
     animation: desenharLinha 1.1s var(--ease-out) forwards;
 }
 
-/* Entrada em cascata: cada faixa começa um pouco depois da anterior. */
+/* Cada faixa começa um pouco depois da anterior. */
 .wave:nth-of-type(1) {
     animation-delay: 0.45s;
 }
@@ -546,10 +543,9 @@
     margin-top: var(--space-3);
 }
 
-/* ---------- Rodapé ----------
-   Minimalista de propósito: o rodapé do login não disputa atenção com
-   o formulário. Fica separado por uma linha fina e usa o menor degrau
-   tipográfico do sistema. */
+/* Rodapé do cartão. É discreto de propósito, para não disputar atenção
+   com o formulário: separado por uma linha fina e com a menor fonte do
+   sistema. */
 
 .login-footer {
     margin-top: var(--space-6);
@@ -574,12 +570,13 @@
     margin-top: var(--space-1);
 }
 
-/* ---------- Menos movimento ----------
-   O base.css já encurta toda animação para 0,01ms, o que basta para as
-   entradas: elas usam fill-mode forwards/both e param no estado final.
-   O que não basta é para o que roda em laço — o ponto do gráfico e o
-   respiro. Aqui eles são desligados pelo nome, sem !important, e o
-   ponto some porque o grupo nasce com opacity: 0. */
+/* Menos movimento
+
+   O base.css já encurta toda animação para 0,01ms, e isso resolve as
+   entradas, que param no estado final. Não resolve o que roda em laço (o
+   ponto do gráfico e o respiro), então aqui essas animações são
+   desligadas pelo nome. O ponto some porque o grupo começa com
+   opacity: 0. */
 
 @media (prefers-reduced-motion: reduce) {
 
@@ -591,7 +588,7 @@
     }
 }
 
-/* ---------- Alerta de erro ---------- */
+/* Alerta de erro do login */
 
 .login-alert {
     position: fixed;
@@ -638,8 +635,8 @@
 }
 
 /* O número da contagem regressiva muda a cada segundo. Com dígitos de
-   largura fixa (tabular-nums) ele não empurra o texto ao lado a cada
-   troca, e a frase para de tremer. */
+   largura fixa (tabular-nums) ele não empurra o texto do lado, e a frase
+   não fica tremendo. */
 .login-lock-timer {
     font-weight: var(--weight-semibold);
     font-variant-numeric: tabular-nums;
@@ -653,9 +650,7 @@
     color: var(--color-text-muted);
 }
 
-/* ============================================================
-   Celular grande em diante: cartão mais folgado
-   ============================================================ */
+/* Do tablet para cima: logo, título e cartão maiores */
 
 @media (min-width: 768px) {
 
@@ -684,9 +679,7 @@
     }
 }
 
-/* ============================================================
-   Tablet e desktop: hero e formulário lado a lado
-   ============================================================ */
+/* A partir de 900px: hero e formulário lado a lado */
 
 @media (min-width: 900px) {
 
@@ -694,8 +687,9 @@
         flex-direction: row;
     }
 
-    /* Padding lateral menor que o vertical: em 900px o hero tem só
-       ~500px e a marca precisa desse espaço para não quebrar linha. */
+    /* Padding dos lados menor que o de cima e de baixo: com 900px de
+       tela o hero tem uns 500px, e a logo com o título precisa desse
+       espaço para não quebrar linha. */
     .login-hero {
         flex: 1 1 56%;
         padding: var(--space-8) var(--space-6);

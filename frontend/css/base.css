@@ -1,8 +1,6 @@
-/* ============================================================
-   UchôaStock — Base
-   Reset, elementos HTML puros, tipografia e acessibilidade.
-   Nada de componente aqui: isso é components.css.
-   ============================================================ */
+/* Base do UchôaStock: reset, estilo dos elementos HTML puros, tipografia
+   e acessibilidade. Componente (botão, card, modal...) fica no
+   components.css. */
 
 *,
 *::before,
@@ -23,8 +21,8 @@ body {
     font-weight: var(--weight-normal);
     line-height: var(--leading-normal);
     color: var(--color-text);
-    /* O gradiente radial e a assinatura do tema: clareia de leve no
-       canto superior, dando profundidade ao fundo quase preto. */
+    /* O gradiente radial clareia um pouco o canto de cima, para o fundo
+       quase preto não ficar chapado. */
     background: var(--color-bg);
     background-image: var(--color-bg-gradient);
     background-attachment: fixed;
@@ -32,7 +30,7 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
-/* ---------- Tipografia ---------- */
+/* Tipografia */
 
 h1,
 h2,
@@ -90,15 +88,15 @@ svg {
     display: block;
 }
 
-/* ---------- Ícones SVG ----------
-   Os ícones do projeto são traçados (stroke), não preenchidos. O padrão
-   do navegador para <svg> sem atributo é fill:black, o que transformava
-   cada ícone num borrão preto — ou, nos botões que contêm SÓ um ícone,
-   num botão aparentemente vazio.
+/* Ícones SVG
 
-   O :not([fill]) é o ponto central: quem já declara fill inline (o
-   gráfico do login, por exemplo) fica intocado; todo o resto herda o
-   traçado e a cor do texto do elemento pai. */
+   Os ícones do projeto são só contorno (stroke). Sem esta regra o
+   navegador pinta todo <svg> com fill preto, e o ícone vira um borrão;
+   num botão que só tem ícone, o botão parece vazio.
+
+   O :not([fill]) deixa em paz quem já define o fill no próprio SVG (o
+   gráfico do login, por exemplo). O resto herda o contorno e a cor do
+   texto do elemento pai. */
 svg:not([fill]) {
     fill: none;
     stroke: currentColor;
@@ -112,9 +110,8 @@ ol {
     list-style: none;
 }
 
-/* ---------- Formulários: herdar a fonte ----------
-   Sem isto o navegador aplica a fonte dele em input/button/select e a
-   tipografia do sistema vira uma colcha de retalhos. */
+/* Campos de formulário herdam a fonte. Sem isso o navegador usa a fonte
+   padrão dele em input, button e select, e cada campo fica com uma cara. */
 
 input,
 button,
@@ -135,13 +132,11 @@ table {
     border-collapse: collapse;
 }
 
-/* ============================================================
-   Acessibilidade
-   ============================================================ */
+/* Acessibilidade */
 
-/* Foco visível em tudo que recebe teclado.
-   :focus-visible (e não :focus) para o anel aparecer para quem navega
-   por Tab sem poluir o clique de mouse. */
+/* Anel de foco em tudo que recebe teclado. Uso :focus-visible em vez de
+   :focus para o anel aparecer quando a pessoa navega com Tab, mas não a
+   cada clique de mouse. */
 
 :focus-visible {
     outline: 2px solid var(--color-brand-light);
@@ -154,13 +149,12 @@ table {
     outline-color: var(--color-text-invert);
 }
 
-/* Some com o outline só de quem NÃO precisa dele (clique de mouse),
-   preservando o de teclado. */
+/* Tira o outline só no clique de mouse; no teclado ele continua. */
 :focus:not(:focus-visible) {
     outline: none;
 }
 
-/* Conteúdo lido por leitor de tela mas invisível na tela. */
+/* Texto que o leitor de tela lê, mas que não aparece na tela. */
 .sr-only {
     position: absolute;
     width: 1px;
@@ -173,7 +167,8 @@ table {
     border: 0;
 }
 
-/* Link de pular navegação: escondido até receber foco pelo teclado. */
+/* Link "pular para o conteúdo": fica escondido até alguém chegar nele
+   pelo teclado. */
 .skip-link {
     position: absolute;
     top: var(--space-2);
@@ -193,10 +188,10 @@ table {
     transform: translateY(0);
 }
 
-/* Respeita quem pediu menos animação no sistema operacional.
-   O app.js já checa isso em JS; aqui vale para o que é puro CSS.
-   Este é o único !important legítimo do projeto: precisa vencer
-   qualquer transition declarada depois. */
+/* Respeita quem pediu menos animação nas configurações do sistema. O
+   app.js já confere isso nas animações feitas em JS; aqui cobre as que
+   são só CSS. É o único !important do projeto, e precisa ser: tem que
+   vencer qualquer transition declarada depois. */
 @media (prefers-reduced-motion: reduce) {
 
     *,
@@ -209,7 +204,7 @@ table {
     }
 }
 
-/* ---------- Barra de rolagem ---------- */
+/* Barra de rolagem */
 
 * {
     scrollbar-width: thin;

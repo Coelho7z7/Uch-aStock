@@ -1,10 +1,6 @@
-// Toggle de mostrar/ocultar senha (Login)
-
-// ---------------------------------------------------------------------
-// Navegação mobile: sidebar sanduíche, overlay, ESC e fechamento ao navegar.
-// Também transforma cabeçalhos de tabela em data-labels para a visualização
-// em cards no celular.
-// ---------------------------------------------------------------------
+// Menu do celular: abre e fecha a sidebar como gaveta, com o fundo
+// escurecido atrás. Fecha no ESC, ao tocar num link ou quando a tela fica
+// larga o bastante para a sidebar ficar fixa (768px, o mesmo número do CSS).
 function initMobileNavigation() {
     const menuButton = document.querySelector('.mobile-menu-button');
     const sidebar = document.querySelector('.sidebar');
@@ -40,6 +36,9 @@ function initMobileNavigation() {
     });
 }
 
+// No celular cada linha de tabela vira um cartão (ver layout.css), e cada
+// célula precisa mostrar o nome da coluna. Aqui o texto de cada <th> é
+// copiado para o data-label das células daquela coluna.
 function initResponsiveTableLabels() {
     document.querySelectorAll('.content table').forEach(function (table) {
         const headers = Array.from(table.querySelectorAll('thead th')).map(function (th) {
@@ -56,16 +55,10 @@ function initResponsiveTableLabels() {
     });
 }
 
-// Mantém o ano do rodapé sempre correto.
-//
-// O HTML já vem com o ano escrito para o rodapé ficar completo mesmo
-// sem JS (e para quem lê o código-fonte); esta função só corrige na
-// virada do ano, para ninguém precisar editar o template todo 1º de
-// janeiro.
 // Linhas de item do formulário de nova solicitação (/solicitacoes/nova):
-// acrescentar, remover e mostrar a unidade do material escolhido. Só
-// isso: toda validação (item repetido, quantidade, limite de itens) é
-// feita no servidor.
+// acrescentar, remover e mostrar a unidade do material escolhido. O JS faz
+// só isso. Toda validação (item repetido, quantidade, limite de itens)
+// fica no servidor.
 function enableRequestItemRows() {
     const container = document.querySelector("[data-request-items]");
     const template = document.getElementById("request-item-template");
@@ -84,7 +77,7 @@ function enableRequestItemRows() {
         if (unit) unit.textContent = option && option.dataset.unit ? option.dataset.unit : "";
     };
 
-    // Não deixa passar do limite nem remover a última linha.
+    // Não deixa passar do limite de itens nem remover a última linha.
     const syncButtons = function () {
         const current = rows();
         if (addButton) addButton.disabled = current.length >= max;
@@ -105,7 +98,8 @@ function enableRequestItemRows() {
         });
     }
 
-    // Delegação no container: as linhas novas não têm ouvinte próprio.
+    // O clique é ouvido no container, e não em cada linha, porque as linhas
+    // criadas depois não teriam o ouvinte.
     container.addEventListener("click", function (event) {
         const remove = event.target.closest("[data-remove-item]");
         if (!remove || rows().length <= 1) return;
@@ -121,6 +115,9 @@ function enableRequestItemRows() {
     syncButtons();
 }
 
+// Mantém o ano do rodapé certo. O HTML já vem com o ano escrito, para o
+// rodapé ficar completo mesmo sem JS; isto só corrige na virada do ano,
+// para ninguém precisar editar o template todo 1º de janeiro.
 function initCurrentYear() {
     const ano = String(new Date().getFullYear());
     document.querySelectorAll("[data-current-year]").forEach(function (el) {
@@ -163,13 +160,13 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Modal de cadastro de material (Materiais). Mais de um botão pode abrir
-    // o mesmo modal (o cabeçalho da lista e o CTA do estado vazio).
+    // Modal de cadastro de material. Dois botões abrem o mesmo modal: o do
+    // cabeçalho da lista e o que aparece quando a tabela está vazia.
     //
-    // O clique é ouvido no document ("delegação") em vez de em cada botão:
-    // o CTA do estado vazio fica dentro da tabela, que a busca em tempo
-    // real troca por uma nova, e um ouvinte preso ao botão antigo sumiria
-    // junto com ele.
+    // O clique é ouvido no document, e não em cada botão (isso se chama
+    // delegação). O botão da tabela vazia fica dentro da tabela, que a busca
+    // em tempo real substitui por uma nova; um ouvinte preso no botão antigo
+    // sumiria junto com ele.
     const createModal = document.getElementById("create-material-modal");
     const closeCreateModal = document.getElementById("close-create-material");
 
@@ -202,15 +199,11 @@ document.addEventListener("DOMContentLoaded", function () {
     initAnimations();
 });
 
-// ---------------------------------------------------------------------
-// Animações globais (entrada suave de conteúdo, linhas de tabela em
-// cascata, fechamento animado de modais e destaque de mensagens).
+// Liga os comportamentos que valem em todas as telas e as animações.
 //
-// O CSS destas animações fica em frontend/css/components.css — antes era
-// injetado daqui por um <style>, o que deixava ~226 linhas de estilo
-// escondidas dentro do JS, fora do design system. Aqui só se liga e
-// desliga as classes gs-*.
-// ---------------------------------------------------------------------
+// O visual das animações fica no components.css (classes gs-*). Aqui o JS
+// só coloca e tira essas classes. Quem pediu menos animação no sistema
+// operacional fica só com o que é funcional: busca, confirmação, toasts.
 function initAnimations() {
     enableSearchableSelects();
     enableLiveSearch();
@@ -234,24 +227,24 @@ function initAnimations() {
     animateLoginError();
 }
 
-// Tira acentos e deixa minúsculo, para a busca achar "Maceió" digitando
-// "maceio". normalize("NFD") separa a letra do acento ("ó" vira "o" +
-// "´") e o replace apaga os acentos soltos.
+// Tira os acentos e deixa tudo minúsculo, para a busca achar "Maceió"
+// quando alguém digita "maceio". O normalize("NFD") separa a letra do
+// acento ("ó" vira "o" + "´") e o replace apaga os acentos que sobraram.
 function foldText(text) {
     return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
-// Lista com busca para <select data-searchable> (o seletor de obra do
-// topo e o campo Obra dos usuários).
+// Lista com busca para <select data-searchable>, usada no seletor de obra
+// do topo e no campo Obra dos usuários.
 //
-// O <select> original continua no formulário, só escondido: é ele que
-// guarda o valor e é enviado ao servidor. Na frente dele fica um botão
-// que abre um painel com um campo de busca e a lista filtrada. Sem
-// JavaScript, o <select> comum aparece e funciona.
+// O <select> original continua no formulário, só que escondido: é ele que
+// guarda o valor e vai para o servidor. Na frente dele fica um botão que
+// abre um painel com um campo de busca e a lista filtrada. Sem JavaScript,
+// o <select> comum aparece e funciona normalmente.
 //
-// Teclado: seta para baixo/cima percorre a lista, Enter escolhe, Esc fecha.
-// Ao escolher, o <select> recebe o valor e dispara "change" — por isso o
-// envio automático do seletor de obra continua funcionando.
+// No teclado, as setas percorrem a lista, Enter escolhe e Esc fecha. Ao
+// escolher, o <select> recebe o valor e dispara "change", e é assim que o
+// seletor de obra continua enviando o formulário sozinho.
 function enableSearchableSelects() {
     document.querySelectorAll("select[data-searchable]").forEach(function (select, index) {
         const wrapper = document.createElement("div");
@@ -292,7 +285,8 @@ function enableSearchableSelects() {
         select.after(wrapper);
         select.classList.add("gs-combobox-native");
 
-        // O <label for="..."> do select passa a apontar para o botão.
+        // O <label for="..."> que apontava para o select passa a apontar
+        // para o botão.
         if (select.id) {
             document.querySelectorAll('label[for="' + select.id + '"]').forEach(function (label) {
                 label.htmlFor = button.id;
@@ -332,8 +326,8 @@ function enableSearchableSelects() {
                 item.setAttribute("aria-selected", option.selected ? "true" : "false");
                 item.dataset.value = option.value;
                 item.textContent = option.text;
-                // mousedown com preventDefault mantém o foco no campo de
-                // busca; sem isso o painel fecharia antes do clique contar.
+                // O preventDefault no mousedown mantém o foco no campo de
+                // busca. Sem isso o painel fecharia antes do clique contar.
                 item.addEventListener("mousedown", function (event) {
                     event.preventDefault();
                 });
@@ -395,11 +389,13 @@ function enableSearchableSelects() {
                 const step = event.key === "ArrowDown" ? 1 : -1;
                 setActive((active + step + items.length) % items.length);
             } else if (event.key === "Enter") {
-                // Enter aqui escolhe a opção; não pode enviar o formulário.
+                // Aqui o Enter escolhe a opção, e não pode enviar o
+                // formulário.
                 event.preventDefault();
                 if (items[active]) choose(items[active].dataset.value);
             } else if (event.key === "Escape") {
-                // stopPropagation: o Esc fecha só a lista, não o modal em volta.
+                // O stopPropagation faz o Esc fechar só a lista, e não o
+                // modal em volta dela.
                 event.preventDefault();
                 event.stopPropagation();
                 close(true);
@@ -412,29 +408,29 @@ function enableSearchableSelects() {
             if (!wrapper.contains(event.target)) close(false);
         });
 
-        // Se outro script mudar o valor (o modal de editar usuário preenche
-        // a obra), ele dispara "change" e o botão acompanha.
+        // Quando outro script muda o valor (o modal de editar usuário
+        // preenche a obra, por exemplo), ele dispara "change" e o texto do
+        // botão acompanha.
         select.addEventListener("change", syncLabel);
         syncLabel();
     });
 }
 
-// Busca em tempo real. Vale para todo <form data-live-search> (os filtros
-// de obras, materiais, estoque, movimentações e usuários).
+// Busca em tempo real, para todo <form data-live-search> (os filtros de
+// obras, materiais, estoque, movimentações e usuários).
 //
-// Enquanto a pessoa digita, a página filtrada é pedida ao servidor com
-// fetch — o mesmo endereço que o botão "Filtrar" abriria — e só os
-// pedaços marcados com data-live-region (tabela, paginação, contadores)
-// são trocados pelos da resposta. O campo de busca não é trocado, então o
-// foco e o cursor ficam onde estavam. Sem JavaScript, o formulário
-// continua funcionando do jeito normal, pelo botão.
+// Enquanto a pessoa digita, o JS pede ao servidor a mesma página que o
+// botão "Filtrar" abriria e troca só os pedaços marcados com
+// data-live-region (tabela, paginação, contadores). O campo de busca não é
+// trocado, então o foco e o cursor ficam onde estavam. Sem JavaScript, o
+// formulário funciona do jeito normal, pelo botão.
 //
-// Duas proteções:
-// - espera 300 ms sem digitar antes de pedir, para não fazer uma
-//   solicitação por letra;
-// - AbortController cancela o pedido anterior ainda em andamento. Sem
-//   isso, uma resposta lenta de "ci" poderia chegar depois da de
-//   "cimento" e mostrar o resultado errado.
+// Dois cuidados:
+// - espera 300 ms sem digitar antes de pedir, para não fazer um pedido por
+//   letra;
+// - o AbortController cancela o pedido anterior que ainda não voltou. Sem
+//   isso, uma resposta lenta de "ci" poderia chegar depois da de "cimento"
+//   e mostrar o resultado errado.
 function enableLiveSearch() {
     document.querySelectorAll("form[data-live-search]").forEach(function (form) {
         let timer = null;
@@ -442,7 +438,8 @@ function enableLiveSearch() {
 
         const search = function () {
             const params = new URLSearchParams(new FormData(form));
-            // Campo vazio sai da URL: "?busca=&ordem=nome" vira "?ordem=nome".
+            // Campo vazio não vai para a URL: "?busca=&ordem=nome" vira
+            // "?ordem=nome".
             Array.from(params.keys()).forEach(function (key) {
                 if (!params.get(key).trim()) params.delete(key);
             });
@@ -462,8 +459,9 @@ function enableLiveSearch() {
                         return fresh.querySelector('[data-live-region="' + region.dataset.liveRegion + '"]');
                     });
 
-                    // Resposta sem as regiões esperadas (sessão expirou e veio
-                    // a tela de login, por exemplo): abre a página inteira.
+                    // Se a resposta não tem as regiões esperadas (a sessão
+                    // expirou e voltou a tela de login, por exemplo), abre a
+                    // página inteira.
                     if (replacements.some(function (item) { return !item; })) {
                         window.location.href = url;
                         return;
@@ -472,7 +470,8 @@ function enableLiveSearch() {
                     regions.forEach(function (region, index) {
                         region.replaceWith(document.importNode(replacements[index], true));
                     });
-                    // A URL acompanha a busca: F5 ou compartilhar o link mantém o filtro.
+                    // A URL acompanha a busca, então um F5 ou um link
+                    // compartilhado mantém o filtro.
                     history.replaceState(null, "", url);
 
                     initResponsiveTableLabels();
@@ -492,15 +491,16 @@ function enableLiveSearch() {
                 });
         };
 
-        // "input" dispara a cada letra, e também quando muda um <select> ou
-        // uma data. Nesses dois a busca é imediata: não há digitação a esperar.
+        // O "input" dispara a cada letra e também quando muda um <select> ou
+        // uma data. Nesses dois casos a busca é imediata, porque não tem
+        // digitação para esperar.
         form.addEventListener("input", function (event) {
             clearTimeout(timer);
             const typing = event.target.matches('input[type="search"], input[type="text"]');
             timer = setTimeout(search, typing ? 300 : 0);
         });
 
-        // Enter ou o botão "Filtrar" também buscam sem recarregar a página.
+        // O Enter e o botão "Filtrar" também buscam sem recarregar a página.
         form.addEventListener("submit", function (event) {
             event.preventDefault();
             clearTimeout(timer);
@@ -509,10 +509,10 @@ function enableLiveSearch() {
     });
 }
 
-// Envia o formulário assim que a opção do <select data-autosubmit> muda —
-// é o seletor de obra do topo. Sem JS, o botão "Trocar" do <noscript>
-// faz o mesmo papel. requestSubmit (e não submit) dispara o evento de
-// envio normal, então o estado de carregando continua funcionando.
+// Envia o formulário assim que muda a opção de um <select data-autosubmit>,
+// que é o seletor de obra do topo. Sem JS, o botão "Trocar" do <noscript>
+// faz esse papel. Uso requestSubmit, e não submit, porque ele dispara o
+// evento de envio normal, e o spinner de carregando continua funcionando.
 function enableAutoSubmitSelects() {
     document.querySelectorAll("select[data-autosubmit]").forEach(function (select) {
         select.addEventListener("change", function () {
@@ -525,8 +525,8 @@ function enableAutoSubmitSelects() {
     });
 }
 
-// Revela suavemente o bloco principal da página (conteúdo interno,
-// tela de acesso negado ou o formulário de login).
+// Faz o bloco principal da página aparecer suavemente (o conteúdo das
+// telas internas, a tela de acesso negado ou o formulário de login).
 function animateContentEntrance() {
     const target = document.querySelector(".content, .access-denied-card, .login-form-side");
     if (!target) return;
@@ -539,7 +539,7 @@ function animateContentEntrance() {
     });
 }
 
-// Faz as linhas de tabela aparecerem em cascata, uma logo após a outra.
+// Faz as linhas de tabela aparecerem uma logo depois da outra.
 function animateRowsCascade() {
     document.querySelectorAll(".content table tbody tr").forEach(function (row, index) {
         row.style.setProperty("--gs-i", index);
@@ -547,7 +547,7 @@ function animateRowsCascade() {
     });
 }
 
-// Aplica o mesmo efeito de cascata aos cartões do dashboard.
+// O mesmo efeito, nos cartões do dashboard.
 function animateCards() {
     document.querySelectorAll(".cards .card").forEach(function (card, index) {
         card.style.setProperty("--gs-i", index);
@@ -555,8 +555,10 @@ function animateCards() {
     });
 }
 
-// Anima a saída dos modais (fade + leve deslocamento) antes de
-// escondê-los de verdade, sem precisar alterar o código de cada modal.
+// Anima a saída dos modais antes de escondê-los de verdade. O
+// MutationObserver percebe quando alguém põe o atributo hidden no modal,
+// tira de novo por um instante para a animação rodar e só então esconde.
+// Assim nenhum modal precisa de código próprio para fechar animado.
 function animateModalClosing() {
     document.querySelectorAll(".modal-create, .modal-edit").forEach(function (modal) {
         let animating = false;
@@ -590,9 +592,9 @@ function animateModalClosing() {
     });
 }
 
-// Efeito de "onda" (ripple) ao clicar em botões e links de ação —
-// delegado no document, então funciona em qualquer botão da aplicação,
-// mesmo os criados depois (dentro de modais, por exemplo).
+// Efeito de onda ao clicar em botões e links de ação. O clique é ouvido no
+// document, então funciona em qualquer botão, inclusive nos que são
+// criados depois (dentro de modais, por exemplo).
 function enableClickRipple() {
     document.addEventListener("click", function (event) {
         const target = event.target.closest(
@@ -617,14 +619,13 @@ function enableClickRipple() {
     });
 }
 
-// Conta os números dos cartões do dashboard (materiais,
-// estoque, em falta...) subindo de 0 até o valor real, em vez de já
-// aparecerem prontos.
+// Nos cartões do dashboard, os números sobem de 0 até o valor real em vez
+// de já aparecerem prontos.
 function animateCounters() {
     document.querySelectorAll(".card strong").forEach(function (el) {
-        // Cartão com mais de um número (o "Hoje" mostra entradas e
-        // saídas em <span>s separados) fica de fora: reescrever o texto
-        // dele apagava os spans e sobrava só o primeiro número.
+        // O cartão com mais de um número fica de fora. O "Hoje" mostra
+        // entradas e saídas em <span>s separados, e reescrever o texto dele
+        // apagaria os spans, sobrando só o primeiro número.
         if (el.children.length) return;
 
         const originalText = el.textContent.trim();
@@ -656,8 +657,8 @@ function animateCounters() {
     });
 }
 
-// Faz a página desaparecer suavemente antes de navegar para outra tela
-// (menu lateral, paginação, sair), em vez de trocar de tela de golpe.
+// Ao ir para outra tela pelo menu, pela paginação ou pelo "Sair", a página
+// some suavemente antes de trocar, em vez de mudar de uma vez.
 function enablePageTransition() {
     const linkSelectors = ".sidebar nav a, .pagination a, .sidebar-logout, .sidebar-account";
 
@@ -676,8 +677,8 @@ function enablePageTransition() {
     });
 }
 
-// Mostra um pequeno spinner no botão de envio enquanto o formulário é
-// processado, evitando cliques duplicados em ações mais demoradas.
+// Mostra um spinner no botão enquanto o formulário é enviado. Além de dar
+// retorno, evita que alguém clique duas vezes numa ação mais demorada.
 function enableFormLoadingState() {
     document.addEventListener("submit", function (event) {
         if (event.defaultPrevented) return;
@@ -692,11 +693,10 @@ function enableFormLoadingState() {
     });
 }
 
-// Dá um leve "balanço" no card de login quando a página recarrega com
-// uma mensagem de erro de autenticação. A classe não é removida depois:
-// tirá-la faria a animação de entrada do card (definida no mesmo seletor)
-// disparar de novo, já que o navegador reinicia a propriedade "animation"
-// quando ela muda de novo para o valor original.
+// Balança o card de login quando a página volta com erro de senha. A
+// classe não é removida depois de propósito: tirar a classe faria a
+// animação de entrada do card rodar de novo, porque o navegador reinicia a
+// animação quando a propriedade "animation" volta ao valor anterior.
 function animateLoginError() {
     const alert = document.querySelector(".login-alert");
     const card = document.querySelector(".login-card");
@@ -707,11 +707,10 @@ function animateLoginError() {
     }, 900);
 }
 
-// Conta os segundos que faltam para o login liberar de novo, depois de
-// tentativas erradas demais. Quem realmente recusa a tentativa é o
-// servidor: isto só mostra a espera e evita que a pessoa insista num
-// formulário que seria recusado de qualquer jeito. Se o JavaScript não
-// rodar, o servidor continua recusando — só sem o contador.
+// Contagem regressiva do login bloqueado depois de muitas senhas erradas.
+// Quem recusa as tentativas de verdade é o servidor; isto só mostra quanto
+// falta e desabilita o botão, para a pessoa não insistir à toa. Sem
+// JavaScript o servidor continua recusando, só não aparece o contador.
 function initLoginLockCountdown() {
     const alert = document.querySelector(".login-alert[data-login-lock]");
     if (!alert) return;
@@ -737,17 +736,15 @@ function initLoginLockCountdown() {
     }, 1000);
 }
 
-// Troca os confirm() nativos do navegador (feios e sem estilo) por um
-// modal único, injetado uma vez e reaproveitado em qualquer formulário
-// que tenha um botão com "data-confirm" — funciona em qualquer página,
-// sem precisar duplicar HTML/JS de modal em cada tela (materiais,
-// usuários, etc.).
+// Modal de confirmação no lugar do confirm() do navegador, que não dá para
+// estilizar. É um modal só, criado uma vez e usado por qualquer formulário
+// que tenha um botão com data-confirm, em qualquer tela.
 //
-// Por padrão o modal fala em remoção. O botão pode trocar o título
-// (data-confirm-title), o texto do botão (data-confirm-ok) e o tom
-// (data-confirm-tone="warning"). Botão com data-confirm-optional ainda
+// Por padrão o texto fala em remoção. O botão pode trocar o título
+// (data-confirm-title), o texto do botão de confirmar (data-confirm-ok) e
+// o tom (data-confirm-tone="warning"). Um botão com data-confirm-optional
 // não pede confirmação, mas o script da tela pode colocar o data-confirm
-// nele depois — como na tela de obras, que só confirma quando a situação
+// nele depois. É o que a tela de obras faz: só confirma quando a situação
 // muda para paralisada ou concluída.
 function enableDeleteConfirmation() {
     if (!document.querySelector("form [data-confirm], form [data-confirm-optional]")) return;
@@ -786,9 +783,9 @@ function enableDeleteConfirmation() {
 
     const close = function () {
         modal.hidden = true;
-        // enableFormLoadingState já marcou o botão como "carregando" antes
-        // de este modal segurar o envio. Sem desfazer isso, o botão ficava
-        // travado depois do Cancelar e não dava para enviar de novo.
+        // O enableFormLoadingState já colocou o spinner no botão antes de
+        // este modal segurar o envio. Sem tirar o spinner aqui, o botão
+        // ficaria travado depois do Cancelar.
         if (pendingForm) {
             pendingForm.querySelectorAll(".gs-loading").forEach(function (button) {
                 button.classList.remove("gs-loading");
@@ -834,9 +831,9 @@ function enableDeleteConfirmation() {
     });
 }
 
-// Transforma os banners de sucesso/erro renderizados pelo servidor
-// (.form-success / .form-error) em toasts flutuantes que somem
-// sozinhos, em vez de ficarem ocupando espaço fixo no topo da página.
+// Transforma as mensagens de sucesso e erro que vêm do servidor
+// (.form-success e .form-error) em toasts que flutuam e somem sozinhos, em
+// vez de ocuparem espaço fixo no topo da página.
 function enableToasts() {
     const messages = document.querySelectorAll(".form-success, .form-error");
     if (!messages.length) return;
@@ -886,10 +883,8 @@ function enableToasts() {
     });
 }
 
-// Destaca (em <mark>) o trecho de texto que bateu com a busca — usado
-// tanto para buscas feitas pelo servidor (via ?busca= na URL) quanto para
-// filtros que rodam só no navegador. Só mexe em texto
-// puro: células com botão/input/link ficam intactas.
+// Marca, com <mark>, o trecho do texto que bateu com a busca. Só mexe em
+// texto puro: célula com botão, campo ou link fica como está.
 function highlightSearch(element, term) {
     if (!element) return;
     clearHighlight(element);
@@ -921,7 +916,7 @@ function highlightSearch(element, term) {
     });
 }
 
-// Desfaz o destaque aplicado por highlightSearch, devolvendo o texto puro.
+// Desfaz o destaque do highlightSearch e deixa só o texto.
 function clearHighlight(element) {
     if (!element) return;
     element.querySelectorAll(".gs-highlight-wrap").forEach(function (span) {
@@ -930,9 +925,8 @@ function clearHighlight(element) {
     element.normalize();
 }
 
-// Ao carregar uma página cujo resultado veio de uma busca feita pelo
-// servidor (materiais, usuários...), destaca o termo buscado nas células
-// de texto das tabelas.
+// Quando a página abre com uma busca na URL (?busca=), destaca o termo nas
+// células das tabelas.
 function enableSearchHighlightFromUrl() {
     const term = new URLSearchParams(window.location.search).get("busca");
     if (!term || !term.trim()) return;
@@ -942,9 +936,9 @@ function enableSearchHighlightFromUrl() {
     });
 }
 
-// Dá um pequeno "pulso" em um elemento — usado em contadores do
-// painel sempre que a quantidade de itens muda, como feedback de que algo
-// foi adicionado/removido.
+// Dá um pulso rápido num elemento, para chamar atenção quando um contador
+// muda. O "void element.offsetWidth" força o navegador a recalcular o
+// layout, e é isso que faz a animação recomeçar do zero.
 function pulse(element) {
     if (!element) return;
     element.classList.remove("gs-pulse");

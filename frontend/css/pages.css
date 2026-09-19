@@ -1,12 +1,7 @@
-/* ============================================================
-   UchôaStock — Telas
-   Só o que é específico de uma página. O que se repete entre
-   telas vive em components.css.
-   ============================================================ */
+/* Estilos específicos de cada tela. O que se repete entre telas fica no
+   components.css. */
 
-/* ============================================================
-   Dashboard
-   ============================================================ */
+/* Dashboard */
 
 .dashboard-grid {
     display: grid;
@@ -22,10 +17,10 @@
     }
 }
 
-/* Os painéis do dashboard dividem a largura em dois. Com o espaçamento
-   cheio das tabelas, a coluna de data da atividade recente estourava o
-   painel depois que a quantidade passou a mostrar a unidade. Só a partir
-   do tablet: no celular a linha vira cartão e tem padding próprio. */
+/* Os painéis do dashboard dividem a largura em dois, e com o espaçamento
+   normal das tabelas a coluna de data da atividade recente estourava o
+   painel. Vale só do tablet para cima: no celular a linha vira cartão e
+   tem o espaçamento dela. */
 @media (min-width: 768px) {
 
     .dashboard-grid thead th,
@@ -34,8 +29,8 @@
     }
 }
 
-/* ---------- Cartão "Hoje" ----------
-   Mostra dois números onde os outros cartões mostram um. */
+/* Cartão "Hoje": mostra dois números (entradas e saídas) onde os outros
+   mostram um. */
 
 .today-counts {
     display: inline-flex;
@@ -57,7 +52,7 @@
     color: var(--color-text-subtle);
 }
 
-/* ---------- Painel de materiais acabando ---------- */
+/* Painel de materiais acabando */
 
 .activity-material {
     font-weight: var(--weight-medium);
@@ -112,12 +107,11 @@
     }
 }
 
-/* ============================================================
-   Materiais
-   ============================================================ */
+/* Materiais */
 
-/* Busca + ordenação + botão. No celular empilha; do tablet em
-   diante a busca cresce e os controles ficam na mesma linha. */
+/* Filtro com busca, ordenação e botão. No celular os três ficam um
+   embaixo do outro; com mais espaço, ficam na mesma linha e a busca
+   ocupa o que sobra. */
 .materials-filter {
     display: grid;
     grid-template-columns: 1fr;
@@ -144,8 +138,8 @@
     box-shadow: var(--shadow-sm);
 }
 
-/* No celular o contêiner some visualmente: cada linha já é um
-   cartão próprio, então a moldura dupla só rouba espaço. */
+/* No celular cada linha já vira um cartão, então a moldura em volta da
+   tabela sai para não ficar moldura dentro de moldura. */
 @media (max-width: 767px) {
 
     .materials-table,
@@ -160,12 +154,12 @@
     }
 }
 
-/* Ações da linha (editar, remover, entrada/saída).
-   No desktop o <td> continua sendo célula de tabela: display:flex
-   direto nele o tirava do layout da tabela, e a linha divisória
-   daquela coluna ficava desalinhada das outras. Por isso o espaço
-   entre os itens é margem, e o flex só entra no celular, onde a
-   linha já virou cartão. */
+/* Ações da linha (editar, remover, entrada e saída).
+
+   No desktop o <td> precisa continuar sendo célula de tabela. Com
+   display: flex direto nele, a linha divisória dessa coluna ficava
+   desalinhada das outras. Por isso o espaço entre os botões é margem, e
+   o flex só entra no celular, onde a linha já virou cartão. */
 .material-actions {
     white-space: nowrap;
 }
@@ -179,8 +173,9 @@
     margin-right: 0;
 }
 
-/* O <form> vazio da tela de estoque só existe como alvo do atributo
-   form="" dos campos; sem isto ele ocuparia uma linha inteira. */
+/* Na tela de estoque existe um <form> vazio só para os campos da linha
+   apontarem para ele (atributo form=""). Sem esta regra ele ocuparia
+   uma linha inteira. */
 .material-actions > form:empty {
     display: none;
 }
@@ -199,7 +194,7 @@
     }
 }
 
-/* Formulário dentro do modal de cadastro/edição. */
+/* Formulário dos modais de cadastro e edição. */
 .create-form {
     display: flex;
     flex-direction: column;
@@ -214,12 +209,10 @@
     margin-top: var(--space-4);
 }
 
-/* ============================================================
-   Minha senha
-   ============================================================ */
+/* Minha senha */
 
-/* O formulário fica num cartão estreito: três campos de senha esticados
-   na largura toda de um monitor ficariam difíceis de ler. */
+/* O formulário fica num cartão estreito. Três campos de senha esticados
+   na largura de um monitor ficam estranhos e difíceis de preencher. */
 .account-form {
     max-width: 420px;
     padding: var(--space-5);
@@ -228,12 +221,9 @@
     border-radius: var(--radius-lg);
 }
 
-/* ============================================================
-   Obras
-   ============================================================ */
+/* Obras */
 
-/* Nome e selo "Almoxarifado central" na mesma linha; se não couber,
-   o selo desce. */
+/* Nome e selo "Central" na mesma linha; se não couber, o selo desce. */
 .site-name {
     margin-right: var(--space-2);
     font-weight: var(--weight-semibold);
@@ -245,8 +235,9 @@
     border-color: var(--color-brand-soft);
 }
 
-/* Selos de situação. O sufixo vem do banco (site-status-{{ .Status }}),
-   por isso fica em maiúsculas: não renomear. */
+/* Selos de situação da obra. O fim do nome vem do banco
+   (site-status-{{ .Status }}), por isso está em maiúsculas e não pode
+   ser renomeado. */
 .site-status-ANDAMENTO {
     color: var(--color-success-text);
     background: var(--color-success-tint);
@@ -265,8 +256,8 @@
     border-color: var(--color-border-strong);
 }
 
-/* Fornecedores: o selo "Desativado" segue o tom neutro da obra concluída,
-   e o CNPJ não quebra no meio. */
+/* Fornecedores: o selo "Desativado" usa o mesmo tom neutro da obra
+   concluída, e o CNPJ não quebra no meio. */
 .supplier-inactive {
     color: var(--color-text-muted);
     background: var(--color-surface-alt);
@@ -277,14 +268,15 @@
     white-space: nowrap;
 }
 
-/* Botões "Abrir", "Paralisar", "Retomar" e "Encerrar" da linha: cada um
-   é um <form> e fica em linha com o link "Editar". */
+/* Os botões "Abrir", "Paralisar", "Retomar" e "Encerrar" são cada um um
+   <form>, e precisam ficar na mesma linha do link "Editar". */
 .site-open-form,
 .site-status-form {
     display: inline-block;
 }
 
-/* Nome da obra embaixo do material, nas listas da visão "Todas as obras". */
+/* Nome da obra embaixo do material, quando a lista mostra "Todas as
+   obras". */
 .row-site-name {
     display: block;
     font-size: var(--text-xs);
@@ -292,9 +284,9 @@
     color: var(--color-text-muted);
 }
 
-/* Aviso fixo de por que a tela está só em consulta. Não usa
-   .form-success/.form-error de propósito: o app.js transforma essas em
-   toast que some, e este aviso precisa ficar visível. */
+/* Aviso fixo explicando por que a tela está só em consulta. Não usa
+   .form-success nem .form-error de propósito: o app.js transforma essas
+   em toast, que some sozinho, e este aviso precisa ficar na tela. */
 .scope-notice {
     margin-bottom: var(--space-4);
     padding: var(--space-3) var(--space-4);
@@ -305,8 +297,8 @@
     border-radius: var(--radius-md);
 }
 
-/* Campo de situação do modal. O [hidden] precisa de regra própria:
-   sem ela o display:flex abaixo venceria e o campo nunca sumiria. */
+/* Campo de situação no modal da obra. O [hidden] precisa de uma regra
+   própria, senão o display: flex ganha e o campo nunca some. */
 .site-status-field {
     display: flex;
     flex-direction: column;
@@ -317,19 +309,17 @@
     display: none;
 }
 
-/* Equipe da obra: lista de nomes que pode quebrar em várias linhas. */
+/* Equipe da obra: a lista de nomes pode quebrar em várias linhas. */
 .site-team {
     font-size: var(--text-sm);
     color: var(--color-text-muted);
 }
 
-/* ============================================================
-   Usuários
-   ============================================================ */
+/* Usuários */
 
-/* Campo Obra do modal de usuário. Some quando a permissão é
-   Administrador; o [hidden] precisa de regra própria pelo mesmo motivo
-   do .site-status-field. */
+/* Campo Obra no modal de usuário. Ele some quando a permissão escolhida
+   é Administrador, e o [hidden] precisa de regra própria pelo mesmo
+   motivo do .site-status-field. */
 .user-site-field {
     display: flex;
     flex-direction: column;
@@ -340,12 +330,11 @@
     display: none;
 }
 
-/* ============================================================
-   Estoque
-   ============================================================ */
+/* Estoque */
 
-/* Entrada/saída: quantidade estreita e observação ao lado dos botões.
-   No celular a linha já virou cartão, então os dois ocupam a largura. */
+/* Campos de entrada e saída: a quantidade é estreita e a observação fica
+   ao lado dos botões. No celular a linha já virou cartão, então os dois
+   ocupam a largura toda. */
 .stock-table .stock-qty-input {
     width: 96px;
     min-width: 0;
@@ -364,11 +353,8 @@
     }
 }
 
-/* ============================================================
-   Quantidade com unidade
-   A unidade fica ao lado do selo de quantidade, menor e apagada: o
-   número é o que se lê primeiro.
-   ============================================================ */
+/* Unidade ao lado da quantidade. Ela fica menor e mais apagada porque o
+   que importa ler primeiro é o número. */
 
 .unit-label {
     margin-left: var(--space-1);
@@ -387,7 +373,7 @@
 }
 
 /* Dois campos lado a lado no modal (quantidade e limite). No celular
-   empilham. */
+   ficam um embaixo do outro. */
 .form-row {
     display: grid;
     grid-template-columns: 1fr;
@@ -411,9 +397,7 @@
     }
 }
 
-/* ============================================================
-   Movimentações: filtros
-   ============================================================ */
+/* Filtros das movimentações */
 
 .movements-filter {
     display: grid;
@@ -456,9 +440,7 @@
     color: var(--color-text-muted);
 }
 
-/* ============================================================
-   Alteração de material
-   ============================================================ */
+/* Alterar material */
 
 .edit-kicker {
     display: block;
@@ -475,17 +457,13 @@
     display: inline;
 }
 
-/* ============================================================
-   Usuários
-   ============================================================ */
+/* Tabela de usuários */
 
 .users-table .role-badge {
     margin-right: var(--space-1);
 }
 
-/* ============================================================
-   Acesso negado
-   ============================================================ */
+/* Acesso negado */
 
 .access-denied-page {
     display: grid;
@@ -494,8 +472,8 @@
     padding: var(--space-5);
 }
 
-/* Cartão com a tarja das faixas da marca no topo, como o de login
-   (o ::before está em components.css, junto dos modais). */
+/* Cartão com a tarja das faixas da marca no topo, como o do login. O
+   ::before da tarja fica no components.css, junto com o dos modais. */
 .access-denied-card {
     --band-height: 72px;
 
@@ -520,8 +498,8 @@
     gap: var(--space-4);
 }
 
-/* margin auto centraliza o ícone: ele é um bloco (display: grid), e
-   o text-align: center do cartão só centraliza texto e inline. */
+/* O margin auto centraliza o ícone. Ele é um bloco (display: grid), e o
+   text-align: center do cartão só centraliza texto. */
 .access-denied-icon {
     display: grid;
     place-items: center;
@@ -577,12 +555,10 @@
 }
 
 
-/* ============================================================
-   Solicitações
-   ============================================================ */
+/* Solicitações */
 
-/* Selos de situação. O sufixo vem do banco (request-status-{{ .Status }}),
-   por isso fica em maiúsculas: não renomear. */
+/* Selos de situação da solicitação. Assim como os da obra, o fim do nome
+   vem do banco (request-status-{{ .Status }}) e não pode ser renomeado. */
 .request-status-PENDENTE {
     color: var(--color-warning-text);
     background: var(--color-warning-tint);
@@ -625,8 +601,9 @@
     white-space: nowrap;
 }
 
-/* Formulário de nova solicitação. Cada item é um bloco: no celular os
-   campos empilham; do tablet em diante ficam na mesma linha. */
+/* Formulário de nova solicitação. Cada item é um bloco; no celular os
+   campos ficam um embaixo do outro e, do tablet para cima, na mesma
+   linha. */
 .request-form {
     display: flex;
     flex-direction: column;
@@ -684,7 +661,7 @@
     color: var(--color-text-muted);
 }
 
-/* Detalhe: dados da solicitação. */
+/* Dados da solicitação, na tela de detalhe. */
 .request-info {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -738,8 +715,9 @@
     color: var(--color-success-text);
 }
 
-/* Saldo da obra menor que o que falta: destaque na tela de aprovação e
-   de atendimento (a aprovação não reserva estoque). */
+/* Quando o saldo da obra não cobre o que falta entregar, ele aparece em
+   vermelho na aprovação e no atendimento. Aprovar não reserva estoque,
+   então esse aviso ajuda quem vai decidir. */
 .request-balance-low {
     font-weight: var(--weight-semibold);
     color: var(--color-danger-text);
@@ -757,7 +735,8 @@
     margin-top: var(--space-4);
 }
 
-/* Histórico: uma linha por evento, com a cor da ação na borda. */
+/* Histórico da solicitação: uma linha por evento, com a cor da ação na
+   borda esquerda. */
 .request-history {
     display: flex;
     flex-direction: column;
@@ -801,7 +780,7 @@
     font-size: var(--text-sm);
 }
 
-/* "Req. #N" nas movimentações. */
+/* Link "Req. #N" nas movimentações que vieram de uma solicitação. */
 .movement-request-link {
     display: block;
     font-size: var(--text-xs);
@@ -824,20 +803,18 @@
     }
 }
 
-/* ============================================================
-   Relatórios
-   ============================================================ */
+/* Relatórios */
 
 /* Os painéis do relatório ficam um embaixo do outro (o comparativo entre
-   obras só aparece na visão de todas as obras), então o espaço entre eles
-   é margem, e não o gap de um grid como no dashboard. */
+   obras só aparece em "Todas as obras"), então o espaço entre eles é
+   margem, e não o gap de um grid como no dashboard. */
 .report-section + .report-section {
     margin-top: var(--space-5);
 }
 
 /* Saldo do período: verde quando entrou mais do que saiu, âmbar quando a
-   obra gastou o que já estava no estoque. São os tons claros das cores
-   semânticas — é o que se lê sobre o fundo escuro. */
+   obra gastou o que já tinha em estoque. Uso os tons claros porque são os
+   que dão para ler no fundo escuro. */
 .report-balance {
     font-weight: var(--weight-semibold);
 }
@@ -850,9 +827,11 @@
     color: var(--color-warning-text);
 }
 
-/* ---------- Inventários ----------
-   inventory-status-{{ .Status }} vem do template: os nomes são os valores
-   de inventarios.status. Não renomear. */
+/* Inventários */
+
+/* Selos de situação do inventário. O template monta o nome com
+   inventory-status-{{ .Status }}, usando o valor de inventarios.status,
+   então esses nomes não podem ser renomeados. */
 
 .inventory-status-EM_CONTAGEM {
     color: var(--color-warning-text);
@@ -883,7 +862,8 @@
     margin-top: var(--space-5);
 }
 
-/* "Como funciona": passos numerados pelo próprio CSS (counter). */
+/* Passos do "Como funciona". A numeração é feita pelo próprio CSS, com
+   counter. */
 .inventory-steps {
     display: flex;
     flex-direction: column;
@@ -922,8 +902,8 @@
     color: var(--color-text-muted);
 }
 
-/* Contagem: o campo de quantidade é estreito (a unidade fica ao lado) e o
-   da justificativa ocupa o resto. */
+/* Na contagem, o campo de quantidade é estreito (a unidade fica ao lado)
+   e o da justificativa ocupa o resto. */
 .inventory-count-table .inventory-qty-input {
     width: 7rem;
     margin-right: var(--space-1);

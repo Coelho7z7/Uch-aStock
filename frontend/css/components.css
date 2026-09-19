@@ -1,23 +1,16 @@
-/* ============================================================
-   UchôaStock — Componentes
-   Botões, formulários, tabelas, cards, modais, badges, toasts,
-   paginação e estados vazios. Um só visual, em todas as telas.
+/* Componentes usados em todas as telas: botões, formulários, tabelas,
+   cards, modais, badges, toasts, paginação e estados vazios.
 
-   Boa parte das animações e dos toasts vivia dentro de um <style>
-   injetado pelo app.js. Migrou para cá para usar os tokens e poder
-   ser lida como CSS normal. O JS continua só ligando/desligando as
-   classes gs-*, sem estilo embutido.
-   ============================================================ */
+   As animações (classes gs-*) também ficam aqui. O app.js só liga e
+   desliga essas classes, sem estilo escrito dentro do JS. */
 
-/* ============================================================
-   Botões
-   ============================================================ */
+/* Botões */
 
-/* button:where([type="submit"]) em vez de button[type="submit"]: o
-   :where() não soma especificidade, então a regra pesa o mesmo que um
-   simples "button". Assim qualquer classe de botão (secundário,
-   perigo) vence o azul padrão. Antes o submit vencia sempre, e o
-   botão de remover saía azul, igual ao de salvar. */
+/* Uso button:where([type="submit"]) em vez de button[type="submit"]
+   porque o :where() não conta na especificidade: a regra pesa o mesmo que
+   um "button" simples. Assim qualquer classe de botão (secundário, perigo)
+   ganha do azul padrão. Sem isso, o botão de remover, que também é
+   submit, saía azul igual ao de salvar. */
 .button,
 button:where([type="submit"]),
 .new-material-button,
@@ -63,7 +56,8 @@ button:where([type="submit"]):active,
     transform: translateY(1px);
 }
 
-/* Secundário: ação disponível, mas que não é a principal da tela. */
+/* Secundário: uma ação que está disponível, mas não é a principal da
+   tela. */
 .button-secondary,
 .edit-material-button,
 .edit-material-link,
@@ -98,7 +92,7 @@ button:where([type="submit"]):active,
     text-decoration: none;
 }
 
-/* Destrutivo: remover material, remover usuário. */
+/* Ações destrutivas, como remover material ou usuário. */
 .button-danger,
 .delete-button,
 .delete-material-button,
@@ -130,8 +124,8 @@ button:where([type="submit"]):active,
     background: var(--color-danger-solid);
 }
 
-/* Ícone dentro de botão. Sem tamanho explícito o SVG assume o padrão
-   de 300x150 do navegador e estoura o botão. */
+/* Ícone dentro de botão. Sem tamanho definido o SVG fica com os 300x150
+   padrão do navegador e estoura o botão. */
 .button svg,
 button svg,
 .edit-material-button svg,
@@ -144,7 +138,7 @@ button svg,
     flex: 0 0 auto;
 }
 
-/* Estado desabilitado, comum a todos os botões. */
+/* Botão desabilitado, qualquer que seja o tipo. */
 button:disabled,
 .button:disabled,
 button[disabled] {
@@ -154,9 +148,7 @@ button[disabled] {
     transform: none;
 }
 
-/* ============================================================
-   Formulários
-   ============================================================ */
+/* Formulários */
 
 .input-group {
     display: flex;
@@ -186,8 +178,8 @@ textarea {
     font-size: var(--text-base);
     color: var(--color-text);
     background: var(--color-surface-alt);
-    /* Borda com 3.2:1 de contraste — exigência da WCAG 1.4.11 para
-       componentes de interface, que a borda cinza-clara não cumpria. */
+    /* Borda com contraste suficiente para o campo aparecer (a WCAG pede
+       3:1 para controles). */
     border: 1px solid var(--color-border-input);
     border-radius: var(--radius-md);
     transition: border-color var(--duration-fast) ease,
@@ -212,8 +204,8 @@ input::placeholder {
     color: var(--color-text-subtle);
 }
 
-/* O ícone de calendário do navegador é escuro por padrão e some no tema
-   escuro; color-scheme: dark pede a versão clara. */
+/* O ícone de calendário do navegador vem escuro e some no nosso fundo.
+   Com color-scheme: dark o navegador usa a versão clara. */
 input[type="date"] {
     color-scheme: dark;
 }
@@ -229,7 +221,7 @@ textarea:disabled {
 select {
     cursor: pointer;
     appearance: none;
-    /* A seta é um SVG embutido para não depender de arquivo externo. */
+    /* A seta é um SVG embutido aqui mesmo, sem arquivo separado. */
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A8B8CC' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right var(--space-3) center;
@@ -237,9 +229,11 @@ select {
     padding-right: var(--space-7);
 }
 
-/* ---------- Lista com busca (select[data-searchable]) ----------
-   Montada pelo app.js na frente do <select>, que fica escondido e
-   continua guardando o valor. O botão imita o visual do select. */
+/* Lista com busca (select[data-searchable]).
+
+   O app.js monta essa lista na frente do <select>, que fica escondido e
+   continua guardando o valor escolhido. O botão tem a mesma cara de um
+   select comum. */
 
 .gs-combobox {
     position: relative;
@@ -302,8 +296,8 @@ select {
     display: none;
 }
 
-/* Dentro de modal a lista abre no fluxo, empurrando o resto: o conteúdo
-   do modal rola (overflow-y: auto) e cortaria um painel flutuante. */
+/* Dentro de modal a lista abre empurrando o resto para baixo, em vez de
+   flutuar. O modal tem rolagem própria e cortaria um painel flutuante. */
 .modal-create-content .gs-combobox-panel,
 .modal-edit-content .gs-combobox-panel {
     position: static;
@@ -349,7 +343,7 @@ select {
     color: var(--color-text-muted);
 }
 
-/* Campo com erro — o app.js aplica .form-error no input. */
+/* Campo com erro (o app.js coloca .form-error no input). */
 input.form-error,
 select.form-error {
     border-color: var(--color-danger);
@@ -366,7 +360,7 @@ input.form-error:focus {
     color: var(--color-text-muted);
 }
 
-/* Campo de senha com o botão de olho. */
+/* Campo de senha com o botão de mostrar/esconder. */
 .password-field {
     position: relative;
     display: flex;
@@ -377,8 +371,8 @@ input.form-error:focus {
     padding-right: var(--space-8);
 }
 
-/* O alvo de toque segue o mínimo do sistema (44px): a tela é usada de
-   luva, em obra. O ícone continua com 20px — só a área clicável cresce. */
+/* A área clicável tem os 44px mínimos do sistema, porque a tela é usada
+   de luva na obra. O ícone continua com 20px; só a área em volta cresce. */
 .eye {
     position: absolute;
     right: var(--space-2);
@@ -409,11 +403,10 @@ input.form-error:focus {
     stroke-linejoin: round;
 }
 
-/* ============================================================
-   Mensagens do servidor
-   O app.js converte estes banners em toast; o estilo abaixo é o
-   fallback para quando o JS não roda.
-   ============================================================ */
+/* Mensagens de sucesso e erro vindas do servidor.
+
+   Com JavaScript, o app.js transforma essas mensagens em toast. Este
+   estilo é para quando o JS não roda: a mensagem aparece fixa na tela. */
 
 .form-success,
 .form-error:not(input):not(select) {
@@ -439,23 +432,21 @@ input.form-error:focus {
     border-color: var(--color-danger);
 }
 
-/* O app.js esconde o banner original (atributo hidden) ao criar o toast.
-   O display:flex acima vencia o [hidden] padrão do navegador, e a mesma
-   mensagem aparecia duas vezes: no banner e no toast. Classe + atributo
-   pesa mais que as regras acima, então [hidden] vence sem !important. */
+/* Ao criar o toast, o app.js esconde a mensagem original com o atributo
+   hidden. Só que o display: flex de cima ganhava do [hidden] do
+   navegador, e a mensagem aparecia duas vezes. Classe + atributo tem mais
+   peso que as regras de cima, então o [hidden] ganha sem !important. */
 .form-success[hidden],
 .form-error[hidden] {
     display: none;
 }
 
-/* ============================================================
-   Cards
-   ============================================================ */
+/* Cards */
 
-/* Celular e tablet: dois cartões por linha (antes era um só, e o
-   dashboard virava uma coluna de 3000px no celular). Se sobrar um
-   cartão sozinho no fim, ele ocupa a linha inteira. No desktop as
-   colunas se ajustam à largura — ver o @media no fim da seção. */
+/* No celular e no tablet são dois cartões por linha; com um por linha o
+   dashboard ficava comprido demais. Se sobrar um cartão sozinho no fim,
+   ele ocupa a linha toda. No desktop as colunas se ajustam à largura (o
+   @media fica no fim desta parte). */
 .cards {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -498,9 +489,8 @@ input.form-error:focus {
     border-radius: var(--radius-sm);
 }
 
-/* Os cartoes usam icones de traco (tijolo, caixa, alerta, setas,
-   relogio) no lugar dos caracteres tipograficos que havia antes —
-   mais legiveis e coerentes com o resto da interface. */
+/* Ícones de contorno (tijolo, caixa, alerta, setas, relógio), no mesmo
+   estilo do resto da interface. */
 .card-icon svg {
     width: 19px;
     height: 19px;
@@ -527,8 +517,8 @@ input.form-error:focus {
     color: var(--color-text-muted);
 }
 
-/* Card de alerta: o número em falta é a informação mais acionável
-   do dashboard, então ganha destaque semântico. */
+/* Card de alerta. Quantos materiais estão em falta é o número que mais
+   pede ação no dashboard, então ele ganha a cor de aviso. */
 .card-alert .card-icon {
     color: var(--color-warning);
     background: var(--color-warning-tint);
@@ -539,8 +529,8 @@ input.form-error:focus {
     color: var(--color-warning);
 }
 
-/* Card do movimento de hoje: mostra dois números (entradas/saídas),
-   então o valor é menor que o dos outros cards para caber. */
+/* O card "Hoje" mostra dois números (entradas e saídas), então a fonte
+   é um pouco menor que a dos outros para caber. */
 .card-today strong {
     font-size: var(--text-xl);
 }
@@ -551,8 +541,8 @@ input.form-error:focus {
     border-color: var(--color-success);
 }
 
-/* Fica depois das regras acima de propósito: @media não soma
-   especificidade, então quem vem por último na folha vence. */
+/* Este @media fica depois das regras de cima de propósito: ele não
+   aumenta a especificidade, então vale a regra que vem por último. */
 @media (min-width: 1024px) {
 
     .cards {
@@ -577,9 +567,7 @@ input.form-error:focus {
     }
 }
 
-/* ============================================================
-   Painéis / seções
-   ============================================================ */
+/* Painéis e seções */
 
 .materials-section,
 .activity-section,
@@ -614,10 +602,9 @@ input.form-error:focus {
     color: var(--color-text-muted);
 }
 
-/* Mesmo motivo do .eye: no celular este link ("Repor estoque", "Ver
-   histórico") tinha só 20px de altura de toque. O min-height some no
-   desktop, onde o ponteiro é preciso e a altura extra desalinharia o
-   cabeçalho. */
+/* Links do cabeçalho da seção ("Repor estoque", "Ver histórico"). No
+   celular eles precisam da altura mínima de toque; no desktop o mouse é
+   preciso, e a altura extra só desalinharia o cabeçalho. */
 .section-header a {
     display: inline-flex;
     align-items: center;
@@ -633,18 +620,16 @@ input.form-error:focus {
     }
 }
 
-/* ============================================================
-   Cabeçalho de página e faixas da marca
-   O mesmo desenho das faixas do cartão de login, agora em todas as
-   telas. A forma vem de --brand-waves-mask e a cor de
-   --brand-waves-fill (tokens.css): nenhum SVG repetido nos templates,
-   basta a classe.
-   ============================================================ */
+/* Cabeçalho das páginas, com as faixas da marca.
 
-/* Celular e tablet: as faixas formam uma tarja no topo do cartão,
-   separada do texto por uma linha fina — igual ao cartão de login.
-   A linha é um degradê de 1px pintado no próprio fundo, porque a
-   máscara das faixas cortaria qualquer borda posta nelas. */
+   É o mesmo desenho das faixas do login. O formato vem de
+   --brand-waves-mask e a cor de --brand-waves-fill, no tokens.css, então
+   nenhum template precisa repetir o SVG: basta usar a classe. */
+
+/* No celular e no tablet as faixas formam uma tarja no topo do cartão,
+   separada do texto por uma linha fina, como no login. A linha é um
+   degradê de 1px no próprio fundo, porque a máscara das faixas cortaria
+   uma borda comum. */
 .page-hero {
     --band-height: 56px;
 
@@ -660,7 +645,7 @@ input.form-error:focus {
     box-shadow: var(--shadow-md);
 }
 
-/* A tarja em si. Quem usa define --band-height (a altura dela). */
+/* A tarja. Cada componente que usa define a altura em --band-height. */
 .page-hero::after,
 .modal-create-content::before,
 .modal-edit-content::before,
@@ -709,9 +694,9 @@ input.form-error:focus {
     margin-top: var(--space-4);
 }
 
-/* Desktop: a tarja vira faixas à direita, na altura do texto — como
-   a logo ao lado do nome no login. O texto fica limitado à esquerda
-   para nunca passar por cima delas. */
+/* No desktop as faixas saem do topo e vão para a direita, na altura do
+   texto, como a logo ao lado do nome no login. O texto fica limitado à
+   esquerda para não passar por cima delas. */
 @media (min-width: 1024px) {
 
     .page-hero {
@@ -744,9 +729,7 @@ input.form-error:focus {
     }
 }
 
-/* ============================================================
-   Tabelas
-   ============================================================ */
+/* Tabelas */
 
 .table-container,
 .page-table {
@@ -800,11 +783,10 @@ input.form-error:focus {
     border-bottom: none;
 }
 
-/* ============================================================
-   Badges
-   Uma base comum para cargo, tipo de movimentação e status de
-   estoque, para que os três leiam como o mesmo sistema visual.
-   ============================================================ */
+/* Badges
+
+   Cargo, tipo de movimentação e situação do estoque usam a mesma base,
+   para os três terem a mesma cara. */
 
 .role-badge,
 .activity-type,
@@ -822,7 +804,7 @@ input.form-error:focus {
     border-radius: var(--radius-full);
 }
 
-/* ---------- Cargos ---------- */
+/* Cargos */
 
 .role-badge-superadmin {
     color: var(--color-info-text);
@@ -879,8 +861,8 @@ input.form-error:focus {
     stroke-linejoin: round;
 }
 
-/* Selo do SuperAdmin. Era um badge azul com pulso suave; sem o fundo
-   e a cor ele aparecia como um ícone preto solto na coluna. */
+/* Selo "Protegido" do SuperAdmin: badge azul com um brilho que pulsa
+   devagar. */
 .role-protected {
     display: inline-flex;
     align-items: center;
@@ -912,7 +894,7 @@ input.form-error:focus {
     }
 }
 
-/* Brilho interno que respira, marcando a conta protegida. */
+/* O brilho que pulsa por dentro do selo da conta protegida. */
 @keyframes brilho-superadmin {
 
     0%,
@@ -925,9 +907,9 @@ input.form-error:focus {
     }
 }
 
-/* ---------- Tipos de movimentação ----------
-   Estes nomes vêm do template: activity-{{ .Type }}. Não renomear:
-   o valor sai direto da coluna "tipo" do banco. */
+/* Tipos de movimentação. O template monta o nome da classe com
+   activity-{{ .Type }}, e o tipo vem direto da coluna "tipo" do banco.
+   Por isso essas classes não podem ser renomeadas. */
 
 .activity-ENTRADA {
     color: var(--color-success-text);
@@ -947,16 +929,17 @@ input.form-error:focus {
     border-color: var(--color-brand-soft);
 }
 
-/* Ajuste de inventário: nem entrada nem saída comum, por isso o dourado. */
+/* Ajuste de inventário não é entrada nem saída comum, então ganha o
+   dourado. */
 .activity-AJUSTE {
     color: var(--color-gold);
     background: var(--color-gold-tint);
     border-color: var(--color-gold-border);
 }
 
-/* ---------- Status de estoque ----------
-   Idem: stock-quantity {{ .StockStatus }}, valores empty/low/normal
-   vindos de services.stockStatus(). */
+/* Situação do estoque. Também vem do template (stock-quantity
+   {{ .StockStatus }}), com os valores empty, low e normal que o
+   services.stockStatus() devolve. */
 
 .stock-quantity {
     min-width: 44px;
@@ -982,9 +965,7 @@ input.form-error:focus {
     border-color: var(--color-danger);
 }
 
-/* ============================================================
-   Estado vazio
-   ============================================================ */
+/* Tabela vazia ("nenhum registro") */
 
 .empty-table {
     display: flex;
@@ -1015,9 +996,7 @@ input.form-error:focus {
     margin-top: var(--space-1);
 }
 
-/* ============================================================
-   Paginação
-   ============================================================ */
+/* Paginação */
 
 .pagination {
     display: flex;
@@ -1053,13 +1032,11 @@ input.form-error:focus {
     color: var(--color-text-muted);
 }
 
-/* ============================================================
-   Abas (filtros de materiais e de movimentações)
-   ============================================================ */
+/* Abas de filtro (materiais e movimentações) */
 
-/* width: fit-content — a barra abraça as abas em vez de esticar
-   até a borda com um vazio à direita. max-width mantém a rolagem
-   horizontal no celular. */
+/* Com width: fit-content a barra fica do tamanho das abas, em vez de
+   esticar até a borda com um vazio à direita. O max-width garante a
+   rolagem de lado no celular. */
 .materials-tabs {
     display: flex;
     width: fit-content;
@@ -1133,15 +1110,13 @@ input.form-error:focus {
     box-shadow: var(--shadow-sm);
 }
 
-/* ============================================================
-   Modais
-   ============================================================ */
+/* Modais */
 
-/* O app.js abre e fecha estes modais pelo atributo hidden
-   (createModal.hidden = true/false), não por classe. Como declarar
-   display numa classe vence o [hidden] padrão do navegador, o
-   display:none precisa ser reafirmado aqui — sem esta regra os
-   modais nascem abertos em todas as telas. */
+/* O app.js abre e fecha os modais pelo atributo hidden
+   (modal.hidden = true/false), não por classe. Como o display: flex da
+   classe ganha do [hidden] do navegador, o display: none precisa ser
+   repetido na regra [hidden] logo abaixo. Sem ela, os modais já abrem
+   junto com a página. */
 .modal-create,
 .modal-edit {
     position: fixed;
@@ -1162,10 +1137,10 @@ input.form-error:focus {
     display: none;
 }
 
-/* O modal é um cartão como o de login: tarja com as faixas da marca
-   no topo (::before, ver "Cabeçalho de página e faixas da marca") e
-   a linha fina logo abaixo. "local" faz a linha rolar junto com o
-   conteúdo quando o modal é mais alto que a tela. */
+/* O modal é um cartão como o do login: a tarja com as faixas da marca
+   no topo (o ::before, lá no cabeçalho das páginas) e uma linha fina
+   embaixo dela. O "local" faz essa linha rolar junto com o conteúdo
+   quando o modal é mais alto que a tela. */
 .modal-create-content,
 .modal-edit-content {
     --band-height: 64px;
@@ -1209,7 +1184,7 @@ input.form-error:focus {
     }
 }
 
-/* O modal sobe com uma curva mais elastica, como no tema original. */
+/* O modal sobe com uma curva um pouco elástica. */
 @keyframes gs-modal-content-in {
     from {
         opacity: 0;
@@ -1217,11 +1192,10 @@ input.form-error:focus {
     }
 }
 
-/* ============================================================
-   Animações e feedback controlados pelo app.js
-   Estas classes são adicionadas/removidas pelo JS — os nomes são
-   contrato com frontend/js/app.js e não devem mudar.
-   ============================================================ */
+/* Animações controladas pelo app.js
+
+   O JS coloca e tira essas classes pelo nome, então não dá para
+   renomear nenhuma sem mudar o app.js junto. */
 
 /* Entrada suave do bloco principal da página. */
 .gs-enter {
@@ -1236,7 +1210,8 @@ input.form-error:focus {
         transform var(--duration-slow) var(--ease-out);
 }
 
-/* Linhas de tabela em cascata. O índice vem de --gs-i, setado no JS. */
+/* Linhas de tabela aparecendo uma depois da outra. O JS coloca a
+   posição de cada linha em --gs-i. */
 .gs-row {
     opacity: 0;
     transform: translateY(6px);
@@ -1262,7 +1237,7 @@ input.form-error:focus {
     }
 }
 
-/* Saída animada dos modais. */
+/* Modal saindo de cena ao fechar. */
 .modal-closing {
     animation: gs-modal-fade-out 160ms ease forwards;
 }
@@ -1285,7 +1260,7 @@ input.form-error:focus {
     }
 }
 
-/* Onda ao clicar. */
+/* Onda que se espalha a partir do clique. */
 .gs-ripple {
     position: absolute;
     border-radius: 50%;
@@ -1296,7 +1271,8 @@ input.form-error:focus {
     animation: gs-ripple-anim 550ms ease-out forwards;
 }
 
-/* Em botões de fundo claro a onda branca não aparece; escurece. */
+/* Nos botões secundários a onda forte fica exagerada; aqui ela é mais
+   fraca. */
 .button-secondary .gs-ripple,
 .edit-material-button .gs-ripple,
 .pagination a .gs-ripple,
@@ -1311,7 +1287,8 @@ input.form-error:focus {
     }
 }
 
-/* Botão em envio: texto some, spinner aparece. */
+/* Botão enquanto o formulário é enviado: o texto some e aparece um
+   spinner no lugar. */
 .gs-loading {
     position: relative;
     color: transparent;
@@ -1348,7 +1325,7 @@ body.gs-leaving {
     }
 }
 
-/* Balanço do card de login quando a senha erra. */
+/* O card de login balança quando a senha está errada. */
 .gs-shake {
     animation: gs-shake-anim 480ms ease;
 }
@@ -1395,10 +1372,8 @@ body.gs-leaving {
     }
 }
 
-/* Destaque do termo buscado.
-   Antes era texto branco sobre azul translúcido, ilegível em tabela
-   de fundo claro. Agora segue o padrão do <mark>: fundo âmbar e
-   texto escuro, 8.1:1 de contraste. */
+/* Destaque do termo buscado dentro das tabelas: texto âmbar sobre fundo
+   âmbar translúcido, como um marca-texto. */
 .gs-highlight {
     padding: 0 2px;
     color: var(--color-warning-text);
@@ -1407,9 +1382,7 @@ body.gs-leaving {
     font-weight: var(--weight-semibold);
 }
 
-/* ============================================================
-   Toasts
-   ============================================================ */
+/* Toasts */
 
 .gs-toasts {
     position: fixed;
@@ -1509,16 +1482,13 @@ body.gs-leaving {
     }
 }
 
-/* ============================================================
-   Modal de confirmação (substitui o confirm() do navegador)
-   Criado inteiro pelo app.js — ids e classes são contrato com ele.
-   ============================================================ */
+/* Modal de confirmação, no lugar do confirm() do navegador.
 
-/* O JS cria este modal com class="modal-create" e hidden=true, então
-   ele já herda o overlay dali. Mas um seletor de ID vence um de
-   classe na cascata: sem a regra [hidden] logo abaixo, o display:flex
-   daqui passaria por cima de .modal-create[hidden] e o modal ficaria
-   aberto em toda tela que carrega o JS. */
+   O app.js cria esse modal inteiro, então os ids e as classes daqui
+   precisam bater com os de lá. Ele nasce com class="modal-create" e
+   hidden, e por isso herda o fundo escurecido dos outros modais. Como
+   seletor de id pesa mais que de classe, a regra [hidden] precisa ser
+   repetida para o id; sem ela o modal ficaria aberto em toda tela. */
 #gs-confirm-modal[hidden] {
     display: none;
 }
@@ -1612,9 +1582,9 @@ body.gs-leaving {
     background: var(--color-danger-strong);
 }
 
-/* Tom de aviso (data-confirm-tone="warning"): para confirmar algo que
-   não é remoção, como paralisar ou concluir uma obra. O texto do botão
-   é escuro porque branco sobre o laranja não chega a 4.5:1. */
+/* Versão de aviso (data-confirm-tone="warning"), para confirmar algo que
+   não é remoção, como paralisar ou encerrar uma obra. O texto do botão é
+   escuro porque branco sobre laranja não tem contraste suficiente. */
 .modal-confirm-warning .modal-confirm-icon {
     color: var(--color-warning);
     background: var(--color-warning-tint);
@@ -1630,8 +1600,8 @@ body.gs-leaving {
     background: var(--color-warning);
 }
 
-/* Envolve o texto destacado na busca; não deve alterar o layout da
-   célula, só servir de âncora para o <mark>. */
+/* Envolve o trecho destacado pela busca. Só serve de apoio para o
+   <mark> e não pode mexer no layout da célula. */
 .gs-highlight-wrap {
     display: inline;
 }

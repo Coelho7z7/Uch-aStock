@@ -1,26 +1,23 @@
-/* ============================================================
-   UchôaStock — Layout (shell da aplicação)
-   Sidebar, topbar, área de conteúdo e navegação mobile.
+/* Layout das telas internas: sidebar, topbar, área de conteúdo e o menu
+   do celular.
 
-   Escrito mobile-first: a base é o celular e os @media (min-width)
-   vão acrescentando. Era o contrário antes — o desktop era a base e
-   o mobile corrigia tudo à força, o que exigia 305 !important só
-   nestes dois arquivos. Aqui não há nenhum.
-   ============================================================ */
+   O arquivo é mobile-first: a base é o celular e cada @media (min-width)
+   acrescenta o que muda em telas maiores. Escrever o desktop primeiro e
+   corrigir o celular depois acaba em !important para todo lado. */
 
-/* Transparente de proposito: quem pinta o fundo e o body, com o
-   gradiente radial do tema. */
+/* Transparente de propósito: quem pinta o fundo é o body, com o
+   gradiente do tema. */
 .dashboard {
     display: flex;
     min-height: 100vh;
     background: transparent;
 }
 
-/* ============================================================
-   Sidebar
-   No celular ela vira uma gaveta fora da tela, aberta pelo
-   hambúrguer. O app.js liga/desliga .mobile-menu-open no <body>.
-   ============================================================ */
+/* Sidebar
+
+   No celular ela fica escondida fora da tela e entra como uma gaveta
+   quando alguém toca no botão de menu. Quem abre e fecha é o app.js,
+   ligando e desligando a classe .mobile-menu-open no <body>. */
 
 .sidebar {
     position: fixed;
@@ -47,10 +44,9 @@ body.mobile-menu-open .sidebar {
     visibility: visible;
 }
 
-/* ---------- Marca ----------
-   Mesmo arranjo do login: a logo à esquerda e, ao lado, o nome com
-   uma linha de apoio embaixo. Uma linha fina separa a marca do menu
-   (antes era uma pílula com borda, apertada e diferente do login). */
+/* Logo no topo da sidebar, no mesmo arranjo do login: a imagem à
+   esquerda e o nome ao lado, com uma linha de apoio embaixo. Uma linha
+   fina separa a logo do menu. */
 
 .logo {
     display: flex;
@@ -91,7 +87,7 @@ body.mobile-menu-open .sidebar {
     color: var(--color-text-subtle);
 }
 
-/* ---------- Navegação ---------- */
+/* Menu */
 
 .sidebar nav {
     display: flex;
@@ -117,8 +113,8 @@ body.mobile-menu-open .sidebar {
         transform var(--duration-fast) ease;
 }
 
-/* Brilho que atravessa o item ao passar o mouse, com um leve empurrao
-   para a direita. Estava no tema e se perdeu na reescrita. */
+/* Ao passar o mouse, um brilho atravessa o item e ele anda um pouco
+   para a direita. */
 .sidebar nav a::after {
     content: "";
     position: absolute;
@@ -132,8 +128,8 @@ body.mobile-menu-open .sidebar {
     transform: translateX(-120%);
 }
 
-/* Contadores do item "Solicitações": o primeiro vai para a direita, e o
-   segundo (quem aprova e atende vê os dois) fica ao lado dele. */
+/* Contadores do item "Solicitações". O primeiro é empurrado para a
+   direita e o segundo fica colado nele (quem aprova e atende vê os dois). */
 .nav-badge {
     display: inline-flex;
     align-items: center;
@@ -178,8 +174,8 @@ body.mobile-menu-open .sidebar {
     }
 }
 
-/* Página ativa: três sinais somados — barra lateral, fundo e peso —
-   para ficar óbvio mesmo de relance e sem depender só de cor. */
+/* Página atual: barrinha na lateral, fundo e texto mais forte. São três
+   sinais juntos para dar para ver de relance, sem depender só da cor. */
 .sidebar nav a.tab-active {
     color: var(--color-text-invert);
     background: var(--color-brand-tint);
@@ -214,7 +210,7 @@ body.mobile-menu-open .sidebar {
     stroke-linejoin: round;
 }
 
-/* ---------- Rodapé da sidebar ---------- */
+/* Rodapé da sidebar */
 
 .sidebar-footer {
     display: flex;
@@ -225,11 +221,10 @@ body.mobile-menu-open .sidebar {
     border-top: 1px solid var(--color-border-dark);
 }
 
-/* Sair: ação discreta de propósito. Antes era um botão azul cheio,
-   com o mesmo peso do "Salvar", e competia com as ações de verdade.
-   O vermelho só aparece no hover, avisando que ali se sai do sistema.
-   "Minha senha" (.sidebar-account) tem o mesmo formato, mas o hover é
-   azul: não é uma ação de saída. */
+/* "Sair" é discreto de propósito, para não disputar atenção com os
+   botões de ação das telas. O vermelho só aparece no hover, avisando que
+   ali se sai do sistema. "Minha senha" tem o mesmo formato, mas o hover
+   é azul, porque não é uma saída. */
 .sidebar-logout,
 .sidebar-account {
     display: flex;
@@ -263,9 +258,7 @@ body.mobile-menu-open .sidebar {
     text-decoration: none;
 }
 
-/* ============================================================
-   Overlay do menu mobile
-   ============================================================ */
+/* Fundo escurecido atrás do menu aberto no celular */
 
 .mobile-sidebar-overlay {
     position: fixed;
@@ -287,17 +280,15 @@ body.mobile-menu-open .mobile-sidebar-overlay {
     pointer-events: auto;
 }
 
-/* Trava a rolagem do fundo enquanto a gaveta está aberta. */
+/* Com o menu aberto, a página de trás não rola. */
 body.mobile-menu-open {
     overflow: hidden;
 }
 
-/* ============================================================
-   Conteúdo
-   ============================================================ */
+/* Conteúdo */
 
-/* A pagina entra subindo de leve — o app.js ja faz isso no bloco de
-   conteudo, e aqui o shell inteiro acompanha. */
+/* A página entra subindo de leve. O app.js já anima o bloco de
+   conteúdo; aqui é o resto da estrutura que acompanha. */
 .main-content {
     flex: 1;
     min-width: 0;
@@ -314,7 +305,7 @@ body.mobile-menu-open {
     }
 }
 
-/* ---------- Topbar ---------- */
+/* Topbar */
 
 .topbar {
     position: sticky;
@@ -341,7 +332,7 @@ body.mobile-menu-open {
     white-space: nowrap;
 }
 
-/* ---------- Botão do menu ---------- */
+/* Botão de menu (só no celular) */
 
 .mobile-menu-button {
     display: inline-grid;
@@ -370,7 +361,7 @@ body.mobile-menu-open {
     stroke-linecap: round;
 }
 
-/* ---------- Identificação do usuário ---------- */
+/* Nome e cargo de quem está logado */
 
 .user {
     display: flex;
@@ -428,10 +419,9 @@ body.mobile-menu-open {
     background: var(--color-surface-alt);
 }
 
-/* ---------- Seletor de obra ----------
-   No celular não cabe na mesma linha do título e do usuário: a topbar
-   quebra e o seletor ocupa uma linha inteira embaixo. Do tablet em
-   diante ele volta para o lado do usuário. */
+/* Seletor de obra. No celular ele não cabe na mesma linha do título e do
+   usuário, então a topbar quebra e o seletor ganha uma linha só dele
+   embaixo. Do tablet para cima ele volta para o lado do usuário. */
 
 .site-switcher {
     order: 3;
@@ -462,7 +452,7 @@ body.mobile-menu-open {
     font-weight: var(--weight-semibold);
 }
 
-/* ---------- Área de conteúdo ---------- */
+/* Área de conteúdo */
 
 .content {
     flex: 1;
@@ -480,14 +470,12 @@ body.mobile-menu-open {
     color: var(--color-brand-light);
 }
 
-/* ============================================================
-   Tabelas no celular: cada linha vira um cartão
+/* Tabelas no celular: cada linha vira um cartão.
 
-   O app.js (initResponsiveTableLabels) copia o texto de cada <th>
-   para data-label do <td> correspondente. Aqui esse rótulo vira o
-   ::before de cada célula. Sem isso a tabela estouraria a largura
-   da tela.
-   ============================================================ */
+   Uma tabela de verdade não cabe na largura do celular. O app.js
+   (initResponsiveTableLabels) copia o texto de cada <th> para o
+   data-label da célula da mesma coluna, e aqui esse texto aparece como
+   rótulo antes do valor. */
 
 @media (max-width: 767px) {
 
@@ -517,10 +505,10 @@ body.mobile-menu-open {
         box-shadow: var(--shadow-sm);
     }
 
-    /* justify-content: flex-end + margin-right: auto no rótulo (abaixo):
-       o rótulo vai para a esquerda e todo o valor fica junto à direita.
-       Com space-between, uma célula de duas partes ("1,3" + "m³", data
-       + hora) espalhava cada parte para um lado. */
+    /* O valor fica todo junto à direita (flex-end) e o rótulo é
+       empurrado para a esquerda pelo margin-right: auto dele, logo
+       abaixo. Com space-between, um valor em duas partes, como "1,3" e
+       "m³", ficaria com cada parte num canto. */
     .content tbody td {
         display: flex;
         align-items: center;
@@ -548,12 +536,11 @@ body.mobile-menu-open {
         text-align: left;
     }
 
-    /* "Último a mexer" traz duas informações, uma embaixo da outra:
-       quem mexeu e quando. Como a célula virou flex, os dois <span>
-       passavam a ser itens lado a lado, e a linha ficava mais larga que
-       o cartão — o valor empurrava o rótulo para fora e ele aparecia
-       cortado ("IO A MEXER"). Em grade eles voltam a empilhar: rótulo na
-       primeira coluna, as duas linhas do valor na segunda. */
+    /* "Último a mexer" mostra duas informações, uma embaixo da outra:
+       quem mexeu e quando. Em flex os dois <span> ficavam lado a lado,
+       a linha passava da largura do cartão e o rótulo aparecia cortado.
+       Com grid eles voltam a empilhar: o rótulo na primeira coluna e as
+       duas linhas do valor na segunda. */
     .content tbody td.last-handler {
         display: grid;
         grid-template-columns: auto minmax(0, 1fr);
@@ -570,7 +557,7 @@ body.mobile-menu-open {
         padding-right: 0;
     }
 
-    /* Célula de "nenhum registro": ocupa a linha inteira, sem rótulo. */
+    /* A célula de "nenhum registro" ocupa a linha toda, sem rótulo. */
     .content tbody td[colspan] {
         display: block;
         text-align: center;
@@ -581,10 +568,8 @@ body.mobile-menu-open {
     }
 }
 
-/* ============================================================
-   Tablet — a partir daqui a sidebar é fixa e o menu some
-   O breakpoint casa com o app.js, que fecha a gaveta em >= 768.
-   ============================================================ */
+/* Tablet em diante: a sidebar fica fixa e o botão de menu some. Os 768px
+   precisam bater com o app.js, que fecha a gaveta a partir dessa largura. */
 
 @media (min-width: 768px) {
 
@@ -603,7 +588,7 @@ body.mobile-menu-open {
         display: none;
     }
 
-    /* Mesmo se o body ficar com a classe, no desktop nada trava. */
+    /* Se o body ficar com a classe do menu aberto, a rolagem não trava. */
     body.mobile-menu-open {
         overflow: auto;
     }
@@ -623,7 +608,8 @@ body.mobile-menu-open {
         flex: 0 1 300px;
     }
 
-    /* O título grande agora é o do .page-hero; a topbar só situa. */
+    /* O título grande fica no .page-hero; o da topbar só diz onde a
+       pessoa está. */
     .topbar h2 {
         font-size: var(--text-lg);
     }
@@ -637,9 +623,7 @@ body.mobile-menu-open {
     }
 }
 
-/* ============================================================
-   Desktop
-   ============================================================ */
+/* Desktop */
 
 @media (min-width: 1024px) {
 
@@ -648,15 +632,13 @@ body.mobile-menu-open {
     }
 }
 
-/* ============================================================
-   Telas largas — limita a largura da linha de leitura
-   ============================================================ */
+/* Telas largas: o conteúdo para de esticar, senão as linhas ficam longas
+   demais para ler. */
 
 @media (min-width: 1280px) {
 
-    /* margin-inline:auto e essencial aqui: sem ele o max-width apenas
-       encolhe o conteudo contra a borda esquerda e abre um vazio a
-       direita. */
+    /* O margin-inline: auto centraliza. Só com o max-width, o conteúdo
+       ficaria grudado na esquerda com um vazio à direita. */
     .content {
         max-width: 1400px;
         margin-inline: auto;
