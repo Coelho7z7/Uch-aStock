@@ -1,0 +1,7 @@
+# Versão do Go usada no build do Railway (o Railpack instala o Go pelo
+# mise). Antes o mise lia a versão da linha "go" do go.mod, mas avisou que
+# vai parar de fazer isso: aquela linha é só a versão mínima. Uma linha
+# "toolchain" no go.mod não serve, porque o go mod tidy a apaga quando é
+# igual à versão do "go". Ao mudar a versão do Go, mude aqui e no go.mod.
+[tools]
+go = "1.26.5"

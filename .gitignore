@@ -24,7 +24,7 @@ dev.sh
 *.so
 *.dylib
 /uchoastock
-/GoStock
+/UchoaStock
 
 # Testes e cobertura
 *.test

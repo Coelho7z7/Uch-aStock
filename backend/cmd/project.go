@@ -19,9 +19,9 @@ func prepareProjectDirectory() error {
 		if _, err := os.Stat(filepath.Join(dir, "frontend", "html", "index.html")); err == nil {
 			return os.Chdir(dir)
 		}
-		// Pasta com o nome do repositório (o git clone cria "Uch-aStock"),
+		// Pasta com o nome do repositório (o git clone cria "UchoaStock"),
 		// para rodar a partir da pasta de cima dele.
-		nestedProject := filepath.Join(dir, "Uch-aStock")
+		nestedProject := filepath.Join(dir, "UchoaStock")
 		if _, err := os.Stat(filepath.Join(nestedProject, "frontend", "html", "index.html")); err == nil {
 			return os.Chdir(nestedProject)
 		}
