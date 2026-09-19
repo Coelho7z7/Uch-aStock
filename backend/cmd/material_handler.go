@@ -105,7 +105,7 @@ func materialHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 			data.Error = "Você não pode dar entrada de estoque nesta obra. Cadastre o material com quantidade 0."
 		default:
 			if err := services.CreateMaterialWeb(data.Name, quantity, data.Unit, minimum, targetSite.ID, user.ID); err != nil {
-				data.Error = err.Error()
+				data.Error = stockErrorMessage(err)
 			} else {
 				http.Redirect(w, r, "/materiais?sucesso=cadastrado", http.StatusSeeOther)
 				return
@@ -231,7 +231,7 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request, user *models.Us
 
 		} else if action == "remover" {
 			if opErr := services.DeleteMaterialWeb(materialID); opErr != nil {
-				data.Error = opErr.Error()
+				data.Error = stockErrorMessage(opErr)
 			} else {
 				http.Redirect(w, r, "/alterar-material?sucesso=removido", http.StatusSeeOther)
 				return
@@ -246,7 +246,7 @@ func editMaterialHandler(w http.ResponseWriter, r *http.Request, user *models.Us
 			if minimumErr != nil {
 				data.Error = "Informe um limite de aviso válido."
 			} else if opErr := services.UpdateMaterialWeb(materialID, name, unit, minimum, user.ID); opErr != nil {
-				data.Error = opErr.Error()
+				data.Error = stockErrorMessage(opErr)
 			} else {
 				http.Redirect(w, r, "/alterar-material?sucesso=atualizado", http.StatusSeeOther)
 				return

@@ -215,6 +215,20 @@
 }
 
 /* ============================================================
+   Minha senha
+   ============================================================ */
+
+/* O formulário fica num cartão estreito: três campos de senha esticados
+   na largura toda de um monitor ficariam difíceis de ler. */
+.account-form {
+    max-width: 420px;
+    padding: var(--space-5);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+/* ============================================================
    Obras
    ============================================================ */
 

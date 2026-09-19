@@ -37,8 +37,9 @@ type ReportSummary struct {
 // obra nenhuma e a quantidade dela não é material que entrou ou saiu.
 //
 // Só pedaços fixos de SQL são concatenados; todo valor digitado entra por
-// placeholder "?".
-func reportConditions(filter ReportFilter) (string, []any) {
+// placeholder "?". Data em formato errado devolve erro (quem chama já
+// validou, então não deveria acontecer).
+func reportConditions(filter ReportFilter) (string, []any, error) {
 	conditions := `m.tipo IN ('ENTRADA', 'SAIDA')`
 	var args []any
 
@@ -46,27 +47,38 @@ func reportConditions(filter ReportFilter) (string, []any) {
 		conditions += ` AND m.obra_id = ?`
 		args = append(args, filter.SiteID)
 	}
-	// 'localtime' pelo mesmo motivo de GetMovementsFilteredWeb: a data é
-	// gravada em UTC, e o dia que importa é o do Brasil.
+	// Mesma regra de movementWhere: o dia local vira um intervalo em UTC,
+	// que é como a data está gravada.
 	if filter.From != "" {
-		conditions += ` AND date(m.data, 'localtime') >= ?`
-		args = append(args, filter.From)
+		start, err := dayStartUTC(filter.From, 0)
+		if err != nil {
+			return "", nil, err
+		}
+		conditions += ` AND datetime(m.data) >= ?`
+		args = append(args, start)
 	}
 	if filter.To != "" {
-		conditions += ` AND date(m.data, 'localtime') <= ?`
-		args = append(args, filter.To)
+		end, err := dayStartUTC(filter.To, 1)
+		if err != nil {
+			return "", nil, err
+		}
+		conditions += ` AND datetime(m.data) < ?`
+		args = append(args, end)
 	}
 
-	return conditions, args
+	return conditions, args, nil
 }
 
 // GetReportSummary conta entradas, saídas e materiais distintos no
 // recorte do filtro.
 func GetReportSummary(filter ReportFilter) (ReportSummary, error) {
-	conditions, args := reportConditions(filter)
-
 	var summary ReportSummary
-	err := database.DB.QueryRow(`
+	conditions, args, err := reportConditions(filter)
+	if err != nil {
+		return summary, err
+	}
+
+	err = database.DB.QueryRow(`
 		SELECT
 			COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' THEN 1 ELSE 0 END), 0),
 			COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA'   THEN 1 ELSE 0 END), 0),
@@ -105,7 +117,10 @@ type MaterialConsumption struct {
 // para o que menos saiu. limit maior que zero corta a lista nos primeiros
 // (a tela mostra só o topo); limit 0 traz todos.
 func GetMaterialConsumption(filter ReportFilter, limit int) ([]MaterialConsumption, error) {
-	conditions, args := reportConditions(filter)
+	conditions, args, err := reportConditions(filter)
+	if err != nil {
+		return nil, err
+	}
 
 	query := `
 		SELECT
@@ -178,7 +193,10 @@ type SiteConsumption struct {
 // linha é justamente uma das informações que o relatório dá. No WHERE,
 // as condições apagariam essas obras do resultado.
 func GetSiteConsumption(filter ReportFilter) ([]SiteConsumption, error) {
-	conditions, args := reportConditions(filter)
+	conditions, args, err := reportConditions(filter)
+	if err != nil {
+		return nil, err
+	}
 
 	rows, err := database.DB.Query(`
 		SELECT

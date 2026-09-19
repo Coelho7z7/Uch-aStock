@@ -37,6 +37,12 @@ const (
 	PermViewAllMovements Permission = "movimentacoes.ver_todas"
 	PermExportMovements  Permission = "movimentacoes.exportar"
 	PermManageUsers      Permission = "usuarios.gerenciar"
+	// PermResetAdminPassword é trocar a senha de outro administrador.
+	// Nenhum cargo recebe: só o superadmin, como PermApproveOwnRequest.
+	// Quem troca a senha de alguém consegue entrar como essa pessoa, e o
+	// histórico atribuiria a ela o que o outro fez — o mesmo motivo que já
+	// protegia a senha do superadmin.
+	PermResetAdminPassword Permission = "usuarios.senha_admin"
 	// PermManageSites é cadastrar, editar, paralisar, retomar e encerrar
 	// obra. Quem não tem PermAllSites só mexe na própria obra.
 	PermManageSites Permission = "obras.gerenciar"
@@ -201,4 +207,15 @@ func canManageUser(actor, target *models.User) bool {
 		return false
 	}
 	return can(actor, PermAllSites) || target.SiteID == 0 || target.SiteID == actor.SiteID
+}
+
+// canResetPassword indica se actor pode trocar a senha de outra conta
+// (target). Vale a regra de canManageUser e mais uma: a senha de um
+// administrador só o superadmin troca (PermResetAdminPassword). A própria
+// senha não passa por aqui: ela é trocada em "Minha senha".
+func canResetPassword(actor, target *models.User) bool {
+	if !canManageUser(actor, target) {
+		return false
+	}
+	return normalizedRole(target) != services.RoleAdmin || can(actor, PermResetAdminPassword)
 }

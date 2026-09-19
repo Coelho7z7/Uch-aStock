@@ -1,13 +1,12 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"html/template"
+	"log"
+	"net"
 	"net/http"
 	"strings"
 
-	database "uchoastock/backend/database"
 	"uchoastock/backend/services"
 )
 
@@ -59,18 +58,19 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	email := r.FormValue("email")
 	password := r.FormValue("senha")
+	ip := clientIP(r)
 
 	// A espera é conferida antes da senha. Durante o bloqueio não há o
 	// que ganhar conferindo o hash, e não conferir também evita que o
 	// tempo de resposta denuncie se o email existe ou não.
-	if seconds := services.LoginLockSeconds(email); seconds > 0 {
+	if seconds := services.LoginLockSeconds(email, ip); seconds > 0 {
 		renderLogin(w, http.StatusTooManyRequests, loginPageData{Email: email, LockSeconds: seconds})
 		return
 	}
 
 	user, success := services.AuthenticateUser(email, password)
 	if !success {
-		seconds := services.RegisterFailedLogin(email)
+		seconds := services.RegisterFailedLogin(email, ip)
 		if seconds > 0 {
 			renderLogin(w, http.StatusTooManyRequests, loginPageData{Email: email, LockSeconds: seconds})
 			return
@@ -90,13 +90,13 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name:     "sessao",
+		Name:     sessionCookieName,
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   isHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   60 * 60 * 24 * 30,
+		MaxAge:   int(services.SessionLifetime.Seconds()),
 	})
 
 	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
@@ -104,14 +104,14 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 // logoutHandler apaga a sessão atual e redireciona para o login.
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
-	if cookie, err := r.Cookie("sessao"); err == nil {
-		hash := sha256.Sum256([]byte(cookie.Value))
-		tokenHash := hex.EncodeToString(hash[:])
-		database.DB.Exec("DELETE FROM sessoes WHERE token_hash = ?", tokenHash)
+	if hash, ok := sessionTokenHash(r); ok {
+		if err := services.DeleteSession(hash); err != nil {
+			log.Println("erro ao apagar a sessão no logout:", err)
+		}
 	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name:     "sessao",
+		Name:     sessionCookieName,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
@@ -119,6 +119,29 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 		Secure:   isHTTPS(r),
 	})
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// clientIP devolve o endereço de quem fez o pedido, para o limite de
+// tentativas de login por endereço.
+//
+// No Railway o pedido chega pelo proxy, então r.RemoteAddr é o endereço
+// do proxy, igual para todo mundo. O endereço de verdade vem no cabeçalho
+// X-Forwarded-For, uma lista em que cada proxy acrescenta, no fim, o
+// endereço que viu. O começo da lista pode ter sido escrito pelo próprio
+// navegador (qualquer um manda o cabeçalho que quiser), por isso vale o
+// último item, o que o proxy do Railway colocou.
+func clientIP(r *http.Request) string {
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		parts := strings.Split(forwarded, ",")
+		if last := strings.TrimSpace(parts[len(parts)-1]); last != "" {
+			return last
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
 
 // isHTTPS indica se a requisição chegou por HTTPS, para o cookie de sessão

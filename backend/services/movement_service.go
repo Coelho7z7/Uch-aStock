@@ -35,16 +35,86 @@ type MovementFilter struct {
 	To       string
 	SiteID   int
 	UserID   int
+	// Limit maior que zero traz só essa quantidade de linhas, a partir de
+	// Offset: é a paginação feita no banco. Sem ela, o histórico inteiro
+	// era lido a cada tela só para mostrar 20 linhas (ou 5, no dashboard).
+	Limit  int
+	Offset int
+}
+
+// movementWhere monta o WHERE do histórico. Só pedaços fixos de SQL são
+// concatenados; todo valor digitado pelo usuário entra por placeholder
+// "?". Usa os apelidos m (movimentacoes) e p (produtos).
+func movementWhere(filter MovementFilter) (string, []any, error) {
+	where := ` WHERE 1 = 1`
+	var args []any
+
+	if filter.SiteID > 0 {
+		where += ` AND m.obra_id = ?`
+		args = append(args, filter.SiteID)
+	}
+	if filter.UserID > 0 {
+		where += ` AND m.usuario_id = ?`
+		args = append(args, filter.UserID)
+	}
+	if validMovementTypes[filter.Type] {
+		where += ` AND m.tipo = ?`
+		args = append(args, filter.Type)
+	}
+	if filter.Material != "" {
+		where += ` AND p.nome LIKE ?`
+		args = append(args, "%"+filter.Material+"%")
+	}
+	// A data é gravada em UTC e o dia que importa é o do Brasil: o dia
+	// local vira um intervalo em UTC (ver dayStartUTC). datetime() deixa a
+	// data gravada no mesmo formato do intervalo, mesmo numa linha antiga
+	// gravada em outro formato ("2025-05-01T12:00:00Z").
+	if filter.From != "" {
+		start, err := dayStartUTC(filter.From, 0)
+		if err != nil {
+			return "", nil, err
+		}
+		where += ` AND datetime(m.data) >= ?`
+		args = append(args, start)
+	}
+	if filter.To != "" {
+		end, err := dayStartUTC(filter.To, 1)
+		if err != nil {
+			return "", nil, err
+		}
+		where += ` AND datetime(m.data) < ?`
+		args = append(args, end)
+	}
+	return where, args, nil
+}
+
+// CountMovements conta as movimentações do filtro (Limit e Offset não
+// contam), para a paginação do histórico.
+func CountMovements(filter MovementFilter) (int, error) {
+	where, args, err := movementWhere(filter)
+	if err != nil {
+		return 0, err
+	}
+	var total int
+	err = database.DB.QueryRow(`
+		SELECT COUNT(*)
+		FROM movimentacoes m
+		JOIN produtos p ON p.id = m.produto_id
+	`+where, args...).Scan(&total)
+	return total, err
 }
 
 // GetMovementsFilteredWeb devolve o histórico aplicando os filtros no
-// próprio SQL, do mais recente para o mais antigo. Só pedaços fixos de
-// SQL são concatenados; todo valor digitado pelo usuário entra por
-// placeholder "?".
+// próprio SQL, do mais recente para o mais antigo.
 //
 // O JOIN com obras é LEFT porque a atualização de cadastro não tem obra:
 // com JOIN comum, essas linhas sumiriam do histórico.
 func GetMovementsFilteredWeb(filter MovementFilter) ([]models.Movement, error) {
+	where, args, err := movementWhere(filter)
+	if err != nil {
+		return nil, err
+	}
+
 	query := `
 		SELECT
 			m.id,
@@ -66,38 +136,12 @@ func GetMovementsFilteredWeb(filter MovementFilter) ([]models.Movement, error) {
 		JOIN usuarios u ON u.id = m.usuario_id
 		LEFT JOIN obras o ON o.id = m.obra_id
 		LEFT JOIN solicitacoes rq ON rq.id = m.solicitacao_id
-		WHERE 1 = 1
-	`
-	var args []any
+	` + where + ` ORDER BY m.data DESC, m.id DESC`
 
-	if filter.SiteID > 0 {
-		query += ` AND m.obra_id = ?`
-		args = append(args, filter.SiteID)
+	if filter.Limit > 0 {
+		query += ` LIMIT ? OFFSET ?`
+		args = append(args, filter.Limit, filter.Offset)
 	}
-	if filter.UserID > 0 {
-		query += ` AND m.usuario_id = ?`
-		args = append(args, filter.UserID)
-	}
-	if validMovementTypes[filter.Type] {
-		query += ` AND m.tipo = ?`
-		args = append(args, filter.Type)
-	}
-	if filter.Material != "" {
-		query += ` AND p.nome LIKE ?`
-		args = append(args, "%"+filter.Material+"%")
-	}
-	// 'localtime' pelo mesmo motivo de CountTodayMovements: a data é
-	// gravada em UTC, e o dia que importa é o do Brasil.
-	if filter.From != "" {
-		query += ` AND date(m.data, 'localtime') >= ?`
-		args = append(args, filter.From)
-	}
-	if filter.To != "" {
-		query += ` AND date(m.data, 'localtime') <= ?`
-		args = append(args, filter.To)
-	}
-
-	query += ` ORDER BY m.data DESC, m.id DESC`
 
 	rows, err := database.DB.Query(query, args...)
 	if err != nil {
@@ -180,17 +224,19 @@ func parseMovementDate(date string) (time.Time, error) {
 // registradas hoje na obra (siteID 0 = todas), para o cartão de resumo
 // do turno.
 //
-// O 'localtime' nas duas datas é essencial: o SQLite grava CURRENT_TIMESTAMP
-// em UTC, então comparar direto com date('now') faria o "hoje" virar à
-// meia-noite de Londres — no Brasil o turno mudaria de dia às 21h.
+// O SQLite grava CURRENT_TIMESTAMP em UTC. Comparar direto com a data de
+// hoje em UTC faria o "hoje" virar à meia-noite de Londres — no Brasil o
+// turno mudaria de dia às 21h. Por isso o hoje local vira um intervalo em
+// UTC (todayRangeUTC).
 func CountTodayMovements(siteID int) (entries int, exits int, err error) {
+	start, end := todayRangeUTC()
 	err = database.DB.QueryRow(`
 		SELECT
 			COALESCE(SUM(CASE WHEN tipo = 'ENTRADA' THEN 1 ELSE 0 END), 0),
 			COALESCE(SUM(CASE WHEN tipo = 'SAIDA'   THEN 1 ELSE 0 END), 0)
 		FROM movimentacoes
-		WHERE date(data, 'localtime') = date('now', 'localtime')
+		WHERE datetime(data) >= ? AND datetime(data) < ?
 			AND (? = 0 OR obra_id = ?)
-	`, siteID, siteID).Scan(&entries, &exits)
+	`, start, end, siteID, siteID).Scan(&entries, &exits)
 	return entries, exits, err
 }

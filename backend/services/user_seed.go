@@ -1,8 +1,8 @@
 package services
 
 import (
-	"crypto/rand"
-	"encoding/base64"
+	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 
@@ -12,21 +12,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// seedPassword lê a senha padrão de uma variável de ambiente; se ela não
-// estiver definida, gera uma senha aleatória (nunca fica hardcoded no
-// código-fonte nem versionada no git). generated indica esse segundo
-// caso, para a senha só ir para o log quando a conta for criada de
-// verdade.
-func seedPassword(envVar string) (password string, generated bool, err error) {
-	if pw := os.Getenv(envVar); pw != "" {
-		return pw, false, nil
-	}
-
-	buf := make([]byte, 12)
-	if _, err := rand.Read(buf); err != nil {
-		return "", false, fmt.Errorf("gerar senha aleatória (%s): %w", envVar, err)
-	}
-	return base64.RawURLEncoding.EncodeToString(buf), true, nil
+// seedPassword lê a senha de uma conta padrão da variável de ambiente
+// envVar (nunca fica escrita no código nem versionada no git). ok é false
+// quando a variável não está definida: aí a conta não é criada.
+//
+// Antes, sem a variável, o seed gerava uma senha aleatória e a imprimia
+// no log. O log do Railway fica guardado e é lido por mais gente do que
+// quem deveria saber a senha; sem senha definida, é melhor a conta não
+// existir.
+func seedPassword(envVar string) (password string, ok bool) {
+	password = os.Getenv(envVar)
+	return password, password != ""
 }
 
 // superadminResetEnvVar é a saída de emergência da identidade reservada.
@@ -63,26 +59,23 @@ func resetSuperadminPassword() error {
 		return nil
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return fmt.Errorf("gerar senha do SuperAdmin: %w", err)
-	}
-
-	result, err := database.DB.Exec(`
-		UPDATE usuarios SET senha = ?
+	var userID int
+	err := database.DB.QueryRow(`
+		SELECT id FROM usuarios
 		WHERE LOWER(TRIM(email)) = 'superadmin@gmail.com' AND ativo = 1
-	`, string(hash))
-	if err != nil {
-		return fmt.Errorf("redefinir senha do SuperAdmin: %w", err)
-	}
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("redefinir senha do SuperAdmin: %w", err)
-	}
-	if rows == 0 {
+	`).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
 		fmt.Printf("[seed] %s está definida, mas não há conta ativa com o email superadmin@gmail.com. Nada foi alterado.\n", superadminResetEnvVar)
 		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("redefinir senha do SuperAdmin: %w", err)
+	}
+
+	// Como toda troca de senha, derruba as sessões abertas da conta: se a
+	// senha foi redefinida porque vazou, quem a usou perde o acesso.
+	if err := setPasswordByID(userID, password, ""); err != nil {
+		return fmt.Errorf("redefinir senha do SuperAdmin: %w", err)
 	}
 
 	// O aviso é obrigatório: enquanto a variável existir, a senha volta a
@@ -97,10 +90,9 @@ func resetSuperadminPassword() error {
 // reservada quando a variável de emergência está definida, tratada no
 // fim por resetSuperadminPassword.
 //
-// A senha temporária só é gerada e mostrada no log quando a conta é
-// criada. Antes ela era impressa a cada inicialização, mesmo com a conta
-// já existente — e quem lia o log tentava entrar com uma senha que nunca
-// tinha sido gravada.
+// Conta sem a variável de senha definida não é criada (ver seedPassword):
+// o log só diz qual variável falta, nunca mostra senha.
+//
 // A conta admin@gmail.com entrou nesta lista depois das outras. Ela já
 // existia em produção como sobra da migração de email: quando ceo@ e
 // admin@ conviviam, só uma podia virar superadmin@ (o email é UNIQUE), e
@@ -108,9 +100,9 @@ func resetSuperadminPassword() error {
 // Estando no seed, ela volta a existir se o banco for recriado e a senha
 // dela passa a sair de uma variável, como as demais.
 //
-// Ela tem o mesmo poder do SuperAdmin — a autorização aceita os dois
-// cargos igualmente. O que a identidade reservada tem a mais é não poder
-// ser rebaixada nem removida pela tela de usuários.
+// Ela tem quase o mesmo poder do SuperAdmin. O que a identidade reservada
+// tem a mais é não poder ser rebaixada nem removida pela tela de usuários,
+// e ser a única a trocar a senha de outro administrador.
 func SeedDefaultUsers() error {
 	// Cada cargo tem uma conta padrão, além de usuario@gmail.com, que é a
 	// conta de demonstração somente-leitura (RoleBasic). bindSite diz se a
@@ -163,9 +155,10 @@ func SeedDefaultUsers() error {
 			continue
 		}
 
-		password, generated, err := seedPassword(user.envVar)
-		if err != nil {
-			return err
+		password, ok := seedPassword(user.envVar)
+		if !ok {
+			fmt.Printf("[seed] %s não foi criada: defina a variável %s com a senha dela e reinicie.\n", user.label, user.envVar)
+			continue
 		}
 
 		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -179,10 +172,6 @@ func SeedDefaultUsers() error {
 		}
 		if err := createSeedUser(user.name, user.email, user.role, string(hash), siteID); err != nil {
 			return fmt.Errorf("inserir usuário %s: %w", user.email, err)
-		}
-
-		if generated {
-			fmt.Printf("[seed] %s: variável %s não definida; conta criada com a senha temporária: %s\n", user.label, user.envVar, password)
 		}
 	}
 

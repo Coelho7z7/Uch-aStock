@@ -1,6 +1,8 @@
 package services
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -211,17 +213,22 @@ func CountLowStockMaterials(siteID int) (int, error) {
 // UpdateMaterialWeb altera o cadastro de um material: nome, unidade e
 // limite de aviso. A quantidade não muda por aqui — ela só se mexe por
 // entrada e saída, para tudo ficar no histórico.
+//
+// A unidade só muda com o material parado: sem saldo em nenhuma obra e
+// fora de solicitação e inventário em aberto. Trocar "saco" por "kg" com
+// 200 em estoque transformaria 200 sacos em 200 kg, sem nenhuma
+// movimentação explicando.
 func UpdateMaterialWeb(materialID int, name string, unit string, minimum float64, userID int) error {
 	name = strings.TrimSpace(name)
 	if !utils.ValidateName(name) {
-		return fmt.Errorf("o nome do material é obrigatório")
+		return StockInputError{"o nome do material é obrigatório"}
 	}
 	if !utils.ValidateUnit(unit) {
-		return fmt.Errorf("unidade inválida")
+		return StockInputError{"unidade inválida"}
 	}
 	minimum = utils.RoundQuantity(minimum)
 	if minimum < 0 {
-		return fmt.Errorf("o limite de aviso não pode ser negativo")
+		return StockInputError{"o limite de aviso não pode ser negativo"}
 	}
 
 	tx, err := database.DB.Begin()
@@ -230,21 +237,30 @@ func UpdateMaterialWeb(materialID int, name string, unit string, minimum float64
 	}
 	defer tx.Rollback()
 
-	result, err := tx.Exec(`
+	var currentUnit string
+	err = tx.QueryRow(`SELECT unidade FROM produtos WHERE id = ? AND ativo = 1`, materialID).Scan(&currentUnit)
+	if errors.Is(err, sql.ErrNoRows) {
+		return StockInputError{"material não encontrado"}
+	}
+	if err != nil {
+		return err
+	}
+	if unit != currentUnit {
+		usage, err := materialUsageTx(tx, materialID)
+		if err != nil {
+			return err
+		}
+		if blockers := usage.blockers("Registre as saídas antes de trocar a unidade.", "Atenda, rejeite ou cancele antes de trocar a unidade.", "Aprove ou cancele o inventário antes de trocar a unidade."); len(blockers) > 0 {
+			return StockInputError{fmt.Sprintf("não é possível trocar a unidade de %s para %s: %s", currentUnit, unit, strings.Join(blockers, " "))}
+		}
+	}
+
+	if _, err := tx.Exec(`
 		UPDATE produtos
 		SET nome = ?, unidade = ?, limite_minimo = ?
 		WHERE id = ? AND ativo = 1
-	`, name, unit, minimum, materialID)
-	if err != nil {
+	`, name, unit, minimum, materialID); err != nil {
 		return err
-	}
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return fmt.Errorf("material não encontrado")
 	}
 
 	// O cadastro é da empresa, não de uma obra: a atualização fica sem obra.
@@ -283,57 +299,82 @@ func DeleteMaterialWeb(materialID int) error {
 		return err
 	}
 	if rows == 0 {
-		return fmt.Errorf("material não encontrado")
+		return StockInputError{"material não encontrado"}
 	}
 
-	var sites, openRequests int
+	usage, err := materialUsageTx(tx, materialID)
+	if err != nil {
+		return err
+	}
+	blockers := usage.blockers("Registre as saídas antes de remover.", "Atenda, rejeite ou cancele antes de remover.", "Aprove ou cancele o inventário antes de remover.")
+	// O return antes do Commit desfaz o UPDATE acima (defer tx.Rollback).
+	if len(blockers) > 0 {
+		return StockInputError{"não é possível remover: " + strings.Join(blockers, " ")}
+	}
+
+	return tx.Commit()
+}
+
+// materialUsage diz onde um material ainda está em uso: em quantas obras
+// tem saldo, em quantas solicitações em aberto e em quantos inventários
+// abertos aparece.
+type materialUsage struct {
+	sites           int
+	openRequests    int
+	openInventories int
+}
+
+// materialUsageTx conta os usos do material, dentro da transação de quem
+// chama. É a checagem comum de remover o material e de trocar a unidade.
+func materialUsageTx(tx *sql.Tx, materialID int) (materialUsage, error) {
+	var usage materialUsage
 	if err := tx.QueryRow(`
 		SELECT COUNT(*) FROM saldos WHERE produto_id = ? AND quantidade > 0
-	`, materialID).Scan(&sites); err != nil {
-		return err
+	`, materialID).Scan(&usage.sites); err != nil {
+		return usage, err
 	}
 	if err := tx.QueryRow(`
 		SELECT COUNT(DISTINCT r.id)
 		FROM solicitacao_itens i
 		JOIN solicitacoes r ON r.id = i.solicitacao_id
 		WHERE i.produto_id = ? AND r.status IN (?, ?, ?)
-	`, materialID, RequestPending, RequestApproved, RequestPartial).Scan(&openRequests); err != nil {
-		return err
+	`, materialID, RequestPending, RequestApproved, RequestPartial).Scan(&usage.openRequests); err != nil {
+		return usage, err
 	}
-	// Material que está numa contagem aberta também fica: a aprovação ainda
-	// pode ajustar o saldo dele.
-	var openInventories int
+	// Material que está numa contagem aberta também conta: a aprovação
+	// ainda pode ajustar o saldo dele.
 	if err := tx.QueryRow(`
 		SELECT COUNT(DISTINCT v.id)
 		FROM inventario_itens i
 		JOIN inventarios v ON v.id = i.inventario_id
 		WHERE i.produto_id = ? AND v.status IN (?, ?)
-	`, materialID, InventoryCounting, InventoryAwaitingApproval).Scan(&openInventories); err != nil {
-		return err
+	`, materialID, InventoryCounting, InventoryAwaitingApproval).Scan(&usage.openInventories); err != nil {
+		return usage, err
 	}
+	return usage, nil
+}
 
+// blockers escreve um motivo por uso encontrado, cada um terminando com o
+// que fazer (stockHint, requestHint e inventoryHint mudam conforme a
+// ação: remover ou trocar a unidade). Vazio quando o material está livre.
+func (u materialUsage) blockers(stockHint, requestHint, inventoryHint string) []string {
 	var blockers []string
-	if sites == 1 {
-		blockers = append(blockers, "o material ainda tem saldo em 1 obra. Registre a saída antes de remover.")
+	if u.sites == 1 {
+		blockers = append(blockers, "o material ainda tem saldo em 1 obra. "+stockHint)
 	}
-	if sites > 1 {
-		blockers = append(blockers, fmt.Sprintf("o material ainda tem saldo em %d obras. Registre as saídas antes de remover.", sites))
+	if u.sites > 1 {
+		blockers = append(blockers, fmt.Sprintf("o material ainda tem saldo em %d obras. %s", u.sites, stockHint))
 	}
-	if openRequests == 1 {
-		blockers = append(blockers, "o material está em 1 solicitação em aberto (pendente, aprovada ou parcial). Atenda, rejeite ou cancele antes de remover.")
+	if u.openRequests == 1 {
+		blockers = append(blockers, "o material está em 1 solicitação em aberto (pendente, aprovada ou parcial). "+requestHint)
 	}
-	if openRequests > 1 {
-		blockers = append(blockers, fmt.Sprintf("o material está em %d solicitações em aberto (pendentes, aprovadas ou parciais). Atenda, rejeite ou cancele antes de remover.", openRequests))
+	if u.openRequests > 1 {
+		blockers = append(blockers, fmt.Sprintf("o material está em %d solicitações em aberto (pendentes, aprovadas ou parciais). %s", u.openRequests, requestHint))
 	}
-	if openInventories > 0 {
-		blockers = append(blockers, "o material está num inventário aberto. Aprove ou cancele o inventário antes de remover.")
+	if u.openInventories > 0 {
+		blockers = append(blockers, "o material está num inventário aberto. "+inventoryHint)
 	}
-	// O return antes do Commit desfaz o UPDATE acima (defer tx.Rollback).
-	if len(blockers) > 0 {
-		return fmt.Errorf("não é possível remover: %s", strings.Join(blockers, " "))
-	}
-
-	return tx.Commit()
+	return blockers
 }
 
 // stockStatus classifica o estoque para a cor do selo na tela. Os

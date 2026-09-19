@@ -32,7 +32,7 @@ func TestReportConsumption(t *testing.T) {
 	}
 	// Atualização de cadastro não é material entrando nem saindo: não pode
 	// aparecer em nenhum número do relatório.
-	if err := UpdateMaterialWeb(sand, "Areia média", "m³", 5, userID); err != nil {
+	if err := UpdateMaterialWeb(sand, "Areia média", "saco", 5, userID); err != nil {
 		t.Fatal(err)
 	}
 

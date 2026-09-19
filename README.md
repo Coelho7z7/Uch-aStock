@@ -38,24 +38,29 @@ O UchôaStock é organizado em módulos:
 
 ## Usuários de teste
 
-As contas padrão são criadas automaticamente na primeira execução, pelo seed. As senhas **não** ficam no código nem neste arquivo.
+As contas padrão são criadas automaticamente na inicialização, pelo seed, quando ainda não existem. As senhas **não** ficam no código nem neste arquivo: cada uma vem de uma variável de ambiente.
 
 | Conta | Email | Role | Variável de ambiente da senha |
 |---|---|---|---|
 | SuperAdmin | `superadmin@gmail.com` | `superadmin` | `SEED_SUPERADMIN_PASSWORD` |
 | Administrador | `admin@gmail.com` | `admin` | `SEED_ADMIN_PASSWORD` |
-| Gestor | `gerente@gmail.com` | `gestor` | `SEED_GERENTE_PASSWORD` |
-| Solicitante | `usuario@gmail.com` | `solicitante` | `SEED_USUARIO_PASSWORD` |
+| Gestor | `gerente@gmail.com` | `gestor` | `SEED_GESTOR_PASSWORD` |
+| Almoxarife | `almoxarife@gmail.com` | `almoxarife` | `SEED_ALMOXARIFE_PASSWORD` |
+| Solicitante | `solicitante@gmail.com` | `solicitante` | `SEED_SOLICITANTE_PASSWORD` |
+| Auditor | `auditor@gmail.com` | `auditor` | `SEED_AUDITOR_PASSWORD` |
+| Usuário (somente leitura) | `usuario@gmail.com` | `basico` | `SEED_USUARIO_PASSWORD` |
 
-Os cargos disponíveis são Administrador (`admin`), Gestor (`gestor`), Almoxarife (`almoxarife`), Solicitante (`solicitante`) e Auditor (`auditor`). O que cada um pode fazer está em `backend/cmd/permissions.go` e no `INFORMACOES.MD`. Bancos antigos são migrados sozinhos na inicialização: `gerente` vira `gestor` e `basico` vira `solicitante`.
+Os cargos disponíveis são Administrador (`admin`), Gestor (`gestor`), Almoxarife (`almoxarife`), Solicitante (`solicitante`) e Auditor (`auditor`). O que cada um pode fazer está em `backend/cmd/permissions.go` e no `INFORMACOES.MD`. A conta `usuario@gmail.com` é de demonstração: vê as telas, mas não altera nada. Bancos antigos são migrados sozinhos na inicialização: `gerente` vira `gestor` e `basico` vira `solicitante` (menos a conta de demonstração).
 
-Se a variável não estiver definida, o seed gera uma senha aleatória e a imprime **uma única vez** no log de inicialização.
+Se a variável de uma conta não estiver definida, **a conta não é criada**, e o log de inicialização diz qual variável falta. Nenhuma senha é escrita no log.
 
-Para trocar a senha de uma conta já existente:
+Cada pessoa troca a própria senha em **Minha senha**, no rodapé da barra lateral (é pedida a senha atual). Para trocar a senha de uma conta pela linha de comando:
 
 ```bash
 go run ./backend/cmd reset-password <email> <nova-senha>
 ```
+
+Trocar a senha encerra as sessões abertas daquela conta em outros aparelhos.
 
 ## Como executar
 
@@ -98,6 +103,8 @@ No Railway, a aplicação utiliza automaticamente a porta fornecida pela variáv
 * `/solicitacoes/{id}` — Detalhe da solicitação: aprovar, rejeitar, atender e cancelar
 
 * `/usuarios` — Administração de usuários
+
+* `/minha-senha` — Troca da própria senha (qualquer pessoa logada)
 
 ## Autor
 

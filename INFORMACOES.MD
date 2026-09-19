@@ -11,7 +11,7 @@ cmd/
 - auth_handler.go — login
 - authorization.go — middleware withUser, acesso negado e regras por obra
 - permissions.go — permissões por ação: o que cada cargo pode fazer
-- session.go — sessões
+- session.go — cookie de sessão (a regra da sessão mora em services/session_site.go)
 - dashboard_handler.go — dashboard
 - site_handler.go — obras
 - site_scope.go — obra selecionada no topo (seletor e troca de obra)
@@ -20,7 +20,7 @@ cmd/
 - movement_handler.go — movimentações
 - report_handler.go — relatórios: período na URL, atalhos de 7/30/90 dias
 - request_handler.go — solicitações (lista, nova, detalhe e ações) e contadores da barra lateral
-- user_handler.go — usuários
+- user_handler.go — usuários e "Minha senha" (/minha-senha)
 
 services/
 - material_create.go — cadastro de materiais
@@ -32,10 +32,11 @@ services/
 - user_query.go — consultas de usuários
 - user_management.go — gerenciamento de usuários
 - user_seed.go — usuários iniciais
-- password_reset.go — troca de senha, nome e email pelo CLI
+- password_reset.go — troca de senha (tela e CLI), nome e email pelo CLI
 - site_create.go — cadastro e edição de obras
 - site_query.go — consultas de obras
-- session_site.go — obra guardada na sessão
+- session_site.go — sessões (criar, validar, apagar) e obra guardada na sessão
+- local_time.go — fuso de Brasília: "hoje", filtro por dia e datas da tela
 - request_service.go — solicitações: criar, aprovar, rejeitar, cancelar, atender, transições
 - request_query.go — solicitações: lista, contadores, detalhe com itens e histórico
 
@@ -69,6 +70,7 @@ html/
 - request_new.html — nova solicitação
 - request_detail.html — detalhe da solicitação (aprovar, rejeitar, atender, cancelar)
 - users.html — usuários
+- my_password.html — Minha senha (troca da própria senha, para todo cargo)
 - access_denied.html — acesso negado
 - not_found.html — página 404 (com sessão, no layout do sistema; sem sessão, só o cartão). Também é a resposta para solicitação fora do alcance
 
@@ -140,6 +142,7 @@ Cargos (valor gravado no banco entre parênteses):
 | movimentacoes.ver_todas |   x   |   x    |     x      |             |    x    |
 | movimentacoes.exportar  |   x   |   x    |     x      |             |    x    |
 | usuarios.gerenciar      |   x   |   x    |            |             |         |
+| usuarios.senha_admin    |       |        |            |             |         |
 | obras.gerenciar         |   x   |   x    |            |             |         |
 | obras.reabrir           |   x   |        |            |             |         |
 | obras.todas             |   x   |        |            |             |         |
@@ -168,6 +171,10 @@ Solicitante (solicitante), Auditor (auditor).
 - solicitacao.aprovar_propria não é de nenhum cargo: só o superadmin (can()
   libera tudo para ele) aprova ou rejeita a própria solicitação. Assim a
   exceção existe sem checar nome de cargo.
+- usuarios.senha_admin também não é de nenhum cargo: só o superadmin troca
+  a senha de um administrador. Quem troca a senha de alguém consegue entrar
+  como essa pessoa, e o histórico atribuiria a ela o que o outro fez
+  (canResetPassword em permissions.go).
 - Sem solicitacao.ver_todas (o solicitante), a pessoa vê só as solicitações
   que criou. Ver SOLICITAÇÕES.
 - O catálogo de materiais é da empresa toda e é exclusivo do admin (e do
@@ -181,6 +188,16 @@ Solicitante (solicitante), Auditor (auditor).
 - O limite mínimo (produtos.limite_minimo) é um campo único do material,
   igual para todas as obras. Por isso também fica só com o admin. Se um
   dia precisar ser por obra, é mudança de schema (coluna em saldos).
+- A unidade do material só muda com ele parado: sem saldo em nenhuma obra
+  e fora de solicitação e inventário em aberto. Com saldo, trocar "saco"
+  por "kg" transformaria 200 sacos em 200 kg sem nenhuma movimentação
+  explicando. Nome e limite mudam a qualquer hora.
+- Material cadastrado com estoque inicial grava uma ENTRADA ("Estoque
+  inicial") na obra; cadastrado com 0, grava só uma ATUALIZACAO sem obra
+  ("Material cadastrado"): entrada é sempre de quantidade maior que zero.
+- Erro de regra (StockInputError, saldo insuficiente, obra concluída ou em
+  inventário) aparece na tela como veio; erro do banco vai para o log, e a
+  tela mostra "Não foi possível concluir a operação" (stockErrorMessage).
 - Sem movimentacoes.ver_todas (o solicitante), o histórico, a exportação e
   a atividade recente do dashboard mostram só o que a pessoa registrou.
 - Sem movimentacoes.exportar, /movimentacoes/exportar responde 403.
@@ -196,7 +213,26 @@ Gestão de usuários (usuarios.gerenciar), regras em permissions.go:
 - O gestor não altera, não remove e não troca a senha de admin, de outro
   gestor, de auditor nem de ninguém de outra obra; e só vincula à própria
   obra (canManageUser, canAssignRole, canAssignSite).
-- Qualquer um troca a própria senha.
+- Qualquer um troca a própria senha em Minha senha (/minha-senha, no
+  rodapé da barra lateral), informando a senha atual. A tela de usuários
+  não troca a própria senha: manda para lá.
+- Trocar uma senha (pela tela, por Minha senha, pelo reset-password ou
+  pela variável de emergência do superadmin) encerra as sessões abertas da
+  conta. Em Minha senha, a sessão de onde se trocou continua.
+
+Login (services/user_auth.go):
+- 5 erros seguidos no mesmo email, ou 20 vindos do mesmo endereço (o
+  último item do X-Forwarded-For, que é o que o proxy do Railway põe),
+  bloqueiam novas tentativas. A espera começa em 30 segundos e dobra a
+  cada bloqueio seguido, até 15 minutos. Login certo zera o email, não o
+  endereço.
+- Email inexistente passa pela mesma conferência de bcrypt que um email
+  real, para o tempo de resposta não revelar quais emails têm conta.
+- Sessão vale 30 dias. Cada login apaga as sessões vencidas.
+
+Seed: só cria conta padrão que ainda não existe e cuja variável de senha
+(SEED_*_PASSWORD) está definida. Sem a variável, a conta não é criada e o
+log diz qual variável falta; nenhuma senha vai para o log.
 
 A tela esconde botões e abas pelas flags de permissão (CanManageUsers,
 CanEditMaterial, CanRemoveMaterial, CanExport, CanManageSites...). Isso é
@@ -382,11 +418,26 @@ cada um (LEFT JOIN com movimentacoes + usuarios), e uma linha "e mais N"
 quando sobra material fora da lista.
 
 
-RESUMO DO DIA
+RESUMO DO DIA E FUSO HORÁRIO
 
 services.CountTodayMovements() alimenta o cartão "Hoje" (entradas/saídas).
-As datas usam date(...,'localtime') porque o SQLite grava em UTC — sem
-isso o dia viraria às 21h no horário do Brasil.
+
+O SQLite grava as datas em UTC. O sistema mostra tudo no horário de
+Brasília (services.TimezoneName), qualquer que seja o fuso do servidor —
+no Railway o padrão é UTC. services.SetupTimezone, no começo do main,
+faz de Brasília o time.Local, com a tabela de fusos embutida no binário
+(time/tzdata). Por isso:
+- o "hoje" e os filtros por dia (histórico, relatório) convertem o dia
+  local num intervalo em UTC (dayStartUTC) e comparam com datetime(data);
+- as datas de solicitação e inventário vêm cruas do banco e são
+  formatadas no Go (formatDBTime).
+Não use 'localtime' do SQLite: ele depende do fuso do servidor, e o dia
+viraria às 21h no horário do Brasil.
+
+O histórico e o dashboard paginam no banco (MovementFilter.Limit e Offset,
+CountMovements). Índices idx_movimentacoes_produto_obra_data e
+idx_movimentacoes_obra_data aceleram o alerta de estoque baixo e as
+consultas de uma obra.
 
 
 FILTRO DE MOVIMENTAÇÕES
@@ -454,7 +505,9 @@ nunca DB: a conexão é uma só (SetMaxOpenConns(1)).
 
 Chaves estrangeiras: ligadas pela string de conexão
 (?_pragma=foreign_keys(1), em database.dsn), então valem para toda conexão
-que o database/sql abrir, não só a primeira. A migração não recria tabelas
+que o database/sql abrir, não só a primeira. A mesma string liga
+busy_timeout(5000): com o servidor rodando, um comando de linha espera até
+5 segundos pela vez em vez de falhar com "database is locked". A migração não recria tabelas
 nem desliga as chaves. Os testes de migração rodam foreign_key_check
 depois de migrar (database.ForeignKeyViolations).
 

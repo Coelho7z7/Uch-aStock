@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"html/template"
 	"log"
 	"net/http"
@@ -102,7 +103,7 @@ func stockHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		}
 
 		if opErr != nil {
-			data.Error = opErr.Error()
+			data.Error = stockErrorMessage(opErr)
 		} else if data.Error == "" {
 			redirectToStock(w, r, action, data.Search, page)
 			return
@@ -157,6 +158,23 @@ func stockHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		log.Println("erro ao renderizar estoque:", err)
 		http.Error(w, "Erro ao renderizar estoque", http.StatusInternalServerError)
 	}
+}
+
+// stockErrorMessage escolhe o que mostrar na tela para um erro de estoque
+// ou do catálogo de materiais, como siteErrorMessage: regra de negócio
+// (StockInputError, saldo insuficiente, obra concluída ou em inventário)
+// aparece como veio; erro do banco vai para o log e a pessoa vê uma
+// mensagem genérica, sem detalhe interno.
+func stockErrorMessage(err error) string {
+	var inputErr services.StockInputError
+	if errors.As(err, &inputErr) ||
+		errors.Is(err, services.ErrInsufficientStock) ||
+		errors.Is(err, services.ErrSiteFinished) ||
+		errors.Is(err, services.ErrSiteInInventory) {
+		return err.Error()
+	}
+	log.Println("erro no estoque ou no catálogo de materiais:", err)
+	return "Não foi possível concluir a operação. Tente novamente."
 }
 
 // redirectToStock volta para a tela de estoque depois de uma

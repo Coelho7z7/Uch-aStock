@@ -897,3 +897,26 @@ func TestRenameRequestTablesKeepsData(t *testing.T) {
 	}
 	assertNoForeignKeyViolations(t)
 }
+
+// Os índices do histórico existem depois da migração, também num banco
+// antigo, em que movimentacoes.obra_id nasce no meio dela.
+func TestCreateTablesCreatesMovementIndexes(t *testing.T) {
+	openTestDB(t)
+	if _, err := DB.Exec(oldSchema); err != nil {
+		t.Fatalf("montar banco antigo: %v", err)
+	}
+	for run := 1; run <= 2; run++ {
+		if err := CreateTables(); err != nil {
+			t.Fatalf("rodada %d: %v", run, err)
+		}
+	}
+	for _, index := range []string{"idx_movimentacoes_produto_obra_data", "idx_movimentacoes_obra_data"} {
+		var count int
+		if err := DB.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?`, index).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Errorf("índice %s não foi criado", index)
+		}
+	}
+}

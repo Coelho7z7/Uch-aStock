@@ -7,6 +7,11 @@
      internas. */}}
 {{ define "nav-request-badges" }}{{ if .Pending }}<span class="nav-badge nav-badge-pending" title="Solicitações esperando aprovação" aria-label="{{ .Pending }} esperando aprovação">{{ .Pending }}</span>{{ end }}{{ if .ToServe }}<span class="nav-badge nav-badge-serve" title="Solicitações aprovadas esperando atendimento" aria-label="{{ .ToServe }} para atender">{{ .ToServe }}</span>{{ end }}{{ end }}
 
+{{/* Link "Minha senha" do rodapé da barra lateral, acima do "Sair".
+     Toda pessoa logada troca a própria senha por ele, qualquer que seja o
+     cargo. */}}
+{{ define "sidebar-account-link" }}<a href="/minha-senha" class="sidebar-account"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.85 12.15 19 4"></path><path d="M18 5l2 2"></path><path d="M15 8l2 2"></path></svg>Minha senha</a>{{ end }}
+
 {{ define "site-switcher" }}
 <form class="site-switcher" method="POST" action="/obra-atual">
     <input type="hidden" name="voltar" value="{{ .ReturnTo }}">

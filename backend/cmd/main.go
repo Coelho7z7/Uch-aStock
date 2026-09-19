@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	database "uchoastock/backend/database"
 	"uchoastock/backend/services"
@@ -16,6 +17,13 @@ import (
 )
 
 func main() {
+	// Antes de tudo: as datas da tela e o "hoje" seguem o horário de
+	// Brasília, qualquer que seja o fuso do servidor.
+	if err := services.SetupTimezone(); err != nil {
+		fmt.Println("Erro ao configurar o fuso horário:", err)
+		os.Exit(1)
+	}
+
 	if err := prepareProjectDirectory(); err != nil {
 		fmt.Println("Erro ao localizar os arquivos do projeto:", err)
 		os.Exit(1)
@@ -72,8 +80,20 @@ func main() {
 		port = "8080"
 	}
 
+	// http.ListenAndServe não tem limite de tempo nenhum: uma conexão que
+	// manda o pedido um byte por vez fica aberta para sempre, e muitas
+	// delas esgotam o servidor. Os limites abaixo encerram essas conexões.
+	// O de escrita tem folga para a exportação de CSV de um histórico grande.
+	server := &http.Server{
+		Addr:              ":" + port,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      2 * time.Minute,
+		IdleTimeout:       2 * time.Minute,
+	}
+
 	fmt.Println("Servidor web disponível na porta", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	if err := server.ListenAndServe(); err != nil {
 		fmt.Println("Erro no servidor web:", err)
 		os.Exit(1)
 	}
@@ -207,6 +227,7 @@ func registerRoutes() {
 	http.HandleFunc("/requisicoes/{rest...}", redirectToRequests)
 
 	http.HandleFunc("/usuarios", withUser(userHandler))
+	http.HandleFunc("/minha-senha", withUser(myPasswordHandler))
 }
 
 // verifyStock é o comando verify-stock, que confere a migração para o

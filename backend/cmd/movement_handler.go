@@ -63,32 +63,36 @@ func movementHandler(w http.ResponseWriter, r *http.Request, user *models.User) 
 	filter.SiteID = scope.SiteID()
 	filter.UserID = ownMovementsOnly(user)
 
-	movements, err := services.GetMovementsFilteredWeb(filter)
+	// Primeiro o total, para saber quantas páginas existem; depois só as
+	// linhas da página pedida. O banco faz o corte (LIMIT/OFFSET), em vez
+	// de ler o histórico inteiro a cada tela.
+	totalFiltered, err := services.CountMovements(filter)
 	if err != nil {
-		log.Println("erro ao buscar movimentações:", err)
+		log.Println("erro ao contar movimentações:", err)
 		http.Error(w, "Erro ao buscar movimentações", http.StatusInternalServerError)
 		return
 	}
-
-	totalFiltered := len(movements)
 
 	page, _ := strconv.Atoi(r.URL.Query().Get("pagina"))
 	if page < 1 {
 		page = 1
 	}
-	totalPages := (len(movements) + movementsPerPage - 1) / movementsPerPage
+	totalPages := (totalFiltered + movementsPerPage - 1) / movementsPerPage
 	if totalPages < 1 {
 		totalPages = 1
 	}
 	if page > totalPages {
 		page = totalPages
 	}
-	start := (page - 1) * movementsPerPage
-	end := start + movementsPerPage
-	if end > len(movements) {
-		end = len(movements)
+	filter.Limit = movementsPerPage
+	filter.Offset = (page - 1) * movementsPerPage
+
+	movements, err := services.GetMovementsFilteredWeb(filter)
+	if err != nil {
+		log.Println("erro ao buscar movimentações:", err)
+		http.Error(w, "Erro ao buscar movimentações", http.StatusInternalServerError)
+		return
 	}
-	movements = movements[start:end]
 
 	tmpl, err := template.ParseFiles("frontend/html/movements.html", "frontend/html/site_switcher.html")
 	if err != nil {

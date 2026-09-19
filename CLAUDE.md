@@ -169,7 +169,7 @@ O acesso é **por ação**, não por nome de cargo. A fonte única da verdade é
 | Cargo | Pode |
 |---|---|
 | `superadmin` | tudo (`can` sempre true); identidade **reservada** a `superadmin@gmail.com` |
-| `admin` | todas as permissões, inclusive `obras.todas` (age em qualquer obra e usa "Todas as obras") e o catálogo de materiais (criar, editar, remover, limite mínimo), que é exclusivo dele |
+| `admin` | todas as permissões, inclusive `obras.todas` (age em qualquer obra e usa "Todas as obras") e o catálogo de materiais (criar, editar, remover, limite mínimo), que é exclusivo dele. **Não** troca a senha de outro admin: isso é `usuarios.senha_admin`, que nenhum cargo recebe (só o superadmin) |
 | `gestor` | movimenta estoque e gerencia **só a obra vinculada a ele**; aprova, rejeita, cancela e atende solicitações dessa obra; em usuários, só cria e edita almoxarife e solicitante da própria obra; **não** mexe no catálogo de materiais |
 | `almoxarife` | movimenta estoque da própria obra e atende as solicitações dela (não aprova); vê e exporta todas as movimentações; **não** mexe no catálogo de materiais |
 | `solicitante` | pede material (solicitação) na própria obra e vê **só as próprias** solicitações e movimentações |
@@ -275,7 +275,7 @@ netstat -ano | grep ":8080" | grep LISTENING
 taskkill //F //PID <pid>
 ```
 
-O seed **só cria conta que ainda não existe**, então definir `SEED_*_PASSWORD` não tem efeito sobre conta já criada. Para trocar a senha de uma conta existente:
+O seed **só cria conta que ainda não existe**, então definir `SEED_*_PASSWORD` não tem efeito sobre conta já criada. Conta cuja variável não está definida **não é criada** (o log diz qual variável falta; nenhuma senha vai para o log). Para trocar a senha de uma conta existente:
 
 ```bash
 go run ./backend/cmd reset-password <email> '<nova-senha>'

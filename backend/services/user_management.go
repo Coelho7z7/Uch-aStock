@@ -258,13 +258,15 @@ func DeleteUserWeb(targetID int) error {
 		return errors.New("O SuperAdmin é protegido e não pode ser removido.")
 	}
 
-	// Derruba as sessões ativas do usuário — isso não tem relação com
-	// histórico de movimentações, então pode ser removido de verdade.
-	if _, err := database.DB.Exec(`DELETE FROM sessoes WHERE usuario_id = ?`, targetID); err != nil {
+	// Desativar e derrubar as sessões acontecem juntos: se um dos dois
+	// falhar, nenhum fica gravado.
+	tx, err := database.DB.Begin()
+	if err != nil {
 		return errors.New("Erro ao remover usuário.")
 	}
+	defer tx.Rollback()
 
-	result, err := database.DB.Exec(`UPDATE usuarios SET ativo = 0 WHERE id = ? AND ativo = 1`, targetID)
+	result, err := tx.Exec(`UPDATE usuarios SET ativo = 0 WHERE id = ? AND ativo = 1`, targetID)
 	if err != nil {
 		return errors.New("Erro ao remover usuário.")
 	}
@@ -276,5 +278,14 @@ func DeleteUserWeb(targetID int) error {
 		return errors.New("Usuário não encontrado.")
 	}
 
+	// Derruba as sessões ativas do usuário — isso não tem relação com
+	// histórico de movimentações, então pode ser removido de verdade.
+	if err := deleteUserSessionsTx(tx, targetID, ""); err != nil {
+		return errors.New("Erro ao remover usuário.")
+	}
+
+	if err := tx.Commit(); err != nil {
+		return errors.New("Erro ao remover usuário.")
+	}
 	return nil
 }

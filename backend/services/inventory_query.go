@@ -26,7 +26,8 @@ type InventoryFilter struct {
 }
 
 // inventoryColumns são as colunas da listagem, na ordem de scanInventory.
-// As datas saem já no horário local.
+// As datas vêm como estão gravadas (UTC) e scanInventory as passa para o
+// horário local, como em requestColumns.
 const inventoryColumns = `
 	v.id,
 	v.obra_id,
@@ -34,12 +35,11 @@ const inventoryColumns = `
 	v.status,
 	v.aberto_por,
 	u.nome,
-	strftime('%d/%m/%Y', v.aberto_em, 'localtime'),
-	strftime('%d/%m/%Y %H:%M', v.aberto_em, 'localtime'),
+	v.aberto_em,
 	COALESCE(e.nome, ''),
-	COALESCE(strftime('%d/%m/%Y %H:%M', v.enviado_em, 'localtime'), ''),
+	v.enviado_em,
 	COALESCE(d.nome, ''),
-	COALESCE(strftime('%d/%m/%Y %H:%M', v.decidido_em, 'localtime'), ''),
+	v.decidido_em,
 	v.motivo_rejeicao,
 	(SELECT COUNT(*) FROM inventario_itens i WHERE i.inventario_id = v.id),
 	(SELECT COUNT(*) FROM inventario_itens i WHERE i.inventario_id = v.id AND i.quantidade_contada IS NOT NULL),
@@ -57,14 +57,19 @@ const inventoryJoins = `
 
 func scanInventory(row rowScanner) (models.Inventory, error) {
 	var v models.Inventory
+	var openedAt, sentAt, decidedAt sql.NullString
 	err := row.Scan(
 		&v.ID, &v.SiteID, &v.SiteName, &v.Status,
-		&v.OpenedByID, &v.OpenedByName, &v.OpenedDate, &v.OpenedAt,
-		&v.SentByName, &v.SentAt,
-		&v.DecidedByName, &v.DecidedAt,
+		&v.OpenedByID, &v.OpenedByName, &openedAt,
+		&v.SentByName, &sentAt,
+		&v.DecidedByName, &decidedAt,
 		&v.RejectionReason,
 		&v.ItemCount, &v.CountedCount, &v.DifferenceCount,
 	)
+	v.OpenedDate = formatDBTime(openedAt, "02/01/2006")
+	v.OpenedAt = formatDBTime(openedAt, "02/01/2006 15:04")
+	v.SentAt = formatDBTime(sentAt, "02/01/2006 15:04")
+	v.DecidedAt = formatDBTime(decidedAt, "02/01/2006 15:04")
 	v.Code = InventoryCode(v.ID)
 	v.FormattedStatus = inventoryStatusLabel(v.Status)
 	return v, err

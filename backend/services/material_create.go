@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"strings"
 
 	database "uchoastock/backend/database"
@@ -15,18 +14,18 @@ import (
 func CreateMaterialWeb(name string, quantity float64, unit string, minimum float64, siteID, userID int) error {
 	name = strings.TrimSpace(name)
 	if !utils.ValidateName(name) {
-		return fmt.Errorf("o nome do material é obrigatório")
+		return StockInputError{"o nome do material é obrigatório"}
 	}
 	quantity = utils.RoundQuantity(quantity)
 	if quantity < 0 {
-		return fmt.Errorf("a quantidade não pode ser negativa")
+		return StockInputError{"a quantidade não pode ser negativa"}
 	}
 	if !utils.ValidateUnit(unit) {
-		return fmt.Errorf("unidade inválida")
+		return StockInputError{"unidade inválida"}
 	}
 	minimum = utils.RoundQuantity(minimum)
 	if minimum < 0 {
-		return fmt.Errorf("o limite de aviso não pode ser negativo")
+		return StockInputError{"o limite de aviso não pode ser negativo"}
 	}
 
 	tx, err := database.DB.Begin()
@@ -57,7 +56,16 @@ func CreateMaterialWeb(name string, quantity float64, unit string, minimum float
 	if err := addToBalanceTx(tx, int(materialID), siteID, quantity); err != nil {
 		return err
 	}
-	if err := registerMovementTx(tx, int(materialID), siteID, userID, "ENTRADA", quantity, "Estoque inicial", 0); err != nil {
+
+	// Entrada é sempre de quantidade maior que zero. Sem estoque inicial,
+	// o cadastro fica no histórico como atualização de catálogo (sem obra,
+	// como a edição do material), e não como uma "Entrada de 0".
+	if quantity > 0 {
+		err = registerMovementTx(tx, int(materialID), siteID, userID, "ENTRADA", quantity, "Estoque inicial", 0)
+	} else {
+		err = registerMovementTx(tx, int(materialID), 0, userID, "ATUALIZACAO", 0, "Material cadastrado", 0)
+	}
+	if err != nil {
 		return err
 	}
 

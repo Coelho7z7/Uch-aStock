@@ -93,10 +93,16 @@ func TestLowStockUsesEachMaterialLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(low) != 2 || low[0].Name != "Areia" || low[1].Name != "Cimento" {
-		t.Errorf("lista de acabando = %+v, esperado [Areia, Cimento]", low)
+		t.Fatalf("lista de acabando = %+v, esperado [Areia, Cimento]", low)
 	}
-	if len(low) > 0 && (low[0].SiteName != "Almoxarifado central" || low[0].LastUser != "Teste") {
-		t.Errorf("obra/responsável = %q/%q, esperado Almoxarifado central/Teste", low[0].SiteName, low[0].LastUser)
+	// O cimento entrou com 50: quem registrou a entrada é o responsável.
+	if low[1].SiteName != "Almoxarifado central" || low[1].LastUser != "Teste" {
+		t.Errorf("cimento: obra/responsável = %q/%q, esperado Almoxarifado central/Teste", low[1].SiteName, low[1].LastUser)
+	}
+	// A areia nasceu com 0: sem entrada, ninguém movimentou nada nela
+	// naquela obra, mas ela aparece no alerta mesmo assim.
+	if low[0].SiteName != "Almoxarifado central" || low[0].LastUser != "" {
+		t.Errorf("areia: obra/responsável = %q/%q, esperado Almoxarifado central/vazio", low[0].SiteName, low[0].LastUser)
 	}
 
 	expected := map[int]string{cement: "low", brick: "normal", sand: "empty"}
@@ -167,16 +173,17 @@ func TestUpdateMaterialWebChangesUnitAndLimit(t *testing.T) {
 	userID := setupTestDB(t)
 	id := createTestMaterial(t, userID, "Areia", 3, 1)
 
-	if err := UpdateMaterialWeb(id, "Areia média", "m³", 2.5, userID); err != nil {
-		t.Fatalf("atualizar: %v", err)
+	// Nome e limite mudam com saldo: a unidade continua a mesma.
+	if err := UpdateMaterialWeb(id, "Areia média", "saco", 2.5, userID); err != nil {
+		t.Fatalf("atualizar nome e limite: %v", err)
 	}
 
 	material, err := GetMaterialByID(id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if material.Name != "Areia média" || material.Unit != "m³" || material.MinimumStock != 2.5 {
-		t.Errorf("material = %+v, esperado Areia média / m³ / 2.5", material)
+	if material.Name != "Areia média" || material.Unit != "saco" || material.MinimumStock != 2.5 {
+		t.Errorf("material = %+v, esperado Areia média / saco / 2.5", material)
 	}
 	// A quantidade não muda pela edição de cadastro.
 	if material.Quantity != 3 {
@@ -184,6 +191,29 @@ func TestUpdateMaterialWebChangesUnitAndLimit(t *testing.T) {
 	}
 	if got := movementCount(t, "ATUALIZACAO"); got != 1 {
 		t.Errorf("%d atualizações registradas, esperado 1", got)
+	}
+
+	// Trocar a unidade com saldo transformaria 3 sacos em 3 m³: é recusado,
+	// e nada muda.
+	if err := UpdateMaterialWeb(id, "Areia média", "m³", 2.5, userID); err == nil || !strings.Contains(err.Error(), "trocar a unidade") {
+		t.Fatalf("trocar a unidade com saldo: erro = %v, esperado recusa", err)
+	}
+	if material, _ := GetMaterialByID(id); material.Unit != "saco" {
+		t.Errorf("unidade = %q depois da recusa, esperado saco", material.Unit)
+	}
+	if got := movementCount(t, "ATUALIZACAO"); got != 1 {
+		t.Errorf("%d atualizações depois da recusa, esperado 1", got)
+	}
+
+	// Com o saldo zerado, a unidade pode mudar.
+	if err := RegisterStockExitWeb(id, centralID(t), 3, userID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := UpdateMaterialWeb(id, "Areia média", "m³", 2.5, userID); err != nil {
+		t.Fatalf("trocar a unidade sem saldo: %v", err)
+	}
+	if material, _ := GetMaterialByID(id); material.Unit != "m³" {
+		t.Errorf("unidade = %q, esperado m³", material.Unit)
 	}
 
 	// A atualização é do catálogo, não de uma obra.
@@ -302,5 +332,26 @@ func TestDeleteMaterialWebBlockedWhileStocked(t *testing.T) {
 	}
 	if err := DeleteMaterialWeb(cement); err == nil || !strings.Contains(err.Error(), "não encontrado") {
 		t.Errorf("remover de novo: erro = %v, esperado material não encontrado", err)
+	}
+}
+
+// Sem estoque inicial, o cadastro não grava uma "Entrada" de 0: fica no
+// histórico como atualização de catálogo, sem obra.
+func TestCreateMaterialWithoutStockRecordsNoEntry(t *testing.T) {
+	userID := setupTestDB(t)
+	if err := CreateMaterialWeb("Tijolo", 0, "milheiro", 1, centralID(t), userID); err != nil {
+		t.Fatalf("cadastro: %v", err)
+	}
+	if got := movementCount(t, "ENTRADA"); got != 0 {
+		t.Errorf("%d entradas, esperado 0", got)
+	}
+	var withSite, total int
+	if err := database.DB.QueryRow(`
+		SELECT COUNT(*), COALESCE(SUM(obra_id IS NOT NULL), 0) FROM movimentacoes WHERE tipo = 'ATUALIZACAO'
+	`).Scan(&total, &withSite); err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 || withSite != 0 {
+		t.Errorf("atualizações = %d (com obra: %d), esperado 1 sem obra", total, withSite)
 	}
 }

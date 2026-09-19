@@ -51,13 +51,11 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request, user *models.User)
 	activities, err := services.GetMovementsFilteredWeb(services.MovementFilter{
 		SiteID: scope.SiteID(),
 		UserID: ownMovementsOnly(user),
+		Limit:  5,
 	})
 	if err != nil {
 		http.Error(w, "Erro ao carregar atividades", http.StatusInternalServerError)
 		return
-	}
-	if len(activities) > 5 {
-		activities = activities[:5]
 	}
 
 	lowStock, err := services.GetLowStockMaterials(lowStockPanelSize, scope.SiteID())

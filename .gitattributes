@@ -1,0 +1,4 @@
+# Código Go sempre com fim de linha LF, também no Windows. O gofmt trata
+# o CRLF (o padrão do Windows com core.autocrlf=true) como formatação
+# errada, e o "gofmt -l ." do checklist acusava todos os arquivos.
+*.go text eol=lf

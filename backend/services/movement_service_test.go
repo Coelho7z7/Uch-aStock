@@ -197,3 +197,50 @@ func TestSessionSite(t *testing.T) {
 		t.Error("obra inexistente deveria falhar")
 	}
 }
+
+// A paginação é feita pelo banco: Limit e Offset trazem só a página, e
+// CountMovements dá o total do filtro para calcular as páginas.
+func TestMovementsPaginationInDatabase(t *testing.T) {
+	userID := setupTestDB(t)
+	central := centralID(t)
+	cement := createTestMaterial(t, userID, "Cimento", 100, 5)
+	for i := 0; i < 6; i++ {
+		if err := RegisterStockExitWeb(cement, central, 1, userID, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	total, err := CountMovements(MovementFilter{Type: "SAIDA"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 6 {
+		t.Fatalf("total de saídas = %d, esperado 6", total)
+	}
+
+	all, err := GetMovementsFilteredWeb(MovementFilter{Type: "SAIDA"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pages := [][]int{}
+	for offset := 0; offset < 6; offset += 4 {
+		page, err := GetMovementsFilteredWeb(MovementFilter{Type: "SAIDA", Limit: 4, Offset: offset})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ids []int
+		for _, m := range page {
+			ids = append(ids, m.ID)
+		}
+		pages = append(pages, ids)
+	}
+	if len(pages[0]) != 4 || len(pages[1]) != 2 {
+		t.Fatalf("páginas com %d e %d linhas, esperado 4 e 2", len(pages[0]), len(pages[1]))
+	}
+	// As páginas, juntas, são a lista inteira, na mesma ordem.
+	for i, id := range append(pages[0], pages[1]...) {
+		if all[i].ID != id {
+			t.Errorf("posição %d: página trouxe #%d, lista inteira tem #%d", i, id, all[i].ID)
+		}
+	}
+}

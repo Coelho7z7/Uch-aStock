@@ -20,7 +20,12 @@ import (
 // mesmo. Deixar um admin redefini-la permitiria que ele agisse como
 // SuperAdmin, e o histórico de movimentações, que é registrado por
 // usuário, atribuiria a ele o que outra pessoa fez.
-func ResetUserPasswordWeb(targetID, requesterID int, password string) error {
+//
+// A troca derruba as sessões abertas da conta: quem entrou com a senha
+// antiga perde o acesso na hora, e não só quando a sessão vencesse (até
+// 30 dias depois). keepTokenHash é a sessão de quem pede, que fica de pé
+// quando a pessoa troca a própria senha ("" derruba todas).
+func ResetUserPasswordWeb(targetID, requesterID int, password, keepTokenHash string) error {
 	if !utils.ValidatePassword(password) {
 		return errors.New("a senha deve ter no mínimo 6 caracteres e 1 caractere especial")
 	}
@@ -36,18 +41,59 @@ func ResetUserPasswordWeb(targetID, requesterID int, password string) error {
 		return errors.New("a senha do SuperAdmin só pode ser trocada por ele mesmo")
 	}
 
+	// A sessão de quem pede só fica quando a conta é a dele: ao trocar a
+	// senha de outra pessoa, todas as sessões dela caem.
+	if targetID != requesterID {
+		keepTokenHash = ""
+	}
+	return setPasswordByID(targetID, password, keepTokenHash)
+}
+
+// ChangeOwnPassword troca a senha da própria conta, conferindo a senha
+// atual antes. Pedir a senha atual protege quem esqueceu a sessão aberta
+// num computador da obra: sem ela, qualquer um que sentasse ali trocaria
+// a senha e tomaria a conta. As outras sessões da conta caem; a atual
+// (keepTokenHash) continua.
+func ChangeOwnPassword(userID int, current, password, keepTokenHash string) error {
+	var hash string
+	if err := database.DB.QueryRow(`
+		SELECT senha FROM usuarios WHERE id = ? AND ativo = 1
+	`, userID).Scan(&hash); err != nil {
+		return errors.New("nenhum usuário ativo encontrado")
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(current)) != nil {
+		return errors.New("a senha atual não confere")
+	}
+	if current == password {
+		return errors.New("a senha nova precisa ser diferente da atual")
+	}
+	if !utils.ValidatePassword(password) {
+		return errors.New("a senha deve ter no mínimo 6 caracteres e 1 caractere especial")
+	}
+	return setPasswordByID(userID, password, keepTokenHash)
+}
+
+// setPasswordByID grava a senha nova de uma conta ativa e derruba as
+// sessões dela (menos keepTokenHash), numa transação: ou as duas coisas
+// acontecem, ou nenhuma.
+func setPasswordByID(userID int, password, keepTokenHash string) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return errors.New("erro ao proteger a senha")
 	}
 
-	result, err := database.DB.Exec(`
-		UPDATE usuarios SET senha = ? WHERE id = ? AND ativo = 1
-	`, string(hash), targetID)
+	tx, err := database.DB.Begin()
 	if err != nil {
 		return errors.New("erro ao atualizar a senha")
 	}
+	defer tx.Rollback()
 
+	result, err := tx.Exec(`
+		UPDATE usuarios SET senha = ? WHERE id = ? AND ativo = 1
+	`, string(hash), userID)
+	if err != nil {
+		return errors.New("erro ao atualizar a senha")
+	}
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return errors.New("erro ao atualizar a senha")
@@ -56,6 +102,12 @@ func ResetUserPasswordWeb(targetID, requesterID int, password string) error {
 		return errors.New("nenhum usuário ativo encontrado")
 	}
 
+	if err := deleteUserSessionsTx(tx, userID, keepTokenHash); err != nil {
+		return errors.New("erro ao atualizar a senha")
+	}
+	if err := tx.Commit(); err != nil {
+		return errors.New("erro ao atualizar a senha")
+	}
 	return nil
 }
 
@@ -73,28 +125,15 @@ func ResetPassword(email, password string) error {
 		return errors.New("a senha deve ter no mínimo 6 caracteres e 1 caractere especial")
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return errors.New("erro ao proteger a senha")
-	}
-
-	result, err := database.DB.Exec(`
-		UPDATE usuarios SET senha = ?
-		WHERE LOWER(TRIM(email)) = ? AND ativo = 1
-	`, string(hash), email)
-	if err != nil {
-		return errors.New("erro ao atualizar a senha")
-	}
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return errors.New("erro ao atualizar a senha")
-	}
-	if rows == 0 {
+	var userID int
+	if err := database.DB.QueryRow(`
+		SELECT id FROM usuarios WHERE LOWER(TRIM(email)) = ? AND ativo = 1
+	`, email).Scan(&userID); err != nil {
 		return errors.New("nenhum usuário ativo encontrado com esse email")
 	}
 
-	return nil
+	// Pela linha de comando não há sessão de quem pede: todas caem.
+	return setPasswordByID(userID, password, "")
 }
 
 // RenameUser troca o nome de exibição de uma conta ativa já existente,

@@ -659,7 +659,7 @@ function animateCounters() {
 // Faz a página desaparecer suavemente antes de navegar para outra tela
 // (menu lateral, paginação, sair), em vez de trocar de tela de golpe.
 function enablePageTransition() {
-    const linkSelectors = ".sidebar nav a, .pagination a, .sidebar-logout";
+    const linkSelectors = ".sidebar nav a, .pagination a, .sidebar-logout, .sidebar-account";
 
     document.addEventListener("click", function (event) {
         const link = event.target.closest(linkSelectors);

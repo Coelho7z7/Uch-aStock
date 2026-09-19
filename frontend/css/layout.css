@@ -127,7 +127,7 @@ body.mobile-menu-open .sidebar {
     opacity: 0;
     background: linear-gradient(100deg,
             transparent 15%,
-            rgba(255, 255, 255, 0.08) 50%,
+            var(--color-white-8) 50%,
             transparent 85%);
     transform: translateX(-120%);
 }
@@ -227,8 +227,11 @@ body.mobile-menu-open .sidebar {
 
 /* Sair: ação discreta de propósito. Antes era um botão azul cheio,
    com o mesmo peso do "Salvar", e competia com as ações de verdade.
-   O vermelho só aparece no hover, avisando que ali se sai do sistema. */
-.sidebar-logout {
+   O vermelho só aparece no hover, avisando que ali se sai do sistema.
+   "Minha senha" (.sidebar-account) tem o mesmo formato, mas o hover é
+   azul: não é uma ação de saída. */
+.sidebar-logout,
+.sidebar-account {
     display: flex;
     align-items: center;
     gap: var(--space-3);
@@ -249,6 +252,14 @@ body.mobile-menu-open .sidebar {
     color: var(--color-danger-text);
     background: var(--color-danger-tint);
     border-color: var(--color-danger-solid);
+    text-decoration: none;
+}
+
+.sidebar-account:hover,
+.sidebar-account.tab-active {
+    color: var(--color-brand-light);
+    background: var(--color-brand-tint);
+    border-color: var(--color-brand-border);
     text-decoration: none;
 }
 

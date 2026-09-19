@@ -44,11 +44,16 @@ func dbPath() string {
 // aviso. Na string de conexão, o driver roda o PRAGMA em toda conexão que
 // abre.
 //
+// busy_timeout faz a conexão esperar até 5 segundos quando outro processo
+// está escrevendo no banco, em vez de falhar na hora com "database is
+// locked". Acontece ao rodar um comando de linha (reset-password, por
+// exemplo) com o servidor ligado.
+//
 // O driver corta no primeiro "?" e usa o que vem antes como caminho, sem
 // tratar como URI: caminho relativo, "C:/..." e acentos funcionam como
 // estão.
 func dsn() string {
-	return dbPath() + "?_pragma=foreign_keys(1)"
+	return dbPath() + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
 }
 
 func Connect() error {
@@ -618,7 +623,24 @@ func createTablesTx(tx *sql.Tx) error {
 		return err
 	}
 
-	return migrateStockToSites(tx)
+	if err := migrateStockToSites(tx); err != nil {
+		return err
+	}
+
+	// Índices das consultas que mais crescem com o tempo. Ficam depois de
+	// migrateStockToSites porque movimentacoes.obra_id nasce lá; num banco
+	// antigo, o índice criado antes dela falharia. IF NOT EXISTS: rodar a
+	// cada inicialização é seguro. Índice não muda dado nenhum, só deixa a
+	// busca mais rápida.
+	//   - produto + obra + data: o "último a movimentar" do alerta de
+	//     estoque baixo, que procura a movimentação mais recente de cada
+	//     material em cada obra;
+	//   - obra + data: o histórico, o dashboard e o relatório de uma obra.
+	_, err = tx.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_movimentacoes_produto_obra_data ON movimentacoes (produto_id, obra_id, data);
+		CREATE INDEX IF NOT EXISTS idx_movimentacoes_obra_data ON movimentacoes (obra_id, data);
+	`)
+	return err
 }
 
 // migrateStockToSites passa o estoque para o modelo por obra: a

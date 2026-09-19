@@ -21,6 +21,19 @@ var ErrInsufficientStock = errors.New("estoque insuficiente")
 // numa obra concluída. Obra concluída é só para consulta.
 var ErrSiteFinished = errors.New("obra concluída: só consulta, não aceita entrada nem saída")
 
+// StockInputError é um erro de estoque ou do catálogo de materiais que
+// pode ir para a tela como está (quantidade inválida, material não
+// encontrado, remoção bloqueada...). Erro do banco nunca vem neste tipo:
+// a mensagem dele revelaria detalhe interno. É o mesmo papel de
+// RequestInputError nas solicitações.
+type StockInputError struct {
+	Message string
+}
+
+func (e StockInputError) Error() string {
+	return e.Message
+}
+
 // maxNoteLength limita a observação da movimentação. Dá para
 // "Bloco B, laje 4 - retirado pelo João" com folga.
 const maxNoteLength = 120
@@ -31,7 +44,7 @@ const maxNoteLength = 120
 func AddStockWeb(materialID, siteID int, quantity float64, userID int, note string) error {
 	quantity = utils.RoundQuantity(quantity)
 	if quantity <= 0 {
-		return fmt.Errorf("a quantidade deve ser maior que zero")
+		return StockInputError{"a quantidade deve ser maior que zero"}
 	}
 	note, err := normalizeNote(note)
 	if err != nil {
@@ -66,7 +79,7 @@ func AddStockWeb(materialID, siteID int, quantity float64, userID int, note stri
 func RegisterStockExitWeb(materialID, siteID int, quantity float64, userID int, note string) error {
 	quantity = utils.RoundQuantity(quantity)
 	if quantity <= 0 {
-		return fmt.Errorf("a quantidade deve ser maior que zero")
+		return StockInputError{"a quantidade deve ser maior que zero"}
 	}
 	note, err := normalizeNote(note)
 	if err != nil {
@@ -136,7 +149,7 @@ func activeMaterialUnitTx(tx *sql.Tx, materialID int) (string, error) {
 	var unit string
 	err := tx.QueryRow(`SELECT unidade FROM produtos WHERE id = ? AND ativo = 1`, materialID).Scan(&unit)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", fmt.Errorf("material não encontrado")
+		return "", StockInputError{"material não encontrado"}
 	}
 	return unit, err
 }
@@ -149,7 +162,7 @@ func requireOperableSiteTx(tx *sql.Tx, siteID int) error {
 	var status string
 	err := tx.QueryRow(`SELECT situacao FROM obras WHERE id = ? AND ativo = 1`, siteID).Scan(&status)
 	if errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("obra não encontrada")
+		return StockInputError{"obra não encontrada"}
 	}
 	if err != nil {
 		return err
@@ -231,7 +244,7 @@ func registerAdjustmentTx(tx *sql.Tx, materialID, siteID, userID int, quantity f
 func normalizeNote(note string) (string, error) {
 	note = strings.TrimSpace(note)
 	if utf8.RuneCountInString(note) > maxNoteLength {
-		return "", fmt.Errorf("a observação pode ter no máximo %d caracteres", maxNoteLength)
+		return "", StockInputError{fmt.Sprintf("a observação pode ter no máximo %d caracteres", maxNoteLength)}
 	}
 	return note, nil
 }

@@ -30,7 +30,8 @@ type RequestFilter struct {
 }
 
 // requestColumns são as colunas da listagem, na ordem de scanRequest. As
-// datas saem já no horário local.
+// datas vêm como estão gravadas (UTC) e scanRequest as passa para o
+// horário local: o 'localtime' do SQLite dependeria do fuso do servidor.
 const requestColumns = `
 	r.id,
 	r.obra_id,
@@ -41,11 +42,10 @@ const requestColumns = `
 	r.status,
 	r.observacao,
 	COALESCE(a.nome, ''),
-	COALESCE(strftime('%d/%m/%Y %H:%M', r.aprovado_em, 'localtime'), ''),
+	r.aprovado_em,
 	r.motivo_rejeicao,
-	strftime('%d/%m/%Y', r.criado_em, 'localtime'),
-	strftime('%d/%m/%Y %H:%M', r.criado_em, 'localtime'),
-	strftime('%d/%m/%Y %H:%M', r.atualizado_em, 'localtime'),
+	r.criado_em,
+	r.atualizado_em,
 	(SELECT COUNT(*) FROM solicitacao_itens i WHERE i.solicitacao_id = r.id)
 `
 
@@ -58,14 +58,19 @@ const requestJoins = `
 
 func scanRequest(row rowScanner) (models.Request, error) {
 	var r models.Request
+	var approvedAt, createdAt, updatedAt sql.NullString
 	err := row.Scan(
 		&r.ID, &r.SiteID, &r.SiteName, &r.SiteStatus,
 		&r.RequesterID, &r.RequesterName,
 		&r.Status, &r.Note,
-		&r.ApprovedByName, &r.ApprovedAt, &r.RejectionReason,
-		&r.CreatedDate, &r.CreatedAt, &r.UpdatedAt,
+		&r.ApprovedByName, &approvedAt, &r.RejectionReason,
+		&createdAt, &updatedAt,
 		&r.ItemCount,
 	)
+	r.ApprovedAt = formatDBTime(approvedAt, "02/01/2006 15:04")
+	r.CreatedDate = formatDBTime(createdAt, "02/01/2006")
+	r.CreatedAt = formatDBTime(createdAt, "02/01/2006 15:04")
+	r.UpdatedAt = formatDBTime(updatedAt, "02/01/2006 15:04")
 	r.FormattedStatus = requestStatusLabel(r.Status)
 	return r, err
 }
@@ -216,7 +221,7 @@ func GetRequest(actor RequestActor, requestID int) (*models.Request, error) {
 	}
 
 	events, err := database.DB.Query(`
-		SELECT u.nome, e.acao, e.detalhe, strftime('%d/%m/%Y %H:%M', e.criado_em, 'localtime')
+		SELECT u.nome, e.acao, e.detalhe, e.criado_em
 		FROM solicitacao_eventos e
 		JOIN usuarios u ON u.id = e.usuario_id
 		WHERE e.solicitacao_id = ?
@@ -228,9 +233,11 @@ func GetRequest(actor RequestActor, requestID int) (*models.Request, error) {
 	defer events.Close()
 	for events.Next() {
 		var event models.RequestEvent
-		if err := events.Scan(&event.UserName, &event.Action, &event.Detail, &event.CreatedAt); err != nil {
+		var createdAt sql.NullString
+		if err := events.Scan(&event.UserName, &event.Action, &event.Detail, &createdAt); err != nil {
 			return nil, err
 		}
+		event.CreatedAt = formatDBTime(createdAt, "02/01/2006 15:04")
 		event.FormattedAction = map[string]string{
 			RequestEventCreated:  "Criou",
 			RequestEventApproved: "Aprovou",

@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UchôaStock - Usuários</title>
     <link rel="preload" href="/css/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/css/tokens.css?v=10">
+    <link rel="stylesheet" href="/css/tokens.css?v=11">
     <link rel="stylesheet" href="/css/base.css?v=9">
-    <link rel="stylesheet" href="/css/components.css?v=17">
-    <link rel="stylesheet" href="/css/layout.css?v=15">
-    <link rel="stylesheet" href="/css/pages.css?v=19">
+    <link rel="stylesheet" href="/css/components.css?v=18">
+    <link rel="stylesheet" href="/css/layout.css?v=16">
+    <link rel="stylesheet" href="/css/pages.css?v=20">
 </head>
 
 <body class="materials-page">
@@ -40,6 +40,7 @@
             </nav>
 
             <div class="sidebar-footer">
+                {{ template "sidebar-account-link" }}
                 <a href="/logout" class="sidebar-logout"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg>Sair</a>
             </div>
 
@@ -168,19 +169,11 @@
                                     {{ if eq .Role "superadmin" }}
 
                                     <!-- A identidade reservada segue protegida contra os
-                                         outros, mas pode trocar a própria senha: sem isso,
-                                         perder essa senha só se resolveria por variável de
-                                         ambiente e deploy. -->
+                                         outros, mas troca a própria senha em "Minha senha". -->
                                     {{ if eq .ID $.UserID }}
-                                    <button
-                                        class="edit-material-button"
-                                        type="button"
-                                        title="Trocar senha"
-                                        aria-label="Trocar a senha de {{ .Name }}"
-                                        data-password-id="{{ .ID }}"
-                                        data-password-name="{{ .Name }}">
+                                    <a class="edit-material-button" href="/minha-senha" title="Trocar a minha senha" aria-label="Trocar a minha senha">
                                         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.85 12.15 19 4"></path><path d="M18 5l2 2"></path><path d="M15 8l2 2"></path></svg>
-                                    </button>
+                                    </a>
 
                                     {{ end }}
 
@@ -191,6 +184,14 @@
 
                                     {{ else if index $.Manageable .ID }}
 
+                                    <!-- A própria senha vai para "Minha senha" (pede a
+                                         atual); a de outro administrador, só o SuperAdmin
+                                         troca (PasswordResettable). -->
+                                    {{ if eq .ID $.UserID }}
+                                    <a class="edit-material-button" href="/minha-senha" title="Trocar a minha senha" aria-label="Trocar a minha senha">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.85 12.15 19 4"></path><path d="M18 5l2 2"></path><path d="M15 8l2 2"></path></svg>
+                                    </a>
+                                    {{ else if index $.PasswordResettable .ID }}
                                     <button
                                         class="edit-material-button"
                                         type="button"
@@ -200,6 +201,7 @@
                                         data-password-name="{{ .Name }}">
                                         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.85 12.15 19 4"></path><path d="M18 5l2 2"></path><path d="M15 8l2 2"></path></svg>
                                     </button>
+                                    {{ end }}
 
                                     <button
                                         class="edit-material-button"
@@ -230,15 +232,9 @@
 
                                     <!-- Fora do alcance da própria gestão (o gestor, por
                                          exemplo), mas a própria senha sempre dá para trocar. -->
-                                    <button
-                                        class="edit-material-button"
-                                        type="button"
-                                        title="Trocar senha"
-                                        aria-label="Trocar a senha de {{ .Name }}"
-                                        data-password-id="{{ .ID }}"
-                                        data-password-name="{{ .Name }}">
+                                    <a class="edit-material-button" href="/minha-senha" title="Trocar a minha senha" aria-label="Trocar a minha senha">
                                         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.85 12.15 19 4"></path><path d="M18 5l2 2"></path><path d="M15 8l2 2"></path></svg>
-                                    </button>
+                                    </a>
 
                                     {{ else }}
 
@@ -378,7 +374,7 @@
 
     </div>
 
-    <script src="/js/app.js?v=17"></script>
+    <script src="/js/app.js?v=18"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const createModal = document.getElementById('create-user-modal');

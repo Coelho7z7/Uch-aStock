@@ -46,27 +46,29 @@ func userHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 		// Sites são as obras a que a pessoa pode vincular alguém.
 		Sites []models.Site
 		// Manageable diz, pelo ID, em quais contas da lista aparecem os
-		// botões de senha, permissão e remoção.
-		Manageable   map[int]bool
-		Search       string
-		Name         string
-		Email        string
-		Role         string
-		SiteID       int
-		Message      string
-		Error        string
-		Page         int
-		TotalPages   int
-		PreviousPage int
-		NextPage     int
+		// botões de permissão e remoção; PasswordResettable, o de senha.
+		Manageable         map[int]bool
+		PasswordResettable map[int]bool
+		Search             string
+		Name               string
+		Email              string
+		Role               string
+		SiteID             int
+		Message            string
+		Error              string
+		Page               int
+		TotalPages         int
+		PreviousPage       int
+		NextPage           int
 	}{
-		User:           user,
-		Scope:          scope,
-		UserID:         userID,
-		CanManageUsers: true,
-		Nav:            buildNav(user, scope),
-		Roles:          assignableRoles(user),
-		Manageable:     map[int]bool{},
+		User:               user,
+		Scope:              scope,
+		UserID:             userID,
+		CanManageUsers:     true,
+		Nav:                buildNav(user, scope),
+		Roles:              assignableRoles(user),
+		Manageable:         map[int]bool{},
+		PasswordResettable: map[int]bool{},
 		// Cargo pré-selecionado no cadastro: o de menos poder, para
 		// ninguém virar administrador sem querer.
 		Role: services.RoleRequester,
@@ -128,11 +130,13 @@ func userHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 
 			if idErr != nil {
 				data.Error = "Usuário inválido."
-			} else if targetID != userID && !canActOnUser(w, user, targetID) {
-				// A própria senha qualquer um troca; a dos outros, só em
-				// quem a pessoa pode mexer.
+			} else if targetID == userID {
+				// A própria senha é trocada em "Minha senha", que pede a
+				// senha atual antes.
+				data.Error = "Para trocar a sua própria senha, use Minha senha: lá é pedida a senha atual."
+			} else if !canResetUserPassword(w, user, targetID) {
 				return
-			} else if err := services.ResetUserPasswordWeb(targetID, userID, r.FormValue("senha")); err != nil {
+			} else if err := services.ResetUserPasswordWeb(targetID, userID, r.FormValue("senha"), ""); err != nil {
 				data.Error = err.Error()
 			} else {
 				http.Redirect(w, r, "/usuarios?sucesso=senha", http.StatusSeeOther)
@@ -180,6 +184,7 @@ func userHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	data.Users = users
 	for i := range users {
 		data.Manageable[users[i].ID] = canManageUser(user, &users[i])
+		data.PasswordResettable[users[i].ID] = canResetPassword(user, &users[i])
 	}
 
 	// Quem age em todas as obras vincula a qualquer uma; os outros, só à
@@ -211,6 +216,77 @@ func userHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
 	if err := tmpl.Execute(w, data); err != nil {
 		http.Error(w, "Erro ao renderizar usuários", http.StatusInternalServerError)
 	}
+}
+
+// canResetUserPassword é o canActOnUser da troca de senha: além de poder
+// mexer na conta, a senha de um administrador só o superadmin troca (ver
+// canResetPassword). Se não pode, já responde "Acesso negado".
+func canResetUserPassword(w http.ResponseWriter, user *models.User, targetID int) bool {
+	target, err := services.GetUserByID(targetID)
+	if err != nil {
+		return true
+	}
+	if !canResetPassword(user, target) {
+		renderAccessDenied(w)
+		return false
+	}
+	return true
+}
+
+// myPasswordHandler é a tela "Minha senha" (/minha-senha): qualquer pessoa
+// logada troca a própria senha, informando a atual. Antes, trocar a
+// própria senha ficava dentro da tela de usuários, que só quem gerencia
+// usuários abre: almoxarife, solicitante e auditor não tinham como.
+func myPasswordHandler(w http.ResponseWriter, r *http.Request, user *models.User) {
+	scope, ok := requireSiteScope(w, r, user)
+	if !ok {
+		return
+	}
+
+	data := struct {
+		User           *models.User
+		Scope          siteScope
+		Nav            navData
+		CanManageUsers bool
+		Message        string
+		Error          string
+	}{
+		User:           user,
+		Scope:          scope,
+		Nav:            buildNav(user, scope),
+		CanManageUsers: can(user, PermManageUsers),
+	}
+	if r.URL.Query().Get("sucesso") == "senha" {
+		data.Message = "Senha atualizada. Se esta conta estava aberta em outro aparelho, ela foi desconectada lá."
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+	case http.MethodPost:
+		password := r.FormValue("senha_nova")
+		if password != r.FormValue("confirmacao") {
+			data.Error = "A confirmação não é igual à senha nova."
+			break
+		}
+		// A sessão atual continua: quem trocou a senha fica logado aqui.
+		keep, _ := sessionTokenHash(r)
+		if err := services.ChangeOwnPassword(user.ID, r.FormValue("senha_atual"), password, keep); err != nil {
+			data.Error = err.Error()
+			break
+		}
+		http.Redirect(w, r, "/minha-senha?sucesso=senha", http.StatusSeeOther)
+		return
+	default:
+		w.Header().Set("Allow", "GET, POST")
+		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
+		return
+	}
+
+	status := http.StatusOK
+	if data.Error != "" {
+		status = http.StatusBadRequest
+	}
+	renderPage(w, status, "frontend/html/my_password.html", data)
 }
 
 // canActOnUser busca a conta targetID e confere se user pode mexer nela.

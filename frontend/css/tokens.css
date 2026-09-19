@@ -147,6 +147,23 @@
     --color-gold-tint: rgba(245, 185, 66, 0.16);
     --color-gold-border: rgba(245, 185, 66, 0.32);
 
+    /* ---------- Efeitos ----------
+       Texto sobre o azul cheio da marca (botão principal) e as camadas
+       brancas e azuis translúcidas das animações: onda do clique, brilho
+       que passa, trilho do spinner, anel de foco com erro. O número no
+       nome dos brancos é a opacidade, em porcentagem. */
+
+    --color-on-brand: #FFFFFF;
+    --color-white-8: rgba(255, 255, 255, 0.08);
+    --color-white-10: rgba(255, 255, 255, 0.10);
+    --color-white-18: rgba(255, 255, 255, 0.18);
+    --color-white-35: rgba(255, 255, 255, 0.35);
+    --color-white-45: rgba(255, 255, 255, 0.45);
+    --color-brand-shine: rgba(30, 100, 190, 0.18);
+    --color-brand-glow: rgba(30, 100, 190, 0.35);
+    --color-brand-glow-off: rgba(30, 100, 190, 0);
+    --color-danger-ring: rgba(185, 28, 28, 0.22);
+
     /* ---------- Espaçamento: escala de 4px ----------
        Substitui os 92 valores px soltos do CSS antigo. */
 
